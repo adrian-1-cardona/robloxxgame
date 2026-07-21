@@ -1,4 +1,6 @@
--- Wires portal proximity prompts + walk-in triggers; keeps berth signs in sync.
+-- Wires pier portal proximity prompts + walk-in triggers.
+-- Portals are reusable boarding gates: they open create, never walk-join a crew.
+-- Friends always join via code.
 
 local Players = game:GetService("Players")
 
@@ -22,44 +24,16 @@ local function refreshPortalVisuals(portals)
 		local promptAnchor = model:FindFirstChild("PromptAnchor")
 		local prompt = promptAnchor and promptAnchor:FindFirstChild("BoardPrompt")
 
-		if info.status == "Empty" then
-			LobbyBuilder.updatePortalSign(model, `Berth {info.portalIndex}`, "Empty", Config.Theme.Foam)
-			if prompt and prompt:IsA("ProximityPrompt") then
-				prompt.ActionText = "Create Crew"
-				prompt.ObjectText = `Berth {info.portalIndex}`
-				prompt.Enabled = true
-			end
-		elseif info.status == "Launching" then
-			LobbyBuilder.updatePortalSign(
-				model,
-				`Berth {info.portalIndex}`,
-				`Casting off {info.memberCount}/{info.maxPlayers}`,
-				Config.Theme.Lantern
-			)
-			if prompt and prompt:IsA("ProximityPrompt") then
-				prompt.Enabled = false
-			end
-		elseif info.status == "Full" then
-			LobbyBuilder.updatePortalSign(model, `Berth {info.portalIndex}`, "Full", Config.Theme.DangerRed)
-			if prompt and prompt:IsA("ProximityPrompt") then
-				prompt.ActionText = "Crew Full"
-				prompt.Enabled = false
-			end
-		else
-			-- Strict privacy: Public shows code + walk-in; Private is code-only.
-			local isPublic = info.privacy == "Public"
-			local codeLine = if isPublic and info.code then `PUBLIC {info.code}` else "PRIVATE · code only"
-			LobbyBuilder.updatePortalSign(
-				model,
-				`Berth {info.portalIndex}`,
-				`{info.memberCount}/{info.maxPlayers} · {codeLine}`,
-				if isPublic then Config.Theme.UIAccent else Config.Theme.Lantern
-			)
-			if prompt and prompt:IsA("ProximityPrompt") then
-				prompt.ActionText = if isPublic then "Join Public Crew" else "Private — use code"
-				prompt.ObjectText = `Berth {info.portalIndex}`
-				prompt.Enabled = isPublic
-			end
+		LobbyBuilder.updatePortalSign(
+			model,
+			`Portal {info.portalIndex}`,
+			"Form a private crew · friends join by code",
+			Config.Theme.Foam
+		)
+		if prompt and prompt:IsA("ProximityPrompt") then
+			prompt.ActionText = "Create Crew"
+			prompt.ObjectText = `Portal {info.portalIndex}`
+			prompt.Enabled = true
 		end
 	end
 end
@@ -70,22 +44,16 @@ local function handlePortalUse(
 	toastRemote: RemoteEvent,
 	partyUpdated: RemoteEvent
 )
-	local infos = PartyService.getPortalInfos()
-	local info = infos[portalIndex]
-	if not info or info.status == "Empty" then
-		toastRemote:FireClient(player, "Pick crew size and cast your berth.", "info")
-		partyUpdated:FireClient(player, {
-			__openCreate = true,
-			portalIndex = portalIndex,
-		})
+	if PartyService.isInParty(player) then
+		toastRemote:FireClient(player, "You're already on a crew — share your code from the HUD.", "info")
 		return
 	end
 
-	local ok, message, snapshot = PartyService.joinPortal(player, portalIndex)
-	toastRemote:FireClient(player, message, if ok then "success" else "error")
-	if ok and snapshot then
-		partyUpdated:FireClient(player, snapshot)
-	end
+	toastRemote:FireClient(player, "Pick crew size, then spawn on your plank. Friends join by code.", "info")
+	partyUpdated:FireClient(player, {
+		__openCreate = true,
+		portalIndex = portalIndex,
+	})
 end
 
 local function wirePortalModel(

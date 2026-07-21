@@ -42,13 +42,13 @@ GetLobbyState.OnServerInvoke = function(player)
 	return PartyService.getLobbyState(player)
 end
 
-CreateParty.OnServerEvent:Connect(function(player, portalIndex, maxPlayers, privacy)
+CreateParty.OnServerEvent:Connect(function(player, portalIndex, maxPlayers, _privacy)
 	if typeof(portalIndex) ~= "number" or typeof(maxPlayers) ~= "number" then
 		Toast:FireClient(player, "Invalid boarding request.", "error")
 		return
 	end
-	local privacyValue = if privacy == "Private" then "Private" else "Public"
-	local ok, message, snapshot = PartyService.createParty(player, portalIndex, maxPlayers, privacyValue)
+	-- Crews are always private; ignore any client privacy flag.
+	local ok, message, snapshot = PartyService.createParty(player, portalIndex, maxPlayers)
 	Toast:FireClient(player, message, if ok then "success" else "error")
 	if ok and snapshot then
 		PartyUpdated:FireClient(player, snapshot)
@@ -91,7 +91,7 @@ local function seatPlayer(player: Player)
 	local seat = PartyService.getBaseSeatInfo(player)
 	if seat then
 		-- Death / respawn while on a crew → back on the raft (for now)
-		StarterBaseService.teleportPlayerToBase(player, seat.portalIndex, seat.slotIndex)
+		StarterBaseService.teleportPlayerToBase(player, seat.baseSlot, seat.slotIndex)
 	else
 		LobbyWorld.seatCharacter(character)
 	end
@@ -112,7 +112,11 @@ local function onPlayerReady(player)
 
 	task.defer(function()
 		PortalsUpdated:FireClient(player, PartyService.getPortalInfos())
-		Toast:FireClient(player, "Walk into a berth, pick crew size, then spawn on your wooden plank base.", "info")
+		Toast:FireClient(
+			player,
+			"Walk a portal to form a private crew. Friends join with your code.",
+			"info"
+		)
 	end)
 end
 
@@ -130,4 +134,4 @@ StarterBaseService.startWaterRescue(function(player)
 	return PartyService.getBaseSeatInfo(player)
 end)
 
-print(`[SurviveAtSea] Lobby ready — max crew {Config.MaxPartySize}, no session saves.`)
+print(`[SurviveAtSea] Lobby ready — private crews only, max {Config.MaxPartySize} per run, portals are reusable.`)
