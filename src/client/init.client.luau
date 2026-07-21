@@ -1,37 +1,72 @@
 -- Survive at Sea · Client bootstrap
+-- Builds the dock locally if Rojo didn't sync Workspace (common with existing places).
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
+local LobbyWorld = require(Shared:WaitForChild("LobbyWorld"))
 
 local LobbyUI = require(script:WaitForChild("Lobby"):WaitForChild("LobbyUI"))
 
 print(`[SurviveAtSea] Client hello — welcome aboard {Config.GameName}`)
+
+local lobby = LobbyWorld.ensure()
 LobbyUI.start()
 
+local player = Players.LocalPlayer
+
+local function seat(character: Model)
+	task.defer(function()
+		LobbyWorld.seatCharacter(character)
+	end)
+end
+
+if player.Character then
+	seat(player.Character)
+end
+player.CharacterAdded:Connect(seat)
+
+-- Wire portal prompts to open the create-crew panel
 task.spawn(function()
-	local lobby = Workspace:WaitForChild("SurviveAtSeaLobby", 10)
-	if not lobby then
-		warn("[SurviveAtSea] SurviveAtSeaLobby not in Workspace — reconnect Rojo / stop+play again")
+	local openEvent = ReplicatedStorage:WaitForChild("SurviveAtSeaOpenCreate", 5)
+	if not openEvent or not openEvent:IsA("BindableEvent") then
+		openEvent = Instance.new("BindableEvent")
+		openEvent.Name = "SurviveAtSeaOpenCreate"
+		openEvent.Parent = ReplicatedStorage
+	end
+
+	local portals = lobby:WaitForChild("Portals", 5)
+	if not portals then
+		warn("[SurviveAtSea] No Portals folder after LobbyWorld.ensure")
 		return
 	end
 
-	local player = Players.LocalPlayer
-	local function facePortals(character: Model)
-		local root = character:WaitForChild("HumanoidRootPart", 5)
-		if not root or not root:IsA("BasePart") then
-			return
+	for _, model in portals:GetChildren() do
+		if not model:IsA("Model") then
+			continue
 		end
-		root.CFrame = CFrame.new(root.Position, root.Position + Vector3.new(0, 0, 40))
+		local indexValue = model:FindFirstChild("PortalIndex")
+		local promptAnchor = model:FindFirstChild("PromptAnchor")
+		local prompt = promptAnchor and promptAnchor:FindFirstChild("BoardPrompt")
+		if not (indexValue and indexValue:IsA("IntValue") and prompt and prompt:IsA("ProximityPrompt")) then
+			continue
+		end
+
+		local portalIndex = indexValue.Value
+		prompt.Triggered:Connect(function()
+			(openEvent :: BindableEvent):Fire(portalIndex)
+		end)
 	end
 
-	if player.Character then
-		facePortals(player.Character)
-	end
-	player.CharacterAdded:Connect(facePortals)
+	print("[SurviveAtSea] Client dock live —", #portals:GetChildren(), "portals")
+end)
 
-	print("[SurviveAtSea] Dock visible — walk toward the neon portals!")
+pcall(function()
+	local Lighting = game:GetService("Lighting")
+	Lighting.Brightness = 3
+	Lighting.FogStart = 200
+	Lighting.FogEnd = 800
+	Lighting.ClockTime = 16.5
 end)

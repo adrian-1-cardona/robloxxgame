@@ -1,0 +1,4446 @@
+<roblox version="4">
+  <Item class="Lighting" referent="0">
+    <Properties>
+      <string name="Name">Lighting</string>
+      <Color3 name="Ambient">
+        <R>0.2</R>
+        <G>0.35</G>
+        <B>0.42</B>
+      </Color3>
+      <float name="Brightness">3</float>
+      <float name="ClockTime">16.5</float>
+      <Color3 name="FogColor">
+        <R>0.27</R>
+        <G>0.55</G>
+        <B>0.66</B>
+      </Color3>
+      <float name="FogEnd">800</float>
+      <float name="FogStart">200</float>
+      <bool name="GlobalShadows">true</bool>
+      <Color3 name="OutdoorAmbient">
+        <R>0.35</R>
+        <G>0.55</G>
+        <B>0.63</B>
+      </Color3>
+      <bool name="Outlines">false</bool>
+      <token name="Technology">1</token>
+    </Properties>
+  </Item>
+  <Item class="ReplicatedStorage" referent="1">
+    <Properties>
+      <string name="Name">ReplicatedStorage</string>
+    </Properties>
+    <Item class="Folder" referent="2">
+      <Properties>
+        <string name="Name">Shared</string>
+      </Properties>
+      <Item class="ModuleScript" referent="3">
+        <Properties>
+          <string name="Name">Config</string>
+          <string name="Source"><![CDATA[-- Survive at Sea shared configuration
+-- Session state is intentionally ephemeral (no DataStores / caching).
+
+local Config = {
+	GameName = "Survive at Sea",
+	Tagline = "Gather your crew. Board the voyage. Survive the deep.",
+
+	-- Party / server limits (Dead Rails-style: 1–10 players per run)
+	MinPartySize = 1,
+	MaxPartySize = 10,
+	DefaultPartySize = 4,
+	LaunchCountdownSeconds = 10,
+
+	-- Set this to your voyage PlaceId when the sea run place exists.
+	-- Until then, parties launch into the in-place VoyageStaging zone.
+	GamePlaceId = nil :: number?,
+
+	-- Lobby layout (portals close to spawn so they're obvious)
+	LobbyCenter = Vector3.new(0, 4, 0),
+	PortalCount = 4,
+	PortalSpacing = 24,
+
+	-- Ocean theme palette
+	Theme = {
+		DeepOcean = Color3.fromRGB(8, 32, 58),
+		SeaTeal = Color3.fromRGB(18, 110, 130),
+		Foam = Color3.fromRGB(210, 235, 240),
+		Driftwood = Color3.fromRGB(92, 64, 42),
+		Rope = Color3.fromRGB(160, 120, 70),
+		Lantern = Color3.fromRGB(255, 186, 90),
+		PortalGlow = Color3.fromRGB(60, 200, 190),
+		DangerRed = Color3.fromRGB(220, 70, 70),
+		UIPanel = Color3.fromRGB(10, 28, 42),
+		UIAccent = Color3.fromRGB(46, 180, 170),
+		UIText = Color3.fromRGB(235, 248, 250),
+		UIMuted = Color3.fromRGB(150, 185, 195),
+	},
+
+	-- Cross-platform UI scale targets
+	UI = {
+		MinTouchTarget = 48,
+		SafePadding = 16,
+		Font = Enum.Font.GothamBold,
+		BodyFont = Enum.Font.GothamMedium,
+	},
+}
+
+return Config
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="4">
+        <Properties>
+          <string name="Name">LobbyWorld</string>
+          <string name="Source"><![CDATA[-- Builds the Survive at Sea boarding dock in Workspace.
+-- Safe to call from server (replicates) or client (local fallback).
+
+local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
+
+local Config = require(script.Parent:WaitForChild("Config"))
+
+local LobbyWorld = {}
+
+local function part(props: { [string]: any }): Part
+	local p = Instance.new("Part")
+	p.Anchored = true
+	p.CanCollide = if props.CanCollide == nil then true else props.CanCollide
+	p.Material = props.Material or Enum.Material.WoodPlanks
+	p.Color = props.Color or Config.Theme.Driftwood
+	p.Size = props.Size or Vector3.new(4, 1, 4)
+	p.CFrame = props.CFrame or CFrame.new()
+	p.Name = props.Name or "LobbyPart"
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Smooth
+	p.CastShadow = if props.CastShadow == nil then true else props.CastShadow
+	if props.Transparency ~= nil then
+		p.Transparency = props.Transparency
+	end
+	if props.Reflectance ~= nil then
+		p.Reflectance = props.Reflectance
+	end
+	p.Parent = props.Parent
+	return p
+end
+
+local function billboard(adornee: BasePart, text: string, color: Color3, size: UDim2?, offsetY: number?)
+	local gui = Instance.new("BillboardGui")
+	gui.Name = "LobbyBillboard"
+	gui.Adornee = adornee
+	gui.Size = size or UDim2.fromOffset(280, 90)
+	gui.StudsOffsetWorldSpace = Vector3.new(0, offsetY or 8, 0)
+	gui.AlwaysOnTop = true
+	gui.MaxDistance = 250
+	gui.Parent = adornee
+
+	local label = Instance.new("TextLabel")
+	label.BackgroundTransparency = 0.15
+	label.BackgroundColor3 = Config.Theme.UIPanel
+	label.BorderSizePixel = 0
+	label.Size = UDim2.fromScale(1, 1)
+	label.Font = Enum.Font.GothamBold
+	label.TextScaled = true
+	label.TextColor3 = color
+	label.Text = text
+	label.Parent = gui
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 12)
+	corner.Parent = label
+
+	local pad = Instance.new("UIPadding")
+	pad.PaddingTop = UDim.new(0, 8)
+	pad.PaddingBottom = UDim.new(0, 8)
+	pad.PaddingLeft = UDim.new(0, 12)
+	pad.PaddingRight = UDim.new(0, 12)
+	pad.Parent = label
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Config.Theme.UIAccent
+	stroke.Thickness = 2
+	stroke.Parent = label
+end
+
+local function buildPortal(folder: Instance, index: number, position: Vector3): Model
+	local model = Instance.new("Model")
+	model.Name = "Portal_" .. index
+	model.Parent = folder
+
+	local pad = part({
+		Name = "Pad",
+		Parent = model,
+		Size = Vector3.new(18, 1.5, 18),
+		CFrame = CFrame.new(position),
+		Color = Color3.fromRGB(80, 58, 36),
+		Material = Enum.Material.WoodPlanks,
+	})
+
+	part({
+		Name = "NeonRing",
+		Parent = model,
+		Size = Vector3.new(18.5, 0.6, 18.5),
+		CFrame = CFrame.new(position + Vector3.new(0, 0.9, 0)),
+		Color = Config.Theme.PortalGlow,
+		Material = Enum.Material.Neon,
+		CanCollide = false,
+	})
+
+	for _, offsetX in { -7, 7 } do
+		part({
+			Name = "ArchLeg",
+			Parent = model,
+			Size = Vector3.new(2.5, 18, 2.5),
+			CFrame = CFrame.new(position + Vector3.new(offsetX, 10, 0)),
+			Color = Color3.fromRGB(95, 65, 40),
+			Material = Enum.Material.Wood,
+		})
+	end
+
+	part({
+		Name = "ArchTop",
+		Parent = model,
+		Size = Vector3.new(18, 2.5, 2.5),
+		CFrame = CFrame.new(position + Vector3.new(0, 20, 0)),
+		Color = Color3.fromRGB(95, 65, 40),
+		Material = Enum.Material.Wood,
+	})
+
+	local gate = part({
+		Name = "Gate",
+		Parent = model,
+		Size = Vector3.new(11, 15, 1.4),
+		CFrame = CFrame.new(position + Vector3.new(0, 9, 0)),
+		Color = Config.Theme.PortalGlow,
+		Material = Enum.Material.ForceField,
+		Transparency = 0.25,
+		CanCollide = false,
+	})
+
+	local gateLight = Instance.new("PointLight")
+	gateLight.Color = Config.Theme.PortalGlow
+	gateLight.Brightness = 3
+	gateLight.Range = 28
+	gateLight.Parent = gate
+
+	task.spawn(function()
+		local info = TweenInfo.new(1.4, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
+		TweenService:Create(gate, info, { Transparency = 0.55 }):Play()
+	end)
+
+	local promptPart = part({
+		Name = "PromptAnchor",
+		Parent = model,
+		Size = Vector3.new(6, 6, 6),
+		CFrame = CFrame.new(position + Vector3.new(0, 3, 6)),
+		Transparency = 1,
+		CanCollide = false,
+		CastShadow = false,
+	})
+
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.Name = "BoardPrompt"
+	prompt.ObjectText = "Voyage Portal " .. index
+	prompt.ActionText = "Create Crew"
+	prompt.HoldDuration = 0.25
+	prompt.MaxActivationDistance = 16
+	prompt.RequiresLineOfSight = false
+	prompt.GamepadKeyCode = Enum.KeyCode.ButtonX
+	prompt.KeyboardKeyCode = Enum.KeyCode.E
+	prompt.Parent = promptPart
+
+	local indexValue = Instance.new("IntValue")
+	indexValue.Name = "PortalIndex"
+	indexValue.Value = index
+	indexValue.Parent = model
+
+	billboard(pad, `PORTAL {index}\nWalk up · press E`, Config.Theme.Foam, UDim2.fromOffset(260, 90), 10)
+	model.PrimaryPart = pad
+	return model
+end
+
+function LobbyWorld.getLobbySpawnCFrame(): CFrame
+	return CFrame.new(0, 6, 0)
+end
+
+function LobbyWorld.ensure(): Folder
+	local existing = Workspace:FindFirstChild("SurviveAtSeaLobby")
+	if existing and existing:IsA("Folder") then
+		return existing
+	end
+
+	-- Hide leftover starter pads so the pier is obvious
+	for _, child in Workspace:GetChildren() do
+		if child:IsA("SpawnLocation") or (child:IsA("BasePart") and child.Name ~= "Terrain") then
+			if child.Name ~= "SurviveAtSeaLobby" then
+				child.Transparency = 1
+				if child:IsA("BasePart") then
+					child.CanCollide = false
+				end
+				if child:IsA("SpawnLocation") then
+					child.Enabled = false
+				end
+			end
+		end
+	end
+
+	local root = Instance.new("Folder")
+	root.Name = "SurviveAtSeaLobby"
+	root.Parent = Workspace
+
+	part({
+		Name = "OceanDeep",
+		Parent = root,
+		Size = Vector3.new(1200, 30, 1200),
+		CFrame = CFrame.new(0, -16, 0),
+		Color = Color3.fromRGB(6, 40, 70),
+		Material = Enum.Material.SmoothPlastic,
+		Transparency = 0.1,
+	})
+
+	part({
+		Name = "OceanSurface",
+		Parent = root,
+		Size = Vector3.new(1200, 2, 1200),
+		CFrame = CFrame.new(0, 0, 0),
+		Color = Color3.fromRGB(20, 120, 150),
+		Material = Enum.Material.Glass,
+		Transparency = 0.45,
+		Reflectance = 0.15,
+		CanCollide = false,
+	})
+
+	local dock = Instance.new("Folder")
+	dock.Name = "Dock"
+	dock.Parent = root
+
+	part({
+		Name = "PierDeck",
+		Parent = dock,
+		Size = Vector3.new(80, 3, 140),
+		CFrame = CFrame.new(0, 2, 20),
+		Color = Color3.fromRGB(120, 82, 48),
+		Material = Enum.Material.WoodPlanks,
+	})
+
+	part({
+		Name = "CenterPlank",
+		Parent = dock,
+		Size = Vector3.new(8, 3.2, 140),
+		CFrame = CFrame.new(0, 2, 20),
+		Color = Color3.fromRGB(170, 120, 70),
+		Material = Enum.Material.WoodPlanks,
+	})
+
+	for _, x in { -38, 38 } do
+		part({
+			Name = "Rail",
+			Parent = dock,
+			Size = Vector3.new(1.5, 4, 140),
+			CFrame = CFrame.new(x, 5, 20),
+			Color = Color3.fromRGB(90, 60, 35),
+			Material = Enum.Material.Wood,
+		})
+	end
+
+	for z = -40, 80, 20 do
+		for _, x in { -30, 30 } do
+			part({
+				Name = "Pillar",
+				Parent = dock,
+				Size = Vector3.new(4, 18, 4),
+				CFrame = CFrame.new(x, -5, z),
+				Color = Color3.fromRGB(70, 48, 28),
+				Material = Enum.Material.Wood,
+			})
+		end
+	end
+
+	part({
+		Name = "Lighthouse",
+		Parent = dock,
+		Size = Vector3.new(12, 48, 12),
+		CFrame = CFrame.new(-55, 25, -20),
+		Color = Color3.fromRGB(240, 240, 235),
+		Material = Enum.Material.SmoothPlastic,
+	})
+	part({
+		Name = "LighthouseStripe",
+		Parent = dock,
+		Size = Vector3.new(12.4, 8, 12.4),
+		CFrame = CFrame.new(-55, 18, -20),
+		Color = Color3.fromRGB(200, 60, 55),
+		Material = Enum.Material.SmoothPlastic,
+	})
+	local lamp = part({
+		Name = "LighthouseLamp",
+		Parent = dock,
+		Size = Vector3.new(10, 8, 10),
+		CFrame = CFrame.new(-55, 52, -20),
+		Color = Config.Theme.Lantern,
+		Material = Enum.Material.Neon,
+		CanCollide = false,
+	})
+	local light = Instance.new("PointLight")
+	light.Brightness = 4
+	light.Range = 90
+	light.Color = Config.Theme.Lantern
+	light.Parent = lamp
+
+	for i = 1, 8 do
+		part({
+			Name = "Crate" .. i,
+			Parent = dock,
+			Size = Vector3.new(5, 5, 5),
+			CFrame = CFrame.new(-22 + i * 5, 6.5, -30 + (i % 3) * 5),
+			Color = Color3.fromRGB(130, 90, 50),
+			Material = Enum.Material.Wood,
+		})
+	end
+
+	for i = 1, 6 do
+		part({
+			Name = "Buoy" .. i,
+			Parent = dock,
+			Size = Vector3.new(4, 7, 4),
+			CFrame = CFrame.new(-70 + i * 26, 3, 55 + (i % 2) * 14),
+			Color = if i % 2 == 0 then Color3.fromRGB(230, 55, 50) else Color3.fromRGB(245, 245, 245),
+			Material = Enum.Material.SmoothPlastic,
+			CanCollide = false,
+		})
+	end
+
+	local title = part({
+		Name = "TitleBanner",
+		Parent = dock,
+		Size = Vector3.new(2, 2, 2),
+		CFrame = CFrame.new(0, 22, -35),
+		Transparency = 1,
+		CanCollide = false,
+		CastShadow = false,
+	})
+	billboard(title, "SURVIVE AT SEA\nBOARDING DOCK", Config.Theme.Foam, UDim2.fromOffset(520, 140), 0)
+
+	local portalsFolder = Instance.new("Folder")
+	portalsFolder.Name = "Portals"
+	portalsFolder.Parent = root
+
+	local startX = -((Config.PortalCount - 1) * Config.PortalSpacing) / 2
+	for i = 1, Config.PortalCount do
+		local pos = Vector3.new(startX + (i - 1) * Config.PortalSpacing, 3.5, 70)
+		buildPortal(portalsFolder, i, pos)
+	end
+
+	for z = 20, 55, 12 do
+		part({
+			Name = "Arrow",
+			Parent = root,
+			Size = Vector3.new(6, 0.5, 8),
+			CFrame = CFrame.new(0, 4, z),
+			Color = Config.Theme.PortalGlow,
+			Material = Enum.Material.Neon,
+			CanCollide = false,
+		})
+	end
+
+	local staging = Instance.new("Folder")
+	staging.Name = "VoyageStaging"
+	staging.Parent = root
+	part({
+		Name = "Deck",
+		Parent = staging,
+		Size = Vector3.new(70, 3, 46),
+		CFrame = CFrame.new(0, 2, 220),
+		Color = Color3.fromRGB(90, 65, 40),
+		Material = Enum.Material.WoodPlanks,
+	})
+
+	local spawn = Instance.new("SpawnLocation")
+	spawn.Name = "LobbySpawn"
+	spawn.Size = Vector3.new(14, 1, 14)
+	spawn.CFrame = CFrame.new(0, 4.2, 0)
+	spawn.Anchored = true
+	spawn.Duration = 0
+	spawn.Neutral = true
+	spawn.Enabled = true
+	spawn.Transparency = 0.3
+	spawn.BrickColor = BrickColor.new("Cyan")
+	spawn.Material = Enum.Material.Neon
+	spawn.Parent = root
+
+	print("[SurviveAtSea] LobbyWorld.ensure built dock + portals")
+	return root
+end
+
+function LobbyWorld.seatCharacter(character: Model)
+	local root = character:FindFirstChild("HumanoidRootPart")
+	if root and root:IsA("BasePart") then
+		root.CFrame = LobbyWorld.getLobbySpawnCFrame() * CFrame.Angles(0, 0, 0)
+		-- Face portals (+Z)
+		root.CFrame = CFrame.new(root.Position, root.Position + Vector3.new(0, 0, 40))
+	end
+end
+
+return LobbyWorld
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="5">
+        <Properties>
+          <string name="Name">PartyCode</string>
+          <string name="Source"><![CDATA[-- Generates short, shareable party codes (Dead Rails-style).
+
+local HttpService = game:GetService("HttpService")
+
+local PartyCode = {}
+
+local ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+local function randomChar(): string
+	local index = math.random(1, #ALPHABET)
+	return string.sub(ALPHABET, index, index)
+end
+
+function PartyCode.generate(existing: { [string]: any }?): string
+	for _ = 1, 40 do
+		local code = `{randomChar()}{randomChar()}{randomChar()}{randomChar()}`
+		if not existing or existing[code] == nil then
+			return code
+		end
+	end
+
+	-- Extremely unlikely fallback
+	return string.upper(string.sub(HttpService:GenerateGUID(false), 1, 4))
+end
+
+function PartyCode.normalize(raw: string): string
+	local cleaned = string.upper(string.gsub(raw, "%s+", ""))
+	cleaned = string.gsub(cleaned, "[^A-Z0-9]", "")
+	return cleaned
+end
+
+return PartyCode
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="6">
+        <Properties>
+          <string name="Name">Remotes</string>
+          <string name="Source"><![CDATA[-- RemoteEvent / RemoteFunction folder contract.
+-- Server creates the folder; client waits for it.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Remotes = {}
+
+local FOLDER_NAME = "SurviveAtSeaRemotes"
+
+function Remotes.getFolder(): Folder
+	local folder = ReplicatedStorage:FindFirstChild(FOLDER_NAME)
+	if folder and folder:IsA("Folder") then
+		return folder
+	end
+
+	folder = ReplicatedStorage:WaitForChild(FOLDER_NAME, 30)
+	assert(folder and folder:IsA("Folder"), "Survive at Sea remotes folder missing")
+	return folder
+end
+
+function Remotes.waitFor(name: string): Instance
+	local folder = Remotes.getFolder()
+	local remote = folder:WaitForChild(name, 30)
+	assert(remote, `Remote '{name}' missing`)
+	return remote
+end
+
+function Remotes.createServerRemotes(): Folder
+	local existing = ReplicatedStorage:FindFirstChild(FOLDER_NAME)
+	if existing and existing:IsA("Folder") then
+		return existing
+	end
+
+	local folder = Instance.new("Folder")
+	folder.Name = FOLDER_NAME
+	folder.Parent = ReplicatedStorage
+
+	local names = {
+		"CreateParty",
+		"JoinParty",
+		"LeaveParty",
+		"StartLaunch",
+		"PartyUpdated",
+		"PortalsUpdated",
+		"Toast",
+		"GetLobbyState",
+	}
+
+	for _, name in names do
+		local remote: Instance
+		if name == "GetLobbyState" then
+			remote = Instance.new("RemoteFunction")
+		else
+			remote = Instance.new("RemoteEvent")
+		end
+		remote.Name = name
+		remote.Parent = folder
+	end
+
+	return folder
+end
+
+return Remotes
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="7">
+        <Properties>
+          <string name="Name">Types</string>
+          <string name="Source"><![CDATA[-- Shared type aliases for Survive at Sea lobby / party flow.
+
+export type PartyPrivacy = "Public" | "Private"
+
+export type PartyMember = {
+	userId: number,
+	displayName: string,
+	isHost: boolean,
+}
+
+export type PartySnapshot = {
+	code: string,
+	hostUserId: number,
+	maxPlayers: number,
+	privacy: PartyPrivacy,
+	members: { PartyMember },
+	portalIndex: number,
+	countdownEndsAt: number?,
+	status: "Open" | "Launching" | "Departed",
+}
+
+export type PublicPortalInfo = {
+	portalIndex: number,
+	code: string?,
+	hostName: string?,
+	memberCount: number,
+	maxPlayers: number,
+	status: "Empty" | "Open" | "Launching" | "Full",
+}
+
+return {}
+]]></string>
+        </Properties>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="ServerScriptService" referent="8">
+    <Properties>
+      <string name="Name">ServerScriptService</string>
+    </Properties>
+    <Item class="Folder" referent="9">
+      <Properties>
+        <string name="Name">SurviveAtSea</string>
+      </Properties>
+      <Item class="Script" referent="10">
+        <Properties>
+          <string name="Name">Bootstrap</string>
+          <token name="RunContext">0</token>
+          <string name="Source"><![CDATA[-- Survive at Sea · Server bootstrap
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+print("[SurviveAtSea] Server bootstrap starting…")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared", 30)
+if not Shared then
+	error("[SurviveAtSea] ReplicatedStorage.Shared missing — is Rojo connected?")
+end
+
+local Config = require(Shared:WaitForChild("Config"))
+local Remotes = require(Shared:WaitForChild("Remotes"))
+local PartyCode = require(Shared:WaitForChild("PartyCode"))
+local LobbyWorld = require(Shared:WaitForChild("LobbyWorld"))
+
+local LobbyBuilder = require(script.Parent:WaitForChild("LobbyBuilder"))
+local PartyService = require(script.Parent:WaitForChild("PartyService"))
+local PortalService = require(script.Parent:WaitForChild("PortalService"))
+
+print(`[SurviveAtSea] Booting {Config.GameName} lobby…`)
+
+-- Build/replicate dock on the server so all players share it
+local lobby = LobbyWorld.ensure()
+LobbyBuilder.enhanceExisting(lobby)
+
+local remoteFolder = Remotes.createServerRemotes()
+local CreateParty = remoteFolder:WaitForChild("CreateParty")
+local JoinParty = remoteFolder:WaitForChild("JoinParty")
+local LeaveParty = remoteFolder:WaitForChild("LeaveParty")
+local StartLaunch = remoteFolder:WaitForChild("StartLaunch")
+local PartyUpdated = remoteFolder:WaitForChild("PartyUpdated")
+local PortalsUpdated = remoteFolder:WaitForChild("PortalsUpdated")
+local Toast = remoteFolder:WaitForChild("Toast")
+local GetLobbyState = remoteFolder:WaitForChild("GetLobbyState")
+
+PortalService.start(Toast, PartyUpdated, PortalsUpdated)
+
+GetLobbyState.OnServerInvoke = function(player)
+	return PartyService.getLobbyState(player)
+end
+
+CreateParty.OnServerEvent:Connect(function(player, portalIndex, maxPlayers, privacy)
+	if typeof(portalIndex) ~= "number" or typeof(maxPlayers) ~= "number" then
+		Toast:FireClient(player, "Invalid boarding request.", "error")
+		return
+	end
+	local privacyValue = if privacy == "Private" then "Private" else "Public"
+	local ok, message, snapshot = PartyService.createParty(player, portalIndex, maxPlayers, privacyValue)
+	Toast:FireClient(player, message, if ok then "success" else "error")
+	if ok and snapshot then
+		PartyUpdated:FireClient(player, snapshot)
+	end
+end)
+
+JoinParty.OnServerEvent:Connect(function(player, rawCode)
+	if typeof(rawCode) ~= "string" then
+		Toast:FireClient(player, "Enter a crew code.", "error")
+		return
+	end
+	local ok, message, snapshot = PartyService.joinParty(player, PartyCode.normalize(rawCode))
+	Toast:FireClient(player, message, if ok then "success" else "error")
+	if ok and snapshot then
+		PartyUpdated:FireClient(player, snapshot)
+	end
+end)
+
+LeaveParty.OnServerEvent:Connect(function(player)
+	local ok, message = PartyService.leaveParty(player)
+	Toast:FireClient(player, message, if ok then "info" else "error")
+	if ok then
+		PartyUpdated:FireClient(player, nil)
+	end
+end)
+
+StartLaunch.OnServerEvent:Connect(function(player)
+	local ok, message, snapshot = PartyService.startLaunch(player)
+	Toast:FireClient(player, message, if ok then "success" else "error")
+	if ok and snapshot then
+		PartyUpdated:FireClient(player, snapshot)
+	end
+end)
+
+local function onPlayerReady(player)
+	player.CharacterAdded:Connect(function(character)
+		task.defer(function()
+			LobbyWorld.seatCharacter(character)
+		end)
+	end)
+	if player.Character then
+		task.defer(function()
+			LobbyWorld.seatCharacter(player.Character :: Model)
+		end)
+	end
+
+	task.defer(function()
+		PortalsUpdated:FireClient(player, PartyService.getPortalInfos())
+		Toast:FireClient(player, "Walk forward to the glowing portals!", "info")
+	end)
+end
+
+Players.PlayerRemoving:Connect(function(player)
+	PartyService.onPlayerRemoving(player)
+end)
+
+for _, player in Players:GetPlayers() do
+	onPlayerReady(player)
+end
+Players.PlayerAdded:Connect(onPlayerReady)
+
+print(`[SurviveAtSea] Lobby ready — max crew {Config.MaxPartySize}, no session saves.`)
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="11">
+        <Properties>
+          <string name="Name">LobbyBuilder</string>
+          <string name="Source"><![CDATA[-- Builds the Survive at Sea lobby: dock, ocean, boarding portals.
+-- Geometry is created at runtime so the template stays Rojo-friendly.
+
+local Lighting = game:GetService("Lighting")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Config = require(Shared:WaitForChild("Config"))
+
+local LobbyBuilder = {}
+
+local function part(props: { [string]: any }): Part
+	local p = Instance.new("Part")
+	p.Anchored = true
+	p.CanCollide = if props.CanCollide == nil then true else props.CanCollide
+	p.Material = props.Material or Enum.Material.Wood
+	p.Color = props.Color or Config.Theme.Driftwood
+	p.Size = props.Size or Vector3.new(4, 1, 4)
+	p.CFrame = props.CFrame or CFrame.new()
+	p.Name = props.Name or "LobbyPart"
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Smooth
+	p.CastShadow = if props.CastShadow == nil then true else props.CastShadow
+	if props.Transparency ~= nil then
+		p.Transparency = props.Transparency
+	end
+	if props.Reflectance ~= nil then
+		p.Reflectance = props.Reflectance
+	end
+	if props.Parent then
+		p.Parent = props.Parent
+	end
+	return p
+end
+
+local function billboard(adornee: BasePart, text: string, color: Color3, size: UDim2?, offsetY: number?): BillboardGui
+	local gui = Instance.new("BillboardGui")
+	gui.Name = "LobbyBillboard"
+	gui.Adornee = adornee
+	gui.Size = size or UDim2.fromOffset(280, 90)
+	gui.StudsOffsetWorldSpace = Vector3.new(0, offsetY or 8, 0)
+	gui.AlwaysOnTop = true
+	gui.MaxDistance = 250
+	gui.Parent = adornee
+
+	local label = Instance.new("TextLabel")
+	label.BackgroundTransparency = 0.15
+	label.BackgroundColor3 = Config.Theme.UIPanel
+	label.BorderSizePixel = 0
+	label.Size = UDim2.fromScale(1, 1)
+	label.Font = Enum.Font.GothamBlack
+	label.TextScaled = true
+	label.TextColor3 = color
+	label.Text = text
+	label.Parent = gui
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 12)
+	corner.Parent = label
+
+	local pad = Instance.new("UIPadding")
+	pad.PaddingTop = UDim.new(0, 8)
+	pad.PaddingBottom = UDim.new(0, 8)
+	pad.PaddingLeft = UDim.new(0, 12)
+	pad.PaddingRight = UDim.new(0, 12)
+	pad.Parent = label
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Config.Theme.UIAccent
+	stroke.Thickness = 2
+	stroke.Parent = label
+
+	return gui
+end
+
+local function safeLighting()
+	-- Never let lighting tweaks prevent the dock from spawning.
+	local ok, err = pcall(function()
+		Lighting.ClockTime = 16.5
+		Lighting.Brightness = 3
+		Lighting.Ambient = Color3.fromRGB(50, 90, 110)
+		Lighting.OutdoorAmbient = Color3.fromRGB(90, 140, 160)
+		Lighting.FogColor = Color3.fromRGB(70, 140, 170)
+		Lighting.FogStart = 200
+		Lighting.FogEnd = 800
+		Lighting.GlobalShadows = true
+
+		for _, child in Lighting:GetChildren() do
+			if child:IsA("Atmosphere") or child:IsA("BloomEffect") or child:IsA("ColorCorrectionEffect") then
+				child:Destroy()
+			end
+		end
+
+		local atmosphere = Instance.new("Atmosphere")
+		atmosphere.Density = 0.18
+		atmosphere.Offset = 0.1
+		atmosphere.Color = Color3.fromRGB(140, 185, 205)
+		atmosphere.Decay = Color3.fromRGB(50, 90, 120)
+		atmosphere.Glare = 0.08
+		atmosphere.Haze = 0.6
+		atmosphere.Parent = Lighting
+
+		local sky = Lighting:FindFirstChildOfClass("Sky")
+		if not sky then
+			sky = Instance.new("Sky")
+			sky.Parent = Lighting
+		end
+		sky.CelestialBodiesShown = true
+		sky.StarCount = 1200
+		sky.SunAngularSize = 21
+		sky.MoonAngularSize = 11
+
+		local bloom = Instance.new("BloomEffect")
+		bloom.Intensity = 0.25
+		bloom.Size = 14
+		bloom.Threshold = 1.2
+		bloom.Parent = Lighting
+
+		local cc = Instance.new("ColorCorrectionEffect")
+		cc.TintColor = Color3.fromRGB(225, 242, 255)
+		cc.Contrast = 0.05
+		cc.Saturation = 0.15
+		cc.Parent = Lighting
+	end)
+	if not ok then
+		warn("[SurviveAtSea] Lighting setup failed (lobby still builds):", err)
+	end
+end
+
+local function clearWorkspaceClutter()
+	-- Remove default / leftover place geometry so the dock is obvious.
+	for _, name in { "Baseplate", "SpawnLocation", "Terrain" } do
+		local inst = Workspace:FindFirstChild(name)
+		if inst and not inst:IsA("Terrain") then
+			inst:Destroy()
+		end
+	end
+
+	-- Clear common starter-place leftovers (keeps cameras/characters)
+	for _, child in Workspace:GetChildren() do
+		if child:IsA("BasePart") or child:IsA("Model") or child:IsA("Folder") then
+			if child.Name ~= "SurviveAtSeaLobby" and child.Name ~= "Camera" and child.Name ~= "Terrain" then
+				-- Keep player characters
+				local isCharacter = false
+				for _, plr in Players:GetPlayers() do
+					if plr.Character == child then
+						isCharacter = true
+						break
+					end
+				end
+				if not isCharacter then
+					child:Destroy()
+				end
+			end
+		end
+	end
+end
+
+local function buildOcean(folder: Folder)
+	-- Solid water plane players can stand near / see clearly
+	part({
+		Name = "OceanDeep",
+		Parent = folder,
+		Size = Vector3.new(1200, 30, 1200),
+		CFrame = CFrame.new(0, -16, 0),
+		Color = Color3.fromRGB(6, 40, 70),
+		Material = Enum.Material.SmoothPlastic,
+		Transparency = 0.15,
+		CanCollide = true,
+	})
+
+	part({
+		Name = "OceanSurface",
+		Parent = folder,
+		Size = Vector3.new(1200, 2, 1200),
+		CFrame = CFrame.new(0, 0, 0),
+		Color = Color3.fromRGB(20, 120, 150),
+		Material = Enum.Material.Glass,
+		Transparency = 0.45,
+		Reflectance = 0.15,
+		CanCollide = false,
+	})
+
+	-- Shore foam ring around dock
+	part({
+		Name = "Foam",
+		Parent = folder,
+		Size = Vector3.new(160, 0.6, 160),
+		CFrame = CFrame.new(0, 1.2, 20),
+		Color = Config.Theme.Foam,
+		Material = Enum.Material.SmoothPlastic,
+		Transparency = 0.55,
+		CanCollide = false,
+	})
+end
+
+local function buildDock(folder: Folder)
+	local dock = Instance.new("Folder")
+	dock.Name = "Dock"
+	dock.Parent = folder
+
+	-- Huge visible pier under spawn
+	part({
+		Name = "PierDeck",
+		Parent = dock,
+		Size = Vector3.new(80, 3, 140),
+		CFrame = CFrame.new(0, 2, 20),
+		Color = Color3.fromRGB(120, 82, 48),
+		Material = Enum.Material.WoodPlanks,
+	})
+
+	-- Bright center stripe so you know you landed
+	part({
+		Name = "CenterPlank",
+		Parent = dock,
+		Size = Vector3.new(8, 3.2, 140),
+		CFrame = CFrame.new(0, 2, 20),
+		Color = Color3.fromRGB(170, 120, 70),
+		Material = Enum.Material.WoodPlanks,
+	})
+
+	-- Rails
+	for _, x in { -38, 38 } do
+		part({
+			Name = "Rail",
+			Parent = dock,
+			Size = Vector3.new(1.5, 4, 140),
+			CFrame = CFrame.new(x, 5, 20),
+			Color = Color3.fromRGB(90, 60, 35),
+			Material = Enum.Material.Wood,
+		})
+	end
+
+	-- Pillars into the water
+	for z = -40, 80, 20 do
+		for _, x in { -30, 30 } do
+			part({
+				Name = "Pillar",
+				Parent = dock,
+				Size = Vector3.new(4, 18, 4),
+				CFrame = CFrame.new(x, -5, z),
+				Color = Color3.fromRGB(70, 48, 28),
+				Material = Enum.Material.Wood,
+			})
+		end
+	end
+
+	-- Lighthouse (very visible landmark)
+	local tower = part({
+		Name = "Lighthouse",
+		Parent = dock,
+		Size = Vector3.new(12, 48, 12),
+		CFrame = CFrame.new(-55, 25, -20),
+		Color = Color3.fromRGB(240, 240, 235),
+		Material = Enum.Material.SmoothPlastic,
+	})
+	part({
+		Name = "LighthouseStripe",
+		Parent = dock,
+		Size = Vector3.new(12.4, 8, 12.4),
+		CFrame = CFrame.new(-55, 18, -20),
+		Color = Color3.fromRGB(200, 60, 55),
+		Material = Enum.Material.SmoothPlastic,
+	})
+	local lamp = part({
+		Name = "LighthouseLamp",
+		Parent = dock,
+		Size = Vector3.new(10, 8, 10),
+		CFrame = CFrame.new(-55, 52, -20),
+		Color = Config.Theme.Lantern,
+		Material = Enum.Material.Neon,
+		CanCollide = false,
+	})
+	local light = Instance.new("PointLight")
+	light.Brightness = 4
+	light.Range = 90
+	light.Color = Config.Theme.Lantern
+	light.Parent = lamp
+
+	-- Crates
+	for i = 1, 8 do
+		part({
+			Name = "Crate" .. i,
+			Parent = dock,
+			Size = Vector3.new(5, 5, 5),
+			CFrame = CFrame.new(-22 + i * 5, 6.5, -30 + (i % 3) * 5) * CFrame.Angles(0, math.rad(i * 12), 0),
+			Color = Color3.fromRGB(130, 90, 50),
+			Material = Enum.Material.Wood,
+		})
+	end
+
+	-- Bobbing buoys
+	for i = 1, 6 do
+		local buoy = part({
+			Name = "Buoy" .. i,
+			Parent = dock,
+			Size = Vector3.new(4, 7, 4),
+			CFrame = CFrame.new(-70 + i * 26, 3, 55 + (i % 2) * 14),
+			Color = if i % 2 == 0 then Color3.fromRGB(230, 55, 50) else Color3.fromRGB(245, 245, 245),
+			Material = Enum.Material.SmoothPlastic,
+			CanCollide = false,
+		})
+		task.spawn(function()
+			local t = i * 1.7
+			while buoy.Parent do
+				t += 0.05
+				local pos = buoy.Position
+				buoy.CFrame = CFrame.new(pos.X, 3 + math.sin(t) * 0.8, pos.Z)
+					* CFrame.Angles(0, t * 0.25, math.rad(math.sin(t) * 8))
+				task.wait(0.05)
+			end
+		end)
+	end
+
+	-- Title banner above dock
+	local titleAnchor = part({
+		Name = "TitleAnchor",
+		Parent = dock,
+		Size = Vector3.new(2, 2, 2),
+		CFrame = CFrame.new(0, 22, -35),
+		Transparency = 1,
+		CanCollide = false,
+		CastShadow = false,
+	})
+	billboard(titleAnchor, "SURVIVE AT SEA\nBOARDING DOCK", Config.Theme.Foam, UDim2.fromOffset(520, 140), 0)
+
+	return tower
+end
+
+local function buildPortal(folder: Folder, index: number, position: Vector3): Model
+	local model = Instance.new("Model")
+	model.Name = "Portal_" .. index
+	model.Parent = folder
+
+	local pad = part({
+		Name = "Pad",
+		Parent = model,
+		Size = Vector3.new(18, 1.5, 18),
+		CFrame = CFrame.new(position),
+		Color = Color3.fromRGB(80, 58, 36),
+		Material = Enum.Material.WoodPlanks,
+	})
+
+	-- Neon ring so portals pop from spawn
+	part({
+		Name = "NeonRing",
+		Parent = model,
+		Size = Vector3.new(18.5, 0.6, 18.5),
+		CFrame = CFrame.new(position + Vector3.new(0, 0.9, 0)),
+		Color = Config.Theme.PortalGlow,
+		Material = Enum.Material.Neon,
+		CanCollide = false,
+	})
+
+	for _, offsetX in { -7, 7 } do
+		part({
+			Name = "ArchLeg",
+			Parent = model,
+			Size = Vector3.new(2.5, 18, 2.5),
+			CFrame = CFrame.new(position + Vector3.new(offsetX, 10, 0)),
+			Color = Color3.fromRGB(95, 65, 40),
+			Material = Enum.Material.Wood,
+		})
+	end
+
+	part({
+		Name = "ArchTop",
+		Parent = model,
+		Size = Vector3.new(18, 2.5, 2.5),
+		CFrame = CFrame.new(position + Vector3.new(0, 20, 0)),
+		Color = Color3.fromRGB(95, 65, 40),
+		Material = Enum.Material.Wood,
+	})
+
+	local gate = part({
+		Name = "Gate",
+		Parent = model,
+		Size = Vector3.new(11, 15, 1.4),
+		CFrame = CFrame.new(position + Vector3.new(0, 9, 0)),
+		Color = Config.Theme.PortalGlow,
+		Material = Enum.Material.ForceField,
+		Transparency = 0.25,
+		CanCollide = false,
+	})
+
+	local gateLight = Instance.new("PointLight")
+	gateLight.Color = Config.Theme.PortalGlow
+	gateLight.Brightness = 3
+	gateLight.Range = 28
+	gateLight.Parent = gate
+
+	task.spawn(function()
+		local info = TweenInfo.new(1.4, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
+		TweenService:Create(gate, info, { Transparency = 0.55 }):Play()
+	end)
+
+	local promptPart = part({
+		Name = "PromptAnchor",
+		Parent = model,
+		Size = Vector3.new(6, 6, 6),
+		CFrame = CFrame.new(position + Vector3.new(0, 3, 6)),
+		Transparency = 1,
+		CanCollide = false,
+		CastShadow = false,
+	})
+
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.Name = "BoardPrompt"
+	prompt.ObjectText = "Voyage Portal " .. index
+	prompt.ActionText = "Create Crew"
+	prompt.HoldDuration = 0.25
+	prompt.MaxActivationDistance = 16
+	prompt.RequiresLineOfSight = false
+	prompt.GamepadKeyCode = Enum.KeyCode.ButtonX
+	prompt.KeyboardKeyCode = Enum.KeyCode.E
+	prompt.Style = Enum.ProximityPromptStyle.Default
+	prompt.Parent = promptPart
+
+	local indexValue = Instance.new("IntValue")
+	indexValue.Name = "PortalIndex"
+	indexValue.Value = index
+	indexValue.Parent = model
+
+	billboard(pad, `PORTAL {index}\nWalk up · press E`, Config.Theme.Foam, UDim2.fromOffset(240, 80), 10)
+
+	model.PrimaryPart = pad
+	return model
+end
+
+local function buildVoyageStaging(folder: Folder)
+	local staging = Instance.new("Folder")
+	staging.Name = "VoyageStaging"
+	staging.Parent = folder
+
+	part({
+		Name = "Deck",
+		Parent = staging,
+		Size = Vector3.new(70, 3, 46),
+		CFrame = CFrame.new(0, 2, 220),
+		Color = Color3.fromRGB(90, 65, 40),
+		Material = Enum.Material.WoodPlanks,
+	})
+
+	part({
+		Name = "Hull",
+		Parent = staging,
+		Size = Vector3.new(56, 12, 8),
+		CFrame = CFrame.new(0, 7, 240),
+		Color = Color3.fromRGB(60, 42, 28),
+		Material = Enum.Material.Wood,
+	})
+
+	local sign = part({
+		Name = "VoyageSign",
+		Parent = staging,
+		Size = Vector3.new(1, 1, 1),
+		CFrame = CFrame.new(0, 16, 220),
+		Transparency = 1,
+		CanCollide = false,
+	})
+	billboard(sign, "VOYAGE UNDERWAY\n(No save — session only)", Config.Theme.Lantern, UDim2.fromOffset(400, 100), 0)
+end
+
+local function setupSpawn(folder: Folder)
+	local spawn = Instance.new("SpawnLocation")
+	spawn.Name = "LobbySpawn"
+	spawn.Size = Vector3.new(14, 1, 14)
+	spawn.CFrame = CFrame.new(0, 4.2, 0)
+	spawn.Anchored = true
+	spawn.Duration = 0
+	spawn.Neutral = true
+	spawn.Enabled = true
+	spawn.Transparency = 0.3
+	spawn.BrickColor = BrickColor.new("Cyan")
+	spawn.Material = Enum.Material.Neon
+	spawn.Parent = folder
+
+	-- Face the portals (positive Z)
+	spawn.CFrame = CFrame.new(0, 4.2, 0) * CFrame.Angles(0, 0, 0)
+end
+
+function LobbyBuilder.enhanceExisting(root: Folder)
+	safeLighting()
+
+	local spawn = root:FindFirstChild("LobbySpawn")
+	if not (spawn and spawn:IsA("SpawnLocation")) then
+		setupSpawn(root)
+	else
+		local spawnLocation = spawn :: SpawnLocation
+		spawnLocation.Enabled = true
+		spawnLocation.Neutral = true
+	end
+
+	-- World-space title
+	local dock = root:FindFirstChild("Dock")
+	if dock and not dock:FindFirstChild("TitleBanner") then
+		local titleAnchor = part({
+			Name = "TitleBanner",
+			Parent = dock,
+			Size = Vector3.new(2, 2, 2),
+			CFrame = CFrame.new(0, 22, -35),
+			Transparency = 1,
+			CanCollide = false,
+			CastShadow = false,
+		})
+		billboard(titleAnchor, "SURVIVE AT SEA\nBOARDING DOCK", Config.Theme.Foam, UDim2.fromOffset(520, 140), 0)
+	end
+
+	local portals = root:FindFirstChild("Portals")
+	if portals then
+		for _, model in portals:GetChildren() do
+			if not model:IsA("Model") then
+				continue
+			end
+			local pad = model:FindFirstChild("Pad")
+			local indexValue = model:FindFirstChild("PortalIndex")
+			local index = if indexValue and indexValue:IsA("IntValue") then indexValue.Value else 0
+			if pad and pad:IsA("BasePart") and not pad:FindFirstChild("LobbyBillboard") then
+				billboard(pad, `PORTAL {index}\nWalk up · press E`, Config.Theme.Foam, UDim2.fromOffset(260, 90), 10)
+			end
+
+			local gate = model:FindFirstChild("Gate")
+			if gate and gate:IsA("BasePart") then
+				if not gate:FindFirstChildOfClass("PointLight") then
+					local light = Instance.new("PointLight")
+					light.Color = Config.Theme.PortalGlow
+					light.Brightness = 3
+					light.Range = 28
+					light.Parent = gate
+				end
+				task.spawn(function()
+					local info = TweenInfo.new(1.4, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
+					TweenService:Create(gate, info, { Transparency = 0.55 }):Play()
+				end)
+			end
+		end
+	end
+
+	print("[SurviveAtSea] Enhanced existing lobby map")
+end
+
+function LobbyBuilder.build(): Folder
+	local existing = Workspace:FindFirstChild("SurviveAtSeaLobby")
+	if existing then
+		existing:Destroy()
+	end
+
+	clearWorkspaceClutter()
+	safeLighting()
+
+	local root = Instance.new("Folder")
+	root.Name = "SurviveAtSeaLobby"
+	root.Parent = Workspace
+
+	buildOcean(root)
+	buildDock(root)
+	buildVoyageStaging(root)
+	setupSpawn(root)
+
+	local portalsFolder = Instance.new("Folder")
+	portalsFolder.Name = "Portals"
+	portalsFolder.Parent = root
+
+	local startX = -((Config.PortalCount - 1) * Config.PortalSpacing) / 2
+	for i = 1, Config.PortalCount do
+		local pos = Vector3.new(startX + (i - 1) * Config.PortalSpacing, 3.5, 70)
+		buildPortal(portalsFolder, i, pos)
+	end
+
+	for z = 20, 55, 12 do
+		part({
+			Name = "Arrow",
+			Parent = root,
+			Size = Vector3.new(6, 0.5, 8),
+			CFrame = CFrame.new(0, 4, z),
+			Color = Config.Theme.PortalGlow,
+			Material = Enum.Material.Neon,
+			CanCollide = false,
+		})
+	end
+
+	print("[SurviveAtSea] Lobby geometry built — dock +", Config.PortalCount, "portals")
+	return root
+end
+
+function LobbyBuilder.updatePortalSign(portalModel: Model, title: string, subtitle: string, color: Color3?)
+	local pad = portalModel:FindFirstChild("Pad")
+	if not (pad and pad:IsA("BasePart")) then
+		return
+	end
+	local old = pad:FindFirstChild("LobbyBillboard")
+	if old then
+		old:Destroy()
+	end
+	billboard(pad, `{title}\n{subtitle}`, color or Config.Theme.Foam, UDim2.fromOffset(260, 90), 10)
+end
+
+function LobbyBuilder.getPortalModel(index: number): Model?
+	local root = Workspace:FindFirstChild("SurviveAtSeaLobby")
+	if not root then
+		return nil
+	end
+	local portals = root:FindFirstChild("Portals")
+	if not portals then
+		return nil
+	end
+	local model = portals:FindFirstChild("Portal_" .. index)
+	if model and model:IsA("Model") then
+		return model
+	end
+	return nil
+end
+
+function LobbyBuilder.getVoyageSpawnCFrame(): CFrame
+	return CFrame.new(0, 6, 220)
+end
+
+function LobbyBuilder.getLobbySpawnCFrame(): CFrame
+	return CFrame.new(0, 6, 0)
+end
+
+function LobbyBuilder.teleportPlayerToLobby(player: Player)
+	local character = player.Character
+	if not character then
+		return
+	end
+	local Shared = ReplicatedStorage:WaitForChild("Shared")
+	local LobbyWorld = require(Shared:WaitForChild("LobbyWorld"))
+	LobbyWorld.seatCharacter(character)
+end
+
+return LobbyBuilder
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="12">
+        <Properties>
+          <string name="Name">PartyService</string>
+          <string name="Source"><![CDATA[-- Ephemeral party / game-state service.
+-- No DataStore or MemoryStore caching — parties live only while this lobby server does.
+
+local Players = game:GetService("Players")
+local TeleportService = game:GetService("TeleportService")
+local Workspace = game:GetService("Workspace")
+
+local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
+local Config = require(Shared:WaitForChild("Config"))
+local PartyCode = require(Shared:WaitForChild("PartyCode"))
+local Types = require(Shared:WaitForChild("Types"))
+
+type PartyPrivacy = Types.PartyPrivacy
+type PartySnapshot = Types.PartySnapshot
+type PartyMember = Types.PartyMember
+type PublicPortalInfo = Types.PublicPortalInfo
+
+export type PartyRecord = {
+	code: string,
+	hostUserId: number,
+	maxPlayers: number,
+	privacy: PartyPrivacy,
+	portalIndex: number,
+	memberUserIds: { number },
+	countdownEndsAt: number?,
+	status: "Open" | "Launching" | "Departed",
+	reservedCode: string?,
+}
+
+local PartyService = {}
+PartyService._partiesByCode = {} :: { [string]: PartyRecord }
+PartyService._playerToCode = {} :: { [number]: string }
+PartyService._portalToCode = {} :: { [number]: string }
+PartyService._onChanged = nil :: ((PartySnapshot?, { PublicPortalInfo }) -> ())?
+
+local function displayNameFor(userId: number): string
+	local player = Players:GetPlayerByUserId(userId)
+	if player then
+		return player.DisplayName
+	end
+	return `Crew_{userId}`
+end
+
+local function toSnapshot(party: PartyRecord): PartySnapshot
+	local members: { PartyMember } = {}
+	for _, userId in party.memberUserIds do
+		table.insert(members, {
+			userId = userId,
+			displayName = displayNameFor(userId),
+			isHost = userId == party.hostUserId,
+		})
+	end
+
+	return {
+		code = party.code,
+		hostUserId = party.hostUserId,
+		maxPlayers = party.maxPlayers,
+		privacy = party.privacy,
+		members = members,
+		portalIndex = party.portalIndex,
+		countdownEndsAt = party.countdownEndsAt,
+		status = party.status,
+	}
+end
+
+local function buildPortalInfos(): { PublicPortalInfo }
+	local infos = {}
+	for i = 1, Config.PortalCount do
+		local code = PartyService._portalToCode[i]
+		local party = if code then PartyService._partiesByCode[code] else nil
+		if not party then
+			table.insert(infos, {
+				portalIndex = i,
+				code = nil,
+				hostName = nil,
+				memberCount = 0,
+				maxPlayers = Config.MaxPartySize,
+				status = "Empty",
+			})
+		else
+			local status: "Empty" | "Open" | "Launching" | "Full" = "Open"
+			if party.status == "Launching" or party.status == "Departed" then
+				status = "Launching"
+			elseif #party.memberUserIds >= party.maxPlayers then
+				status = "Full"
+			end
+			table.insert(infos, {
+				portalIndex = i,
+				code = if party.privacy == "Public" then party.code else nil,
+				hostName = displayNameFor(party.hostUserId),
+				memberCount = #party.memberUserIds,
+				maxPlayers = party.maxPlayers,
+				status = status,
+			})
+		end
+	end
+	return infos
+end
+
+local function notify(party: PartyRecord?)
+	if PartyService._onChanged then
+		PartyService._onChanged(if party then toSnapshot(party) else nil, buildPortalInfos())
+	end
+end
+
+local function removePlayerFromCurrentParty(userId: number)
+	local code = PartyService._playerToCode[userId]
+	if not code then
+		return
+	end
+
+	local party = PartyService._partiesByCode[code]
+	PartyService._playerToCode[userId] = nil
+	if not party then
+		return
+	end
+
+	local remaining = {}
+	for _, id in party.memberUserIds do
+		if id ~= userId then
+			table.insert(remaining, id)
+		end
+	end
+	party.memberUserIds = remaining
+
+	if #remaining == 0 then
+		PartyService._partiesByCode[code] = nil
+		PartyService._portalToCode[party.portalIndex] = nil
+		notify(nil)
+		return
+	end
+
+	if party.hostUserId == userId then
+		party.hostUserId = remaining[1]
+	end
+
+	notify(party)
+end
+
+function PartyService.setChangedCallback(callback: (PartySnapshot?, { PublicPortalInfo }) -> ())
+	PartyService._onChanged = callback
+end
+
+function PartyService.getSnapshotForPlayer(player: Player): PartySnapshot?
+	local code = PartyService._playerToCode[player.UserId]
+	if not code then
+		return nil
+	end
+	local party = PartyService._partiesByCode[code]
+	if not party then
+		return nil
+	end
+	return toSnapshot(party)
+end
+
+function PartyService.getPortalInfos(): { PublicPortalInfo }
+	return buildPortalInfos()
+end
+
+function PartyService.getLobbyState(player: Player): { party: PartySnapshot?, portals: { PublicPortalInfo } }
+	return {
+		party = PartyService.getSnapshotForPlayer(player),
+		portals = buildPortalInfos(),
+	}
+end
+
+function PartyService.createParty(
+	player: Player,
+	portalIndex: number,
+	maxPlayers: number,
+	privacy: PartyPrivacy
+): (boolean, string, PartySnapshot?)
+	if PartyService._playerToCode[player.UserId] then
+		return false, "Leave your current crew before creating another.", nil
+	end
+
+	if portalIndex < 1 or portalIndex > Config.PortalCount then
+		return false, "That boarding portal doesn't exist.", nil
+	end
+
+	if PartyService._portalToCode[portalIndex] then
+		return false, "That portal already has a crew boarding.", nil
+	end
+
+	maxPlayers = math.clamp(math.floor(maxPlayers), Config.MinPartySize, Config.MaxPartySize)
+	if privacy ~= "Public" and privacy ~= "Private" then
+		privacy = "Public"
+	end
+
+	local code = PartyCode.generate(PartyService._partiesByCode)
+	local party: PartyRecord = {
+		code = code,
+		hostUserId = player.UserId,
+		maxPlayers = maxPlayers,
+		privacy = privacy,
+		portalIndex = portalIndex,
+		memberUserIds = { player.UserId },
+		countdownEndsAt = nil,
+		status = "Open",
+		reservedCode = nil,
+	}
+
+	PartyService._partiesByCode[code] = party
+	PartyService._playerToCode[player.UserId] = code
+	PartyService._portalToCode[portalIndex] = code
+
+	local snapshot = toSnapshot(party)
+	notify(party)
+	return true, "Crew assembled. Share your code with friends!", snapshot
+end
+
+function PartyService.joinParty(player: Player, rawCode: string): (boolean, string, PartySnapshot?)
+	if PartyService._playerToCode[player.UserId] then
+		return false, "You're already on a crew.", nil
+	end
+
+	local code = PartyCode.normalize(rawCode)
+	if #code < 4 then
+		return false, "Enter a valid crew code.", nil
+	end
+
+	local party = PartyService._partiesByCode[code]
+	if not party then
+		return false, "No crew found with that code.", nil
+	end
+
+	if party.status ~= "Open" then
+		return false, "That voyage is already launching.", nil
+	end
+
+	if #party.memberUserIds >= party.maxPlayers then
+		return false, "That crew is full (max 10).", nil
+	end
+
+	table.insert(party.memberUserIds, player.UserId)
+	PartyService._playerToCode[player.UserId] = code
+
+	local snapshot = toSnapshot(party)
+	notify(party)
+	return true, "You joined the crew!", snapshot
+end
+
+function PartyService.joinPortal(player: Player, portalIndex: number): (boolean, string, PartySnapshot?)
+	local code = PartyService._portalToCode[portalIndex]
+	if not code then
+		return false, "Empty", nil
+	end
+
+	local party = PartyService._partiesByCode[code]
+	if not party then
+		return false, "Empty", nil
+	end
+
+	if party.privacy == "Private" then
+		return false, "Private crew — ask the host for their code.", nil
+	end
+
+	return PartyService.joinParty(player, code)
+end
+
+function PartyService.leaveParty(player: Player): (boolean, string)
+	if not PartyService._playerToCode[player.UserId] then
+		return false, "You're not on a crew."
+	end
+	removePlayerFromCurrentParty(player.UserId)
+	return true, "Left the crew."
+end
+
+function PartyService.startLaunch(player: Player): (boolean, string, PartySnapshot?)
+	local code = PartyService._playerToCode[player.UserId]
+	if not code then
+		return false, "Create or join a crew first.", nil
+	end
+
+	local party = PartyService._partiesByCode[code]
+	if not party then
+		return false, "Crew not found.", nil
+	end
+
+	if party.hostUserId ~= player.UserId then
+		return false, "Only the host can cast off.", nil
+	end
+
+	if party.status ~= "Open" then
+		return false, "Launch already in progress.", nil
+	end
+
+	if #party.memberUserIds < 1 then
+		return false, "Need at least one sailor.", nil
+	end
+
+	party.status = "Launching"
+	-- Use server time so clients can render a synced countdown.
+	party.countdownEndsAt = Workspace:GetServerTimeNow() + Config.LaunchCountdownSeconds
+	notify(party)
+
+	task.delay(Config.LaunchCountdownSeconds, function()
+		PartyService._finalizeLaunch(party.code)
+	end)
+
+	return true, "Casting off!", toSnapshot(party)
+end
+
+function PartyService._finalizeLaunch(code: string)
+	local party = PartyService._partiesByCode[code]
+	if not party or party.status ~= "Launching" then
+		return
+	end
+
+	party.status = "Departed"
+	notify(party)
+
+	local playersToTeleport: { Player } = {}
+	for _, userId in party.memberUserIds do
+		local plr = Players:GetPlayerByUserId(userId)
+		if plr then
+			table.insert(playersToTeleport, plr)
+		end
+	end
+
+	if #playersToTeleport == 0 then
+		PartyService._partiesByCode[code] = nil
+		PartyService._portalToCode[party.portalIndex] = nil
+		notify(nil)
+		return
+	end
+
+	-- Prefer reserved-server teleport when a voyage place is configured.
+	if typeof(Config.GamePlaceId) == "number" and Config.GamePlaceId > 0 then
+		local ok, reservedCode = pcall(function()
+			return TeleportService:ReserveServer(Config.GamePlaceId :: number)
+		end)
+		if ok and typeof(reservedCode) == "string" then
+			party.reservedCode = reservedCode
+			local teleportOk, err = pcall(function()
+				TeleportService:TeleportToPrivateServer(
+					Config.GamePlaceId :: number,
+					reservedCode,
+					playersToTeleport
+				)
+			end)
+			if not teleportOk then
+				warn("[SurviveAtSea] Teleport failed:", err)
+			end
+		else
+			warn("[SurviveAtSea] ReserveServer failed; falling back to staging zone.")
+			PartyService._sendToStaging(playersToTeleport)
+		end
+	else
+		PartyService._sendToStaging(playersToTeleport)
+	end
+
+	-- Clear ephemeral party after launch (no save / no rejoin cache)
+	for _, userId in party.memberUserIds do
+		PartyService._playerToCode[userId] = nil
+	end
+	PartyService._partiesByCode[code] = nil
+	PartyService._portalToCode[party.portalIndex] = nil
+	notify(nil)
+end
+
+function PartyService._sendToStaging(playersToTeleport: { Player })
+	local LobbyBuilder = require(script.Parent.LobbyBuilder)
+	local destination = LobbyBuilder.getVoyageSpawnCFrame()
+
+	for index, player in playersToTeleport do
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		if root and root:IsA("BasePart") then
+			local offset = Vector3.new(((index - 1) % 5) * 4 - 8, 0, math.floor((index - 1) / 5) * 4)
+			root.CFrame = destination + offset
+		end
+	end
+end
+
+function PartyService.onPlayerRemoving(player: Player)
+	removePlayerFromCurrentParty(player.UserId)
+end
+
+return PartyService
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="13">
+        <Properties>
+          <string name="Name">PortalService</string>
+          <string name="Source"><![CDATA[-- Wires portal proximity prompts and keeps world signs in sync with parties.
+
+local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
+local Config = require(Shared:WaitForChild("Config"))
+
+local LobbyBuilder = require(script.Parent.LobbyBuilder)
+local PartyService = require(script.Parent.PartyService)
+
+local PortalService = {}
+
+local function refreshPortalVisuals(portals)
+	for _, info in portals do
+		local model = LobbyBuilder.getPortalModel(info.portalIndex)
+		if not model then
+			continue
+		end
+
+		local promptAnchor = model:FindFirstChild("PromptAnchor")
+		local prompt = promptAnchor and promptAnchor:FindFirstChild("BoardPrompt")
+
+		if info.status == "Empty" then
+			LobbyBuilder.updatePortalSign(model, `PORTAL {info.portalIndex}`, "Empty berth — create a crew", Config.Theme.Foam)
+			if prompt and prompt:IsA("ProximityPrompt") then
+				prompt.ActionText = "Create Crew"
+				prompt.ObjectText = `Voyage Portal {info.portalIndex}`
+				prompt.Enabled = true
+			end
+		elseif info.status == "Launching" then
+			LobbyBuilder.updatePortalSign(
+				model,
+				`PORTAL {info.portalIndex}`,
+				`Casting off — {info.memberCount}/{info.maxPlayers}`,
+				Config.Theme.Lantern
+			)
+			if prompt and prompt:IsA("ProximityPrompt") then
+				prompt.Enabled = false
+			end
+		elseif info.status == "Full" then
+			LobbyBuilder.updatePortalSign(
+				model,
+				`PORTAL {info.portalIndex}`,
+				`Full crew · {info.hostName}`,
+				Config.Theme.DangerRed
+			)
+			if prompt and prompt:IsA("ProximityPrompt") then
+				prompt.ActionText = "Crew Full"
+				prompt.Enabled = false
+			end
+		else
+			local codeLine = if info.code then `Code {info.code}` else "Private berth"
+			LobbyBuilder.updatePortalSign(
+				model,
+				`PORTAL {info.portalIndex}`,
+				`{info.hostName} · {info.memberCount}/{info.maxPlayers}\n{codeLine}`,
+				Config.Theme.UIAccent
+			)
+			if prompt and prompt:IsA("ProximityPrompt") then
+				prompt.ActionText = if info.code then "Join Public Crew" else "Private — use code"
+				prompt.ObjectText = `Voyage Portal {info.portalIndex}`
+				prompt.Enabled = info.code ~= nil
+			end
+		end
+	end
+end
+
+function PortalService.start(toastRemote: RemoteEvent, partyUpdated: RemoteEvent, portalsUpdated: RemoteEvent)
+	PartyService.setChangedCallback(function(partySnapshot, portalInfos)
+		refreshPortalVisuals(portalInfos)
+		portalsUpdated:FireAllClients(portalInfos)
+		if partySnapshot then
+			for _, member in partySnapshot.members do
+				local player = game:GetService("Players"):GetPlayerByUserId(member.userId)
+				if player then
+					partyUpdated:FireClient(player, partySnapshot)
+				end
+			end
+		end
+	end)
+
+	-- Initial paint
+	refreshPortalVisuals(PartyService.getPortalInfos())
+
+	local root = game:GetService("Workspace"):WaitForChild("SurviveAtSeaLobby")
+	local portalsFolder = root:WaitForChild("Portals")
+
+	for _, model in portalsFolder:GetChildren() do
+		if not model:IsA("Model") then
+			continue
+		end
+		local indexValue = model:FindFirstChild("PortalIndex")
+		local promptAnchor = model:FindFirstChild("PromptAnchor")
+		local prompt = promptAnchor and promptAnchor:FindFirstChild("BoardPrompt")
+		if not (indexValue and indexValue:IsA("IntValue") and prompt and prompt:IsA("ProximityPrompt")) then
+			continue
+		end
+
+		local portalIndex = indexValue.Value
+		prompt.Triggered:Connect(function(player: Player)
+			local infos = PartyService.getPortalInfos()
+			local info = infos[portalIndex]
+			if not info or info.status == "Empty" then
+				-- Client opens create UI; server just acknowledges empty portal.
+				toastRemote:FireClient(player, "Pick crew size and cast your berth.", "info")
+				partyUpdated:FireClient(player, {
+					__openCreate = true,
+					portalIndex = portalIndex,
+				})
+				return
+			end
+
+			local ok, message, snapshot = PartyService.joinPortal(player, portalIndex)
+			toastRemote:FireClient(player, message, if ok then "success" else "error")
+			if ok and snapshot then
+				partyUpdated:FireClient(player, snapshot)
+			end
+		end)
+	end
+end
+
+return PortalService
+]]></string>
+        </Properties>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="SoundService" referent="14">
+    <Properties>
+      <string name="Name">SoundService</string>
+      <bool name="RespectFilteringEnabled">true</bool>
+    </Properties>
+  </Item>
+  <Item class="StarterPlayer" referent="15">
+    <Properties>
+      <string name="Name">StarterPlayer</string>
+      <float name="CameraMaxZoomDistance">40</float>
+    </Properties>
+    <Item class="StarterPlayerScripts" referent="16">
+      <Properties>
+        <string name="Name">StarterPlayerScripts</string>
+      </Properties>
+      <Item class="LocalScript" referent="17">
+        <Properties>
+          <string name="Name">Client</string>
+          <string name="Source"><![CDATA[-- Survive at Sea · Client bootstrap
+-- Builds the dock locally if Rojo didn't sync Workspace (common with existing places).
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Config = require(Shared:WaitForChild("Config"))
+local LobbyWorld = require(Shared:WaitForChild("LobbyWorld"))
+
+local LobbyUI = require(script:WaitForChild("Lobby"):WaitForChild("LobbyUI"))
+
+print(`[SurviveAtSea] Client hello — welcome aboard {Config.GameName}`)
+
+local lobby = LobbyWorld.ensure()
+LobbyUI.start()
+
+local player = Players.LocalPlayer
+
+local function seat(character: Model)
+	task.defer(function()
+		LobbyWorld.seatCharacter(character)
+	end)
+end
+
+if player.Character then
+	seat(player.Character)
+end
+player.CharacterAdded:Connect(seat)
+
+-- Wire portal prompts to open the create-crew panel
+task.spawn(function()
+	local openEvent = ReplicatedStorage:WaitForChild("SurviveAtSeaOpenCreate", 5)
+	if not openEvent or not openEvent:IsA("BindableEvent") then
+		openEvent = Instance.new("BindableEvent")
+		openEvent.Name = "SurviveAtSeaOpenCreate"
+		openEvent.Parent = ReplicatedStorage
+	end
+
+	local portals = lobby:WaitForChild("Portals", 5)
+	if not portals then
+		warn("[SurviveAtSea] No Portals folder after LobbyWorld.ensure")
+		return
+	end
+
+	for _, model in portals:GetChildren() do
+		if not model:IsA("Model") then
+			continue
+		end
+		local indexValue = model:FindFirstChild("PortalIndex")
+		local promptAnchor = model:FindFirstChild("PromptAnchor")
+		local prompt = promptAnchor and promptAnchor:FindFirstChild("BoardPrompt")
+		if not (indexValue and indexValue:IsA("IntValue") and prompt and prompt:IsA("ProximityPrompt")) then
+			continue
+		end
+
+		local portalIndex = indexValue.Value
+		prompt.Triggered:Connect(function()
+			(openEvent :: BindableEvent):Fire(portalIndex)
+		end)
+	end
+
+	print("[SurviveAtSea] Client dock live —", #portals:GetChildren(), "portals")
+end)
+
+pcall(function()
+	local Lighting = game:GetService("Lighting")
+	Lighting.Brightness = 3
+	Lighting.FogStart = 200
+	Lighting.FogEnd = 800
+	Lighting.ClockTime = 16.5
+end)
+]]></string>
+        </Properties>
+        <Item class="Folder" referent="18">
+          <Properties>
+            <string name="Name">Lobby</string>
+          </Properties>
+          <Item class="ModuleScript" referent="19">
+            <Properties>
+              <string name="Name">LobbyUI</string>
+              <string name="Source"><![CDATA[-- Survive at Sea lobby HUD — ocean themed, Dead Rails-style crew boarding.
+-- Built for phone, tablet, computer, console, and VR (large targets, TextScaled, gamepad).
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Config = require(Shared:WaitForChild("Config"))
+local Remotes = require(Shared:WaitForChild("Remotes"))
+
+local PlatformInput = require(script.Parent.PlatformInput)
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+local LobbyUI = {}
+
+local state = {
+	party = nil :: any,
+	portals = {} :: { any },
+	createPortalIndex = 1,
+	selectedMax = Config.DefaultPartySize,
+	privacy = "Public",
+	device = PlatformInput.getDeviceKind(),
+}
+
+local remotes
+local screenGui
+local partyPanel
+local createPanel
+local joinPanel
+local toastFrame
+local countdownLabel
+local brandLabel
+local deviceLabel
+
+local function corner(parent: Instance, radius: number?)
+	local c = Instance.new("UICorner")
+	c.CornerRadius = UDim.new(0, radius or 12)
+	c.Parent = parent
+	return c
+end
+
+local function stroke(parent: Instance, color: Color3?, thickness: number?)
+	local s = Instance.new("UIStroke")
+	s.Color = color or Config.Theme.UIAccent
+	s.Thickness = thickness or 1.5
+	s.Transparency = 0.25
+	s.Parent = parent
+	return s
+end
+
+local function textLabel(props: { [string]: any }): TextLabel
+	local label = Instance.new("TextLabel")
+	label.BackgroundTransparency = props.BackgroundTransparency or 1
+	label.BackgroundColor3 = props.BackgroundColor3 or Config.Theme.UIPanel
+	label.Size = props.Size or UDim2.fromScale(1, 0.2)
+	label.Position = props.Position or UDim2.fromScale(0, 0)
+	label.Font = props.Font or Config.UI.BodyFont
+	label.Text = props.Text or ""
+	label.TextColor3 = props.TextColor3 or Config.Theme.UIText
+	label.TextScaled = true
+	label.TextXAlignment = props.TextXAlignment or Enum.TextXAlignment.Left
+	label.TextYAlignment = props.TextYAlignment or Enum.TextYAlignment.Center
+	label.Name = props.Name or "Label"
+	label.Parent = props.Parent
+	if props.BackgroundTransparency ~= 1 and props.BackgroundTransparency ~= nil then
+		corner(label, 10)
+	end
+	local sizeConstraint = Instance.new("UITextSizeConstraint")
+	sizeConstraint.MaxTextSize = props.MaxTextSize or 28
+	sizeConstraint.MinTextSize = 10
+	sizeConstraint.Parent = label
+	return label
+end
+
+local function button(props: { [string]: any }): TextButton
+	local btn = Instance.new("TextButton")
+	btn.Name = props.Name or "Button"
+	btn.Size = props.Size or UDim2.new(1, 0, 0, math.max(Config.UI.MinTouchTarget, 48))
+	btn.Position = props.Position or UDim2.fromScale(0, 0)
+	btn.BackgroundColor3 = props.BackgroundColor3 or Config.Theme.UIAccent
+	btn.TextColor3 = props.TextColor3 or Config.Theme.DeepOcean
+	btn.Font = Config.UI.Font
+	btn.Text = props.Text or "OK"
+	btn.TextScaled = true
+	btn.AutoButtonColor = true
+	btn.Parent = props.Parent
+	corner(btn, 12)
+	stroke(btn, Color3.fromRGB(255, 255, 255), 1)
+
+	local sizeConstraint = Instance.new("UITextSizeConstraint")
+	sizeConstraint.MaxTextSize = 22
+	sizeConstraint.Parent = btn
+
+	-- Console / VR / gamepad selection feedback
+	btn.SelectionImageObject = nil
+	btn.Activated:Connect(function()
+		if props.OnClick then
+			props.OnClick()
+		end
+	end)
+
+	return btn
+end
+
+local function showToast(message: string, kind: string?)
+	if not toastFrame then
+		return
+	end
+	local label = toastFrame:FindFirstChild("Message") :: TextLabel
+	if not label then
+		return
+	end
+
+	local color = Config.Theme.UIAccent
+	if kind == "error" then
+		color = Config.Theme.DangerRed
+	elseif kind == "success" then
+		color = Color3.fromRGB(80, 200, 140)
+	elseif kind == "info" then
+		color = Config.Theme.Lantern
+	end
+
+	toastFrame.BackgroundColor3 = Config.Theme.UIPanel
+	stroke(toastFrame, color, 2)
+	label.Text = message
+	toastFrame.Visible = true
+	toastFrame.GroupTransparency = 0
+
+	TweenService:Create(toastFrame, TweenInfo.new(0.2), { GroupTransparency = 0 }):Play()
+	task.delay(3.2, function()
+		if label.Text == message then
+			local tw = TweenService:Create(toastFrame, TweenInfo.new(0.35), { GroupTransparency = 1 })
+			tw:Play()
+			tw.Completed:Wait()
+			if label.Text == message then
+				toastFrame.Visible = false
+			end
+		end
+	end)
+end
+
+local function refreshPartyPanel()
+	if not partyPanel then
+		return
+	end
+
+	local party = state.party
+	local title = partyPanel:FindFirstChild("Title") :: TextLabel
+	local members = partyPanel:FindFirstChild("Members") :: TextLabel
+	local codeLabel = partyPanel:FindFirstChild("Code") :: TextLabel
+	local castOff = partyPanel:FindFirstChild("CastOff") :: TextButton
+	local leaveBtn = partyPanel:FindFirstChild("Leave") :: TextButton
+
+	if typeof(party) ~= "table" or party.__openCreate then
+		partyPanel.Visible = false
+		return
+	end
+
+	partyPanel.Visible = true
+	title.Text = `CREW · Portal {party.portalIndex}`
+	codeLabel.Text = `CODE  {party.code}  ·  {party.privacy}`
+
+	local lines = {}
+	for _, member in party.members do
+		local tag = if member.isHost then "★ " else "• "
+		table.insert(lines, tag .. member.displayName)
+	end
+	members.Text = table.concat(lines, "\n") .. `\n\n{ #party.members }/{party.maxPlayers} sailors`
+
+	local isHost = party.hostUserId == player.UserId
+	castOff.Visible = isHost and party.status == "Open"
+	leaveBtn.Visible = party.status == "Open"
+
+	if party.status == "Launching" and party.countdownEndsAt then
+		countdownLabel.Visible = true
+	else
+		countdownLabel.Visible = false
+	end
+end
+
+local function openCreate(portalIndex: number)
+	state.createPortalIndex = portalIndex
+	state.selectedMax = Config.DefaultPartySize
+	state.privacy = "Public"
+	if createPanel then
+		createPanel.Visible = true
+		local sliderLabel = createPanel:FindFirstChild("MaxLabel") :: TextLabel
+		if sliderLabel then
+			sliderLabel.Text = `Crew size: {state.selectedMax}`
+		end
+	end
+	if joinPanel then
+		joinPanel.Visible = false
+	end
+end
+
+local function buildGui()
+	local scale = PlatformInput.scaleForDevice()
+
+	screenGui = Instance.new("ScreenGui")
+	screenGui.Name = "SurviveAtSeaLobbyUI"
+	screenGui.ResetOnSpawn = false
+	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	screenGui.IgnoreGuiInset = false
+	screenGui.DisplayOrder = 20
+	-- Compatible with VR (laser pointer) and console focus nav
+	screenGui.Parent = playerGui
+
+	local root = Instance.new("Frame")
+	root.Name = "Root"
+	root.BackgroundTransparency = 1
+	root.Size = UDim2.fromScale(1, 1)
+	root.Parent = screenGui
+	PlatformInput.applySafeArea(root)
+
+	local scaler = Instance.new("UIScale")
+	scaler.Scale = scale
+	scaler.Parent = root
+
+	-- Brand hero signal (not just nav chrome)
+	brandLabel = textLabel({
+		Name = "Brand",
+		Parent = root,
+		Text = Config.GameName,
+		Font = Enum.Font.GothamBlack,
+		TextColor3 = Config.Theme.Foam,
+		Size = UDim2.new(0.56, 0, 0, 52),
+		Position = UDim2.new(0, 8, 0, 4),
+		MaxTextSize = 40,
+	})
+
+	local tagline = textLabel({
+		Name = "Tagline",
+		Parent = root,
+		Text = Config.Tagline,
+		TextColor3 = Config.Theme.UIMuted,
+		Size = UDim2.new(0.56, 0, 0, 28),
+		Position = UDim2.new(0, 8, 0, 52),
+		MaxTextSize = 18,
+	})
+
+	deviceLabel = textLabel({
+		Name = "Device",
+		Parent = root,
+		Text = `Deck ready · {state.device}`,
+		TextColor3 = Config.Theme.UIAccent,
+		TextXAlignment = Enum.TextXAlignment.Right,
+		Size = UDim2.new(0.38, 0, 0, 24),
+		Position = UDim2.new(0.62, -8, 0, 12),
+		MaxTextSize = 16,
+	})
+
+	countdownLabel = textLabel({
+		Name = "Countdown",
+		Parent = root,
+		Text = "CASTING OFF…",
+		TextColor3 = Config.Theme.Lantern,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Font = Enum.Font.GothamBlack,
+		Size = UDim2.new(0.6, 0, 0, 48),
+		Position = UDim2.new(0.2, 0, 0.12, 0),
+		MaxTextSize = 36,
+	})
+	countdownLabel.Visible = false
+
+	-- Join by code (always available — Dead Rails style)
+	joinPanel = Instance.new("Frame")
+	joinPanel.Name = "JoinPanel"
+	joinPanel.BackgroundColor3 = Config.Theme.UIPanel
+	joinPanel.BackgroundTransparency = 0.12
+	joinPanel.Size = UDim2.new(0, 320, 0, 150)
+	joinPanel.Position = UDim2.new(1, -336, 1, -170)
+	joinPanel.AnchorPoint = Vector2.new(0, 0)
+	joinPanel.Parent = root
+	corner(joinPanel, 16)
+	stroke(joinPanel)
+
+	-- Responsive: on phones, stretch join panel
+	local joinConstraint = Instance.new("UISizeConstraint")
+	joinConstraint.MinSize = Vector2.new(260, 140)
+	joinConstraint.MaxSize = Vector2.new(420, 200)
+	joinConstraint.Parent = joinPanel
+
+	textLabel({
+		Name = "JoinTitle",
+		Parent = joinPanel,
+		Text = "JOIN CREW BY CODE",
+		Font = Config.UI.Font,
+		Size = UDim2.new(1, -24, 0, 28),
+		Position = UDim2.new(0, 12, 0, 10),
+		MaxTextSize = 18,
+	})
+
+	local codeBox = Instance.new("TextBox")
+	codeBox.Name = "CodeBox"
+	codeBox.Size = UDim2.new(1, -24, 0, 44)
+	codeBox.Position = UDim2.new(0, 12, 0, 46)
+	codeBox.BackgroundColor3 = Color3.fromRGB(6, 20, 32)
+	codeBox.TextColor3 = Config.Theme.Foam
+	codeBox.PlaceholderText = "Enter code (e.g. K7QM)"
+	codeBox.PlaceholderColor3 = Config.Theme.UIMuted
+	codeBox.Font = Config.UI.Font
+	codeBox.Text = ""
+	codeBox.TextScaled = true
+	codeBox.ClearTextOnFocus = false
+	codeBox.Parent = joinPanel
+	corner(codeBox, 10)
+	stroke(codeBox, Config.Theme.SeaTeal, 1)
+
+	button({
+		Name = "JoinButton",
+		Parent = joinPanel,
+		Text = "Join Friends",
+		Size = UDim2.new(1, -24, 0, 44),
+		Position = UDim2.new(0, 12, 0, 98),
+		OnClick = function()
+			remotes.JoinParty:FireServer(codeBox.Text)
+		end,
+	})
+
+	-- Create crew panel
+	createPanel = Instance.new("Frame")
+	createPanel.Name = "CreatePanel"
+	createPanel.BackgroundColor3 = Config.Theme.UIPanel
+	createPanel.BackgroundTransparency = 0.08
+	createPanel.Size = UDim2.new(0, 360, 0, 280)
+	createPanel.Position = UDim2.fromScale(0.5, 0.55)
+	createPanel.AnchorPoint = Vector2.new(0.5, 0.5)
+	createPanel.Visible = false
+	createPanel.Parent = root
+	corner(createPanel, 18)
+	stroke(createPanel, Config.Theme.PortalGlow, 2)
+
+	textLabel({
+		Name = "CreateTitle",
+		Parent = createPanel,
+		Text = "CREATE CREW BERTH",
+		Font = Enum.Font.GothamBlack,
+		Size = UDim2.new(1, -28, 0, 34),
+		Position = UDim2.new(0, 14, 0, 14),
+		MaxTextSize = 24,
+	})
+
+	local maxLabel = textLabel({
+		Name = "MaxLabel",
+		Parent = createPanel,
+		Text = `Crew size: {state.selectedMax}`,
+		Size = UDim2.new(1, -28, 0, 28),
+		Position = UDim2.new(0, 14, 0, 56),
+		MaxTextSize = 20,
+	})
+
+	button({
+		Name = "Minus",
+		Parent = createPanel,
+		Text = "−",
+		Size = UDim2.new(0, 56, 0, 48),
+		Position = UDim2.new(0, 14, 0, 96),
+		BackgroundColor3 = Config.Theme.SeaTeal,
+		TextColor3 = Config.Theme.Foam,
+		OnClick = function()
+			state.selectedMax = math.max(Config.MinPartySize, state.selectedMax - 1)
+			maxLabel.Text = `Crew size: {state.selectedMax}`
+		end,
+	})
+
+	button({
+		Name = "Plus",
+		Parent = createPanel,
+		Text = "+",
+		Size = UDim2.new(0, 56, 0, 48),
+		Position = UDim2.new(0, 80, 0, 96),
+		BackgroundColor3 = Config.Theme.SeaTeal,
+		TextColor3 = Config.Theme.Foam,
+		OnClick = function()
+			state.selectedMax = math.min(Config.MaxPartySize, state.selectedMax + 1)
+			maxLabel.Text = `Crew size: {state.selectedMax}`
+		end,
+	})
+
+	local privacyBtn = button({
+		Name = "Privacy",
+		Parent = createPanel,
+		Text = "Privacy: Public",
+		Size = UDim2.new(1, -28, 0, 48),
+		Position = UDim2.new(0, 14, 0, 156),
+		BackgroundColor3 = Color3.fromRGB(20, 70, 90),
+		TextColor3 = Config.Theme.Foam,
+		OnClick = function()
+			state.privacy = if state.privacy == "Public" then "Private" else "Public"
+			privacyBtn.Text = `Privacy: {state.privacy}`
+		end,
+	})
+
+	button({
+		Name = "ConfirmCreate",
+		Parent = createPanel,
+		Text = "Open Berth",
+		Size = UDim2.new(0.55, -10, 0, 48),
+		Position = UDim2.new(0, 14, 0, 216),
+		OnClick = function()
+			remotes.CreateParty:FireServer(state.createPortalIndex, state.selectedMax, state.privacy)
+			createPanel.Visible = false
+		end,
+	})
+
+	button({
+		Name = "CancelCreate",
+		Parent = createPanel,
+		Text = "Cancel",
+		Size = UDim2.new(0.45, -18, 0, 48),
+		Position = UDim2.new(0.55, 4, 0, 216),
+		BackgroundColor3 = Color3.fromRGB(50, 60, 70),
+		TextColor3 = Config.Theme.Foam,
+		OnClick = function()
+			createPanel.Visible = false
+		end,
+	})
+
+	-- Active party panel
+	partyPanel = Instance.new("Frame")
+	partyPanel.Name = "PartyPanel"
+	partyPanel.BackgroundColor3 = Config.Theme.UIPanel
+	partyPanel.BackgroundTransparency = 0.1
+	partyPanel.Size = UDim2.new(0, 300, 0, 260)
+	partyPanel.Position = UDim2.new(0, 12, 1, -280)
+	partyPanel.Visible = false
+	partyPanel.Parent = root
+	corner(partyPanel, 16)
+	stroke(partyPanel, Config.Theme.Lantern, 1.5)
+
+	textLabel({
+		Name = "Title",
+		Parent = partyPanel,
+		Text = "CREW",
+		Font = Enum.Font.GothamBlack,
+		Size = UDim2.new(1, -20, 0, 30),
+		Position = UDim2.new(0, 10, 0, 10),
+		MaxTextSize = 22,
+	})
+
+	textLabel({
+		Name = "Code",
+		Parent = partyPanel,
+		Text = "CODE",
+		TextColor3 = Config.Theme.UIAccent,
+		Size = UDim2.new(1, -20, 0, 24),
+		Position = UDim2.new(0, 10, 0, 42),
+		MaxTextSize = 18,
+	})
+
+	textLabel({
+		Name = "Members",
+		Parent = partyPanel,
+		Text = "",
+		TextYAlignment = Enum.TextYAlignment.Top,
+		Size = UDim2.new(1, -20, 0, 110),
+		Position = UDim2.new(0, 10, 0, 72),
+		MaxTextSize = 16,
+	})
+
+	button({
+		Name = "CastOff",
+		Parent = partyPanel,
+		Text = "Cast Off →",
+		Size = UDim2.new(1, -20, 0, 44),
+		Position = UDim2.new(0, 10, 0, 190),
+		BackgroundColor3 = Config.Theme.Lantern,
+		OnClick = function()
+			remotes.StartLaunch:FireServer()
+		end,
+	})
+
+	button({
+		Name = "Leave",
+		Parent = partyPanel,
+		Text = "Leave Crew",
+		Size = UDim2.new(1, -20, 0, 40),
+		Position = UDim2.new(0, 10, 0, 238),
+		BackgroundColor3 = Color3.fromRGB(70, 40, 45),
+		TextColor3 = Config.Theme.Foam,
+		OnClick = function()
+			remotes.LeaveParty:FireServer()
+		end,
+	})
+
+	-- Toast
+	toastFrame = Instance.new("CanvasGroup")
+	toastFrame.Name = "Toast"
+	toastFrame.BackgroundColor3 = Config.Theme.UIPanel
+	toastFrame.Size = UDim2.new(0.5, 0, 0, 48)
+	toastFrame.Position = UDim2.new(0.25, 0, 0.08, 0)
+	toastFrame.Visible = false
+	toastFrame.GroupTransparency = 1
+	toastFrame.Parent = root
+	corner(toastFrame, 12)
+
+	local toastConstraint = Instance.new("UISizeConstraint")
+	toastConstraint.MinSize = Vector2.new(200, 44)
+	toastConstraint.MaxSize = Vector2.new(560, 64)
+	toastConstraint.Parent = toastFrame
+
+	textLabel({
+		Name = "Message",
+		Parent = toastFrame,
+		Text = "",
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Size = UDim2.fromScale(1, 1),
+		MaxTextSize = 20,
+	})
+
+	-- Soft brand bob
+	task.spawn(function()
+		local t = 0
+		while brandLabel.Parent do
+			t += 0.03
+			brandLabel.Position = UDim2.new(0, 8, 0, 4 + math.sin(t) * 2)
+			tagline.TextTransparency = 0.15 + math.sin(t * 0.8) * 0.08
+			task.wait(0.05)
+		end
+	end)
+
+	-- Layout adaptation on resize / device
+	local function relayout()
+		state.device = PlatformInput.getDeviceKind()
+		deviceLabel.Text = `Deck ready · {state.device}`
+		scaler.Scale = PlatformInput.scaleForDevice()
+
+		local cam = workspace.CurrentCamera
+		local width = if cam then cam.ViewportSize.X else 1280
+		if width < 700 then
+			joinPanel.Size = UDim2.new(1, -24, 0, 150)
+			joinPanel.Position = UDim2.new(0, 12, 1, -166)
+			partyPanel.Size = UDim2.new(1, -24, 0, 250)
+			partyPanel.Position = UDim2.new(0, 12, 1, -420)
+			createPanel.Size = UDim2.new(1, -24, 0, 300)
+			brandLabel.Size = UDim2.new(1, -16, 0, 44)
+		elseif width < 1100 then
+			joinPanel.Size = UDim2.new(0, 320, 0, 150)
+			joinPanel.Position = UDim2.new(1, -336, 1, -170)
+			partyPanel.Position = UDim2.new(0, 12, 1, -280)
+		else
+			joinPanel.Size = UDim2.new(0, 320, 0, 150)
+			joinPanel.Position = UDim2.new(1, -336, 1, -170)
+			partyPanel.Position = UDim2.new(0, 12, 1, -280)
+		end
+	end
+
+	relayout()
+	if workspace.CurrentCamera then
+		workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(relayout)
+	end
+	UserInputService.LastInputTypeChanged:Connect(relayout)
+
+	-- Gamepad focus defaults
+	if PlatformInput.isGamepadPreferred() then
+		local joinButton = joinPanel:FindFirstChild("JoinButton")
+		if joinButton and joinButton:IsA("GuiButton") then
+			game:GetService("GuiService").SelectedObject = joinButton
+		end
+	end
+end
+
+local function bindRemotes()
+	local folder = Remotes.getFolder()
+	remotes = {
+		CreateParty = folder:WaitForChild("CreateParty") :: RemoteEvent,
+		JoinParty = folder:WaitForChild("JoinParty") :: RemoteEvent,
+		LeaveParty = folder:WaitForChild("LeaveParty") :: RemoteEvent,
+		StartLaunch = folder:WaitForChild("StartLaunch") :: RemoteEvent,
+		PartyUpdated = folder:WaitForChild("PartyUpdated") :: RemoteEvent,
+		PortalsUpdated = folder:WaitForChild("PortalsUpdated") :: RemoteEvent,
+		Toast = folder:WaitForChild("Toast") :: RemoteEvent,
+		GetLobbyState = folder:WaitForChild("GetLobbyState") :: RemoteFunction,
+	}
+
+	remotes.Toast.OnClientEvent:Connect(function(message, kind)
+		showToast(tostring(message), kind)
+	end)
+
+	remotes.PartyUpdated.OnClientEvent:Connect(function(party)
+		if typeof(party) == "table" and party.__openCreate then
+			openCreate(party.portalIndex or 1)
+			return
+		end
+		state.party = party
+		refreshPartyPanel()
+	end)
+
+	remotes.PortalsUpdated.OnClientEvent:Connect(function(portals)
+		state.portals = portals
+	end)
+
+	local ok, lobbyState = pcall(function()
+		return remotes.GetLobbyState:InvokeServer()
+	end)
+	if ok and typeof(lobbyState) == "table" then
+		state.party = lobbyState.party
+		state.portals = lobbyState.portals or {}
+		refreshPartyPanel()
+	end
+end
+
+local function runCountdownTicker()
+	RunService.RenderStepped:Connect(function()
+		local party = state.party
+		if typeof(party) ~= "table" or party.status ~= "Launching" or not party.countdownEndsAt then
+			if countdownLabel then
+				countdownLabel.Visible = false
+			end
+			return
+		end
+		local remaining = math.max(0, math.ceil(party.countdownEndsAt - workspace:GetServerTimeNow()))
+		countdownLabel.Visible = true
+		countdownLabel.Text = if remaining > 0 then `CASTING OFF IN {remaining}` else "SETTING SAIL!"
+	end)
+end
+
+function LobbyUI.openCreateForPortal(portalIndex: number)
+	openCreate(portalIndex)
+	showToast(`Portal {portalIndex} — pick crew size and cast your berth.`, "info")
+end
+
+function LobbyUI.start()
+	buildGui()
+	bindRemotes()
+	runCountdownTicker()
+
+	-- Client-built portals signal create via BindableEvent
+	local openEvent = ReplicatedStorage:FindFirstChild("SurviveAtSeaOpenCreate")
+	if not openEvent then
+		openEvent = Instance.new("BindableEvent")
+		openEvent.Name = "SurviveAtSeaOpenCreate"
+		openEvent.Parent = ReplicatedStorage
+	end
+	(openEvent :: BindableEvent).Event:Connect(function(portalIndex)
+		if typeof(portalIndex) == "number" then
+			LobbyUI.openCreateForPortal(portalIndex)
+		end
+	end)
+
+	showToast("Walk to a portal to board with friends.", "info")
+	print(`[SurviveAtSea] Lobby UI ready ({state.device})`)
+end
+
+return LobbyUI
+]]></string>
+            </Properties>
+          </Item>
+          <Item class="ModuleScript" referent="20">
+            <Properties>
+              <string name="Name">PlatformInput</string>
+              <string name="Source"><![CDATA[-- Cross-platform helpers for phone, tablet, computer, console, and VR.
+
+local GuiService = game:GetService("GuiService")
+local UserInputService = game:GetService("UserInputService")
+local VRService = game:GetService("VRService")
+
+local PlatformInput = {}
+
+function PlatformInput.getDeviceKind(): "Phone" | "Tablet" | "Computer" | "Console" | "VR"
+	if VRService.VREnabled then
+		return "VR"
+	end
+	if GuiService:IsTenFootInterface() then
+		return "Console"
+	end
+	if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
+		local camera = workspace.CurrentCamera
+		local viewport = if camera then camera.ViewportSize else Vector2.new(800, 600)
+		local minSide = math.min(viewport.X, viewport.Y)
+		if minSide >= 700 then
+			return "Tablet"
+		end
+		return "Phone"
+	end
+	return "Computer"
+end
+
+function PlatformInput.isGamepadPreferred(): boolean
+	return GuiService:IsTenFootInterface()
+		or UserInputService.GamepadEnabled and not UserInputService.KeyboardEnabled and not UserInputService.TouchEnabled
+end
+
+function PlatformInput.applySafeArea(guiObject: GuiObject)
+	local insets = GuiService:GetGuiInset()
+	-- Top inset already applied by ScreenGui IgnoreGuiInset=false; add side padding for notches / TV overscan.
+	local padding = Instance.new("UIPadding")
+	padding.Name = "SafeAreaPadding"
+	padding.PaddingTop = UDim.new(0, math.max(8, insets.Y))
+	padding.PaddingBottom = UDim.new(0, 12)
+	padding.PaddingLeft = UDim.new(0, 12)
+	padding.PaddingRight = UDim.new(0, 12)
+	padding.Parent = guiObject
+end
+
+function PlatformInput.scaleForDevice(): number
+	local kind = PlatformInput.getDeviceKind()
+	if kind == "Phone" then
+		return 1.05
+	elseif kind == "Tablet" then
+		return 1.0
+	elseif kind == "Console" or kind == "VR" then
+		return 1.15
+	end
+	return 1.0
+end
+
+return PlatformInput
+]]></string>
+            </Properties>
+          </Item>
+        </Item>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="Workspace" referent="21">
+    <Properties>
+      <string name="Name">Workspace</string>
+      <bool name="FilteringEnabled">true</bool>
+      <bool name="NeedsPivotMigration">false</bool>
+    </Properties>
+    <Item class="Folder" referent="22">
+      <Properties>
+        <string name="Name">SurviveAtSeaLobby</string>
+      </Properties>
+      <Item class="Part" referent="23">
+        <Properties>
+          <string name="Name">OceanDeep</string>
+          <bool name="Anchored">true</bool>
+          <token name="BottomSurface">0</token>
+          <bool name="CanCollide">true</bool>
+          <Color3uint8 name="Color3uint8">338245</Color3uint8>
+          <token name="Material">272</token>
+          <Vector3 name="Position">
+            <X>0</X>
+            <Y>-16</Y>
+            <Z>0</Z>
+          </Vector3>
+          <Vector3 name="size">
+            <X>1200</X>
+            <Y>30</Y>
+            <Z>1200</Z>
+          </Vector3>
+          <token name="TopSurface">0</token>
+          <float name="Transparency">0.1</float>
+        </Properties>
+      </Item>
+      <Item class="Part" referent="24">
+        <Properties>
+          <string name="Name">OceanSurface</string>
+          <bool name="Anchored">true</bool>
+          <token name="BottomSurface">0</token>
+          <bool name="CanCollide">false</bool>
+          <Color3uint8 name="Color3uint8">1341590</Color3uint8>
+          <token name="Material">1568</token>
+          <Vector3 name="Position">
+            <X>0</X>
+            <Y>0</Y>
+            <Z>0</Z>
+          </Vector3>
+          <float name="Reflectance">0.15</float>
+          <Vector3 name="size">
+            <X>1200</X>
+            <Y>2</Y>
+            <Z>1200</Z>
+          </Vector3>
+          <token name="TopSurface">0</token>
+          <float name="Transparency">0.45</float>
+        </Properties>
+      </Item>
+      <Item class="Part" referent="25">
+        <Properties>
+          <string name="Name">Foam</string>
+          <bool name="Anchored">true</bool>
+          <token name="BottomSurface">0</token>
+          <bool name="CanCollide">false</bool>
+          <Color3uint8 name="Color3uint8">13757424</Color3uint8>
+          <token name="Material">272</token>
+          <Vector3 name="Position">
+            <X>0</X>
+            <Y>1.2</Y>
+            <Z>20</Z>
+          </Vector3>
+          <Vector3 name="size">
+            <X>160</X>
+            <Y>0.6</Y>
+            <Z>160</Z>
+          </Vector3>
+          <token name="TopSurface">0</token>
+          <float name="Transparency">0.55</float>
+        </Properties>
+      </Item>
+      <Item class="Folder" referent="26">
+        <Properties>
+          <string name="Name">Dock</string>
+        </Properties>
+        <Item class="Part" referent="27">
+          <Properties>
+            <string name="Name">PierDeck</string>
+            <bool name="Anchored">true</bool>
+            <token name="BottomSurface">0</token>
+            <bool name="CanCollide">true</bool>
+            <Color3uint8 name="Color3uint8">7885360</Color3uint8>
+            <token name="Material">528</token>
+            <Vector3 name="Position">
+              <X>0</X>
+              <Y>2</Y>
+              <Z>20</Z>
+            </Vector3>
+            <Vector3 name="size">
+              <X>80</X>
+              <Y>3</Y>
+              <Z>140</Z>
+            </Vector3>
+            <token name="TopSurface">0</token>
+            <float name="Transparency">0</float>
+          </Properties>
+        </Item>
+        <Item class="Part" referent="28">
+          <Properties>
+            <string name="Name">CenterPlank</string>
+            <bool name="Anchored">true</bool>
+            <token name="BottomSurface">0</token>
+            <bool name="CanCollide">true</bool>
+            <Color3uint8 name="Color3uint8">11237445</Color3uint8>
+            <token name="Material">528</token>
+            <Vector3 name="Position">
+              <X>0</X>
+              <Y>2</Y>
+              <Z>20</Z>
+            </Vector3>
+            <Vector3 name="size">
+              <X>8</X>
+              <Y>3.2</Y>
+              <Z>140</Z>
+            </Vector3>
+            <token name="TopSurface">0</token>
+            <float name="Transparency">0</float>
+          </Properties>
+        </Item>
+        <Item class="Part" referent="29">
+          <Properties>
+            <string name="Name">RailL</string>
+            <bool name="Anchored">true</bool>
+            <token name="BottomSurface">0</token>
+            <bool name="CanCollide">true</bool>
+            <Color3uint8 name="Color3uint8">5848356</Color3uint8>
+            <token name="Material">512</token>
+            <Vector3 name="Position">
+              <X>-38</X>
+              <Y>5</Y>
+              <Z>20</Z>
+            </Vector3>
+            <Vector3 name="size">
+              <X>1.5</X>
+              <Y>4</Y>
+              <Z>140</Z>
+            </Vector3>
+            <token name="TopSurface">0</token>
+            <float name="Transparency">0</float>
+          </Properties>
+        </Item>
+        <Item class="Part" referent="30">
+          <Properties>
+            <string name="Name">RailR</string>
+            <bool name="Anchored">true</bool>
+            <token name="BottomSurface">0</token>
+            <bool name="CanCollide">true</bool>
+            <Color3uint8 name="Color3uint8">5848356</Color3uint8>
+            <token name="Material">512</token>
+            <Vector3 name="Position">
+              <X>38</X>
+              <Y>5</Y>
+              <Z>20</Z>
+            </Vector3>
+            <Vector3 name="size">
+              <X>1.5</X>
+              <Y>4</Y>
+              <Z>140</Z>
+            </Vector3>
+            <token name="TopSurface">0</token>
+            <float name="Transparency">0</float>
+          </Properties>
+        </Item>
+        <Item class="Part" referent="31">
+          <Properties>
+            <string name="Name">PillarL0</string>
+            <bool name="Anchored">true</bool>
+            <token name="BottomSurface">0</token>
+            <bool name="CanCollide">true</bool>
+            <Color3uint8 name="Color3uint8">4534300</Color3uint8>
+            <token name="Material">512</token>
+            <Vector3 name="Position">
+              <X>-30</X>
+              <Y>-5</Y>
+              <Z>-40</Z>
+            </Vector3>
+            <Vector3 name="size">
+              <X>4</X>
+              <Y>18</Y>
+              <Z>4</Z>
+            </Vector3>
+            <token name="TopSurface">0</token>
+            <float name="Transparency">0</float>
+          </Properties>
+        </Item>
+        <Item class="Part" referent="32">
+          <Properties>
+            <string name="Name">PillarL1</string>
+            <bool name="Anchored">true</bool>
+            <token name="BottomSurface">0</token>
+            <bool name="CanCollide">true</bool>
+            <Color3uint8 name="Color3uint8">4534300</Color3uint8>
+            <token name="Material">512</token>
+            <Vector3 name="Position">
+              <X>-30</X>
+              <Y>-5</Y>
+              <Z>-20</Z>
+            </Vector3>
+            <Vector3 name="size">
+              <X>4</X>
+              <Y>18</Y>
+              <Z>4</Z>
+            </Vector3>
+            <token name="TopSurface">0</token>
+            <float name="Transparency">0</float>
+          </Properties>
+        </Item>
+        <Item class="Part" referent="33">
+          <Properties>
+            <string name="Name">PillarL2</string>
+            <bool name="Anchored">true</bool>
+            <token name="BottomSurface">0</token>
+            <bool name="CanCollide">true</bool>
+            <Color3uint8 name="Color3uint8">4534300</Color3uint8>
+            <token name="Material">512</token>
+            <Vector3 name="Position">
+              <X>-30</X>
+              <Y>-5</Y>
+              <Z>0</Z>
+            </Vector3>
+            <Vector3 name="size">
+              <X>4</X>
+              <Y>18</Y>
+              <Z>4</Z>
+            </Vector3>
+            <token name="TopSurface">0</token>
+            <float name="Transparency">0</float>
+          </Properties>
+        </Item>
+        <Item class="Part" referent="34">
+          <Properties>
+            <string name="Name">PillarL3</string>
+            <bool name="Anchored">true</bool>
+            <token name="BottomSurface">0</token>
+            <bool name="CanCollide">true</bool>
+            <Color3uint8 name="Color3uint8">4534300</Color3uint8>
+            <token name="Material">512</token>
+            <Vector3 name="Position">
+              <X>-30</X>
+              <Y>-5</Y>
+              <Z>20</Z>
+            </Vector3>
+            <Vector3 name="size">
+              <X>4</X>
+              <Y>18</Y>
+              <Z>4</Z>
+            </Vector3>
+            <token name="TopSurface">0</token>
+            <float name="Transparency">0</float>
+          </Properties>
+        </Item>
+        <Item class="Part" referent="35">
+          <Properties>
+            <string name="Name">PillarL4</string>
+            <bool name="Anchored">true</bool>
+            <token name="BottomSurface">0</token>
+            <bool name="CanCollide">true</bool>
+            <Color3uint8 name="Color3uint8">4534300</Color3uint8>
+            <token name="Material">512</token>
+            <Vector3 name="Position">
+              <X>-30</X>
+              <Y>-5</Y>
+              <Z>40</Z>
+            </Vector3>
+            <Vector3 name="size">
+              <X>4</X>
+              <Y>18</Y>
+              <Z>4</Z>
+            </Vector3>
+            <token name="TopSurface">0</token>
+            <float name="Transparency">0</float>
+          </Properties>
+        </Item>
+        <Item class="Part" referent="36">
+          <Properties>
+            <string name="Name">PillarL5</string>
+            <bool name="Anchored">true</bool>
+            <token name="BottomSurface">0</token>
+            <bool name="CanCollide">true</bool>
+            <Color3uint8 name="Color3uint8">4534300</Color3uint8>
+            <token name="Material">512</token>
+            <Vector3 name="Position">
+              <X>-30</X>
+              <Y>-5</Y>
+              <Z>60</Z>
+            </Vector3>
+            <Vector3 name="size">
+              <X>4</X>
+              <Y>18</Y>
+              <Z>4</Z>
+            </Vector3>
+            <token name="TopSurface">0</token>
+            <float name="Transparency">0</float>
+          </Properties>
+        </Item>
+        <Item class="Part" referent="37">
+          <Properties>
+            <string name="Name">PillarL6</string>
+            <bool name="Anchored">true</bool>
+            <token name="BottomSurface">0</token>
+            <bool name="CanCollide">true</bool>
+            <Color3uint8 name="Color3uint8">4534300</Color3uint8>
+            <token name="Material">512</token>
+            <Vector3 name="Position">
+              <X>-30</X>
+              <Y>-5</Y>
+              <Z>80</Z>
+            </Vector3>
+            <Vector3 name="size">
+              <X>4</X>
+              <Y>18</Y>
+              <Z>4</Z>
+            </Vector3>
+            <token name="TopSurface">0</token>
+            <float name="Transparency">0</float>
+          </Properties>
+        </Item>
+        <Item class="Part" referent="38">
+          <Properties>
+            <string name="Name">PillarR0</string>
+            <bool name="Anchored">true</bool>
+            <token name="BottomSurface">0</token>
+            <bool name="CanCollide">true</bool>
+            <Color3uint8 name="Color3uint8">4534300</Color3uint8>
+            <token name="Material">512</token>
+            <Vector3 name="Position">
+              <X>30</X>
+              <Y>-5</Y>
+              <Z>-40</Z>
+            </Vector3>
+            <Vector3 name="size">
+              <X>4</X>
+              <Y>18</Y>
+              <Z>4</Z>
+            </Vector3>
+            <token name="TopSurface">0</token>
+            <float name="Transparency">0</float>
+          </Properties>
+        </Item>
+        <Item class="Part" referent="39">
+          <Properties>
+            <string name="Name">PillarR1</string>
+            <bool name="Anchored">true</bool>
+            <token name="BottomSurface">0</token>
+            <bool name="CanCollide">true</bool>
+            <Color3uint8 name="Color3uint8">4534300</Color3uint8>
+            <token name="Material">512</token>
+            <Vector3 name="Position">
+              <X>30</X>
+              <Y>-5</Y>
+              <Z>-20</Z>
+            </Vector3>
+            <Vector3 name="size">
+              <X>4</X>
+              <Y>18</Y>
+              <Z>4</Z>
+            </Vector3>
+            <token name="TopSurface">0</token>
+            <float name="Transparency">0</float>
+          </Properties>
+        </Item>
+        <Item class="Part" referent="40">
+          <Properties>
+            <string name="Name">PillarR2</string>
+            <bool name="Anchored">true</bool>
+            <token name="BottomSurface">0</token>
+            <bool name="CanCollide">true</bool>
+            <Color3uint8 name="Color3uint8">4534300</Color3uint8>
+            <token name="Material">512</token>
+            <Vector3 name="Position">
+              <X>30</X>
+              <Y>-5</Y>
+              <Z>0</Z>
+            </Vector3>
+            <Vector3 name="size">
+              <X>4</X>
+              <Y>18</Y>
+              <Z>4</Z>
+            </Vector3>
+            <token name="TopSurface">0</token>
+            <float name="Transparency">0</float>
+          </Properties>
+        </Item>
+        <Item class="Part" referent="41">
+          <Properties>
+            <string name="Name">PillarR3</string>
+            <bool name="Anchored">true</bool>
+            <token name="BottomSurface">0</token>
+            <bool name="CanCollide">true</bool>
+            <Color3uint8 name="Color3uint8">4534300</Color3uint8>
+            <token name="Material">512</token>
+            <Vector3 name="Position">
+              <X>30</X>
+              <Y>-5</Y>
+              <Z>20</Z>
+            </Vector3>
+            <Vector3 name="size">
+              <X>4</X>
+              <Y>18</Y>
+              <Z>4</Z>
+            </Vector3>
+            <token name="TopSurface">0</token>
+            <float name="Transparency">0</float>
+          </Properties>
+        </Item>
+        <Item class="Part" referent="42">
+          <Properties>
+            <string name="Name">PillarR4</string>
+            <bool name="Anchored">true</bool>
+            <token name="BottomSurface">0</token>
+            <bool name="CanCollide">true</bool>
+            <Color3uint8 name="Color3uint8">4534300</Color3uint8>
+            <token name="Material">512</token>
+            <Vector3 name="Position">
+              <X>30</X>
+              <Y>-5</Y>
+              <Z>40</Z>
+            </Vector3>
+            <Vector3 name="size">
+              <X>4</X>
+              <Y>18</Y>
+              <Z>4</Z>
+            </Vector3>
+            <token name="TopSurface">0</token>
+            <float name="Transparency">0</float>
+          </Properties>
+        </Item>
+        <Item class="Part" referent="43">
+          <Properties>
+            <string name="Name">PillarR5</string>
+            <bool name="Anchored">true</bool>
+            <token name="BottomSurface">0</token>
+            <bool name="CanCollide">true</bool>
+            <Color3uint8 name="Color3uint8">4534300</Color3uint8>
+            <token name="Material">512</token>
+            <Vector3 name="Position">
+              <X>30</X>
+              <Y>-5</Y>
+              <Z>60</Z>
+            </Vector3>
+            <Vector3 name="size">
+              <X>4</X>
+              <Y>18</Y>
+              <Z>4</Z>
+            </Vector3>
+            <token name="TopSurface">0</token>
+            <float name="Transparency">0</float>
+          </Properties>
+        </Item>
+        <Item class="Part" referent="44">
+          <Properties>
+            <string name="Name">PillarR6</string>
+            <bool name="Anchored">true</bool>
+            <token name="BottomSurface">0</token>
+            <bool name="CanCollide">true</bool>
+            <Color3uint8 name="Color3uint8">4534300</Color3uint8>
+            <token name="Material">512</token>
+            <Vector3 name="Position">
+              <X>30</X>
+              <Y>-5</Y>
+              <Z>80</Z>
+            </Vector3>
+            <Vector3 name="size">
+              <X>4</X>
+              <Y>18</Y>
+              <Z>4</Z>
+            </Vector3>
+            <token name="TopSurface">0</token>
+            <float name="Transparency">0</float>
+          </Properties>
+        </Item>
+        <Item class="Part" referent="45">
+          <Properties>
+            <string name="Name">Lighthouse</string>
+            <bool name="Anchored">true</bool>
+            <token name="BottomSurface">0</token>
+            <bool name="CanCollide">true</bool>
+            <Color3uint8 name="Color3uint8">15790315</Color3uint8>
+            <token name="Material">272</token>
+            <Vector3 name="Position">
+              <X>-55</X>
+              <Y>25</Y>
+              <Z>-20</Z>
+            </Vector3>
+            <Vector3 name="size">
+              <X>12</X>
+              <Y>48</Y>
+              <Z>12</Z>
+            </Vector3>
+            <token name="TopSurface">0</token>
+            <float name="Transparency">0</float>
+          </Properties>
+        </Item>
+        <Item class="Part" referent="46">
+          <Properties>
+            <string name="Name">LighthouseStripe</string>
+            <bool name="Anchored">true</bool>
+            <token name="BottomSurface">0</token>
+            <bool name="CanCollide">true</bool>
+            <Color3uint8 name="Color3uint8">13057336</Color3uint8>
+            <token name="Material">272</token>
+            <Vector3 name="Position">
+              <X>-55</X>
+              <Y>18</Y>
+              <Z>-20</Z>
+            </Vector3>
+            <Vector3 name="size">
+              <X>12.4</X>
+              <Y>8</Y>
+              <Z>12.4</Z>
+            </Vector3>
+            <token name="TopSurface">0</token>
+            <float name="Transparency">0</float>
+          </Properties>
+        </Item>
+        <Item class="Part" referent="47">
+          <Properties>
+            <string name="Name">LighthouseLamp</string>
+            <bool name="Anchored">true</bool>
+            <token name="BottomSurface">0</token>
+            <bool name="CanCollide">false</bool>
+            <Color3uint8 name="Color3uint8">16759385</Color3uint8>
+            <token name="Material">288</token>
+            <Vector3 name="Position">
+              <X>-55</X>
+              <Y>52</Y>
+              <Z>-20</Z>
+            </Vector3>
+            <Vector3 name="size">
+              <X>10</X>
+              <Y>8</Y>
+              <Z>10</Z>
+            </Vector3>
+            <token name="TopSurface">0</token>
+            <float name="Transparency">0</float>
+          </Properties>
+        </Item>
+        <Item class="Part" referent="48">
+          <Properties>
+            <string name="Name">Crate1</string>
+            <bool name="Anchored">true</bool>
+            <token name="BottomSurface">0</token>
+            <bool name="CanCollide">true</bool>
+            <Color3uint8 name="Color3uint8">8542515</Color3uint8>
+            <token name="Material">512</token>
+            <Vector3 name="Position">
+              <X>-17</X>
+              <Y>6.5</Y>
+              <Z>-30</Z>
+            </Vector3>
+            <Vector3 name="size">
+              <X>5</X>
+              <Y>5</Y>
+              <Z>5</Z>
+            </Vector3>
+            <token name="TopSurface">0</token>
+            <float name="Transparency">0</float>
+          </Properties>
+        </Item>
+        <Item class="Part" referent="49">
+          <Properties>
+            <string name="Name">Crate2</string>
+            <bool name="Anchored">true</bool>
+            <token name="BottomSurface">0</token>
+            <bool name="CanCollide">true</bool>
+            <Color3uint8 name="Color3uint8">8542515</Color3uint8>
+            <token name="Material">512</token>
+            <Vector3 name="Position">
+              <X>-12</X>
+              <Y>6.5</Y>
+              <Z>-25</Z>
+            </Vector3>
+            <Vector3 name="size">
+              <X>5</X>
+              <Y>5</Y>
+              <Z>5</Z>
+            </Vector3>
+            <token name="TopSurface">0</token>
+            <float name="Transparency">0</float>
+          </Properties>
+        </Item>
+        <Item class="Part" referent="50">
+          <Properties>
+            <string name="Name">Crate3</string>
+            <bool name="Anchored">true</bool>
+            <token name="BottomSurface">0</token>
+            <bool name="CanCollide">true</bool>
+            <Color3uint8 name="Color3uint8">8542515</Color3uint8>
+            <token name="Material">512</token>
+            <Vector3 name="Position">
+              <X>-7</X>
+              <Y>6.5</Y>
+              <Z>-20</Z>
+            </Vector3>
+            <Vector3 name="size">
+              <X>5</X>
+              <Y>5</Y>
+              <Z>5</Z>
+            </Vector3>
+            <token name="TopSurface">0</token>
+            <float name="Transparency">0</float>
+          </Properties>
+        </Item>
+        <Item class="Part" referent="51">
+          <Properties>
+            <string name="Name">Crate4</string>
+            <bool name="Anchored">true</bool>
+            <token name="BottomSurface">0</token>
+            <bool name="CanCollide">true</bool>
+            <Color3uint8 name="Color3uint8">8542515</Color3uint8>
+            <token name="Material">512</token>
+            <Vector3 name="Position">
+              <X>-2</X>
+              <Y>6.5</Y>
+              <Z>-30</Z>
+            </Vector3>
+            <Vector3 name="size">
+              <X>5</X>
+              <Y>5</Y>
+              <Z>5</Z>
+            </Vector3>
+            <token name="TopSurface">0</token>
+            <float name="Transparency">0</float>
+          </Properties>
+        </Item>
+        <Item class="Part" referent="52">
+          <Properties>
+            <string name="Name">Crate5</string>
+            <bool name="Anchored">true</bool>
+            <token name="BottomSurface">0</token>
+            <bool name="CanCollide">true</bool>
+            <Color3uint8 name="Color3uint8">8542515</Color3uint8>
+            <token name="Material">512</token>
+            <Vector3 name="Position">
+              <X>3</X>
+              <Y>6.5</Y>
+              <Z>-25</Z>
+            </Vector3>
+            <Vector3 name="size">
+              <X>5</X>
+              <Y>5</Y>
+              <Z>5</Z>
+            </Vector3>
+            <token name="TopSurface">0</token>
+            <float name="Transparency">0</float>
+          </Properties>
+        </Item>
+        <Item class="Part" referent="53">
+          <Properties>
+            <string name="Name">Crate6</string>
+            <bool name="Anchored">true</bool>
+            <token name="BottomSurface">0</token>
+            <bool name="CanCollide">true</bool>
+            <Color3uint8 name="Color3uint8">8542515</Color3uint8>
+            <token name="Material">512</token>
+            <Vector3 name="Position">
+              <X>8</X>
+              <Y>6.5</Y>
+              <Z>-20</Z>
+            </Vector3>
+            <Vector3 name="size">
+              <X>5</X>
+              <Y>5</Y>
+              <Z>5</Z>
+            </Vector3>
+            <token name="TopSurface">0</token>
+            <float name="Transparency">0</float>
+          </Properties>
+        </Item>
+        <Item class="Part" referent="54">
+          <Properties>
+            <string name="Name">Crate7</string>
+            <bool name="Anchored">true</bool>
+            <token name="BottomSurface">0</token>
+            <bool name="CanCollide">true</bool>
+            <Color3uint8 name="Color3uint8">8542515</Color3uint8>
+            <token name="Material">512</token>
+            <Vector3 name="Position">
+              <X>13</X>
+              <Y>6.5</Y>
+              <Z>-30</Z>
+            </Vector3>
+            <Vector3 name="size">
+              <X>5</X>
+              <Y>5</Y>
+              <Z>5</Z>
+            </Vector3>
+            <token name="TopSurface">0</token>
+            <float name="Transparency">0</float>
+          </Properties>
+        </Item>
+        <Item class="Part" referent="55">
+          <Properties>
+            <string name="Name">Crate8</string>
+            <bool name="Anchored">true</bool>
+            <token name="BottomSurface">0</token>
+            <bool name="CanCollide">true</bool>
+            <Color3uint8 name="Color3uint8">8542515</Color3uint8>
+            <token name="Material">512</token>
+            <Vector3 name="Position">
+              <X>18</X>
+              <Y>6.5</Y>
+              <Z>-25</Z>
+            </Vector3>
+            <Vector3 name="size">
+              <X>5</X>
+              <Y>5</Y>
+              <Z>5</Z>
+            </Vector3>
+            <token name="TopSurface">0</token>
+            <float name="Transparency">0</float>
+          </Properties>
+        </Item>
+        <Item class="Part" referent="56">
+          <Properties>
+            <string name="Name">Buoy1</string>
+            <bool name="Anchored">true</bool>
+            <token name="BottomSurface">0</token>
+            <bool name="CanCollide">false</bool>
+            <Color3uint8 name="Color3uint8">15087667</Color3uint8>
+            <token name="Material">272</token>
+            <Vector3 name="Position">
+              <X>-44</X>
+              <Y>3</Y>
+              <Z>55</Z>
+            </Vector3>
+            <Vector3 name="size">
+              <X>4</X>
+              <Y>7</Y>
+              <Z>4</Z>
+            </Vector3>
+            <token name="TopSurface">0</token>
+            <float name="Transparency">0</float>
+          </Properties>
+        </Item>
+        <Item class="Part" referent="57">
+          <Properties>
+            <string name="Name">Buoy2</string>
+            <bool name="Anchored">true</bool>
+            <token name="BottomSurface">0</token>
+            <bool name="CanCollide">false</bool>
+            <Color3uint8 name="Color3uint8">16119285</Color3uint8>
+            <token name="Material">272</token>
+            <Vector3 name="Position">
+              <X>-18</X>
+              <Y>3</Y>
+              <Z>69</Z>
+            </Vector3>
+            <Vector3 name="size">
+              <X>4</X>
+              <Y>7</Y>
+              <Z>4</Z>
+            </Vector3>
+            <token name="TopSurface">0</token>
+            <float name="Transparency">0</float>
+          </Properties>
+        </Item>
+        <Item class="Part" referent="58">
+          <Properties>
+            <string name="Name">Buoy3</string>
+            <bool name="Anchored">true</bool>
+            <token name="BottomSurface">0</token>
+            <bool name="CanCollide">false</bool>
+            <Color3uint8 name="Color3uint8">15087667</Color3uint8>
+            <token name="Material">272</token>
+            <Vector3 name="Position">
+              <X>8</X>
+              <Y>3</Y>
+              <Z>55</Z>
+            </Vector3>
+            <Vector3 name="size">
+              <X>4</X>
+              <Y>7</Y>
+              <Z>4</Z>
+            </Vector3>
+            <token name="TopSurface">0</token>
+            <float name="Transparency">0</float>
+          </Properties>
+        </Item>
+        <Item class="Part" referent="59">
+          <Properties>
+            <string name="Name">Buoy4</string>
+            <bool name="Anchored">true</bool>
+            <token name="BottomSurface">0</token>
+            <bool name="CanCollide">false</bool>
+            <Color3uint8 name="Color3uint8">16119285</Color3uint8>
+            <token name="Material">272</token>
+            <Vector3 name="Position">
+              <X>34</X>
+              <Y>3</Y>
+              <Z>69</Z>
+            </Vector3>
+            <Vector3 name="size">
+              <X>4</X>
+              <Y>7</Y>
+              <Z>4</Z>
+            </Vector3>
+            <token name="TopSurface">0</token>
+            <float name="Transparency">0</float>
+          </Properties>
+        </Item>
+        <Item class="Part" referent="60">
+          <Properties>
+            <string name="Name">Buoy5</string>
+            <bool name="Anchored">true</bool>
+            <token name="BottomSurface">0</token>
+            <bool name="CanCollide">false</bool>
+            <Color3uint8 name="Color3uint8">15087667</Color3uint8>
+            <token name="Material">272</token>
+            <Vector3 name="Position">
+              <X>60</X>
+              <Y>3</Y>
+              <Z>55</Z>
+            </Vector3>
+            <Vector3 name="size">
+              <X>4</X>
+              <Y>7</Y>
+              <Z>4</Z>
+            </Vector3>
+            <token name="TopSurface">0</token>
+            <float name="Transparency">0</float>
+          </Properties>
+        </Item>
+        <Item class="Part" referent="61">
+          <Properties>
+            <string name="Name">Buoy6</string>
+            <bool name="Anchored">true</bool>
+            <token name="BottomSurface">0</token>
+            <bool name="CanCollide">false</bool>
+            <Color3uint8 name="Color3uint8">16119285</Color3uint8>
+            <token name="Material">272</token>
+            <Vector3 name="Position">
+              <X>86</X>
+              <Y>3</Y>
+              <Z>69</Z>
+            </Vector3>
+            <Vector3 name="size">
+              <X>4</X>
+              <Y>7</Y>
+              <Z>4</Z>
+            </Vector3>
+            <token name="TopSurface">0</token>
+            <float name="Transparency">0</float>
+          </Properties>
+        </Item>
+      </Item>
+      <Item class="Folder" referent="62">
+        <Properties>
+          <string name="Name">Portals</string>
+        </Properties>
+        <Item class="Model" referent="63">
+          <Properties>
+            <string name="Name">Portal_1</string>
+            <bool name="NeedsPivotMigration">false</bool>
+          </Properties>
+          <Item class="Part" referent="64">
+            <Properties>
+              <string name="Name">Pad</string>
+              <bool name="Anchored">true</bool>
+              <token name="BottomSurface">0</token>
+              <bool name="CanCollide">true</bool>
+              <Color3uint8 name="Color3uint8">5192484</Color3uint8>
+              <token name="Material">528</token>
+              <Vector3 name="Position">
+                <X>-36</X>
+                <Y>3.5</Y>
+                <Z>70</Z>
+              </Vector3>
+              <Vector3 name="size">
+                <X>18</X>
+                <Y>1.5</Y>
+                <Z>18</Z>
+              </Vector3>
+              <token name="TopSurface">0</token>
+              <float name="Transparency">0</float>
+            </Properties>
+          </Item>
+          <Item class="Part" referent="65">
+            <Properties>
+              <string name="Name">NeonRing</string>
+              <bool name="Anchored">true</bool>
+              <token name="BottomSurface">0</token>
+              <bool name="CanCollide">false</bool>
+              <Color3uint8 name="Color3uint8">4048831</Color3uint8>
+              <token name="Material">288</token>
+              <Vector3 name="Position">
+                <X>-36</X>
+                <Y>4.4</Y>
+                <Z>70</Z>
+              </Vector3>
+              <Vector3 name="size">
+                <X>18.5</X>
+                <Y>0.6</Y>
+                <Z>18.5</Z>
+              </Vector3>
+              <token name="TopSurface">0</token>
+              <float name="Transparency">0</float>
+            </Properties>
+          </Item>
+          <Item class="Part" referent="66">
+            <Properties>
+              <string name="Name">ArchLegL</string>
+              <bool name="Anchored">true</bool>
+              <token name="BottomSurface">0</token>
+              <bool name="CanCollide">true</bool>
+              <Color3uint8 name="Color3uint8">6176809</Color3uint8>
+              <token name="Material">512</token>
+              <Vector3 name="Position">
+                <X>-43</X>
+                <Y>13.5</Y>
+                <Z>70</Z>
+              </Vector3>
+              <Vector3 name="size">
+                <X>2.5</X>
+                <Y>18</Y>
+                <Z>2.5</Z>
+              </Vector3>
+              <token name="TopSurface">0</token>
+              <float name="Transparency">0</float>
+            </Properties>
+          </Item>
+          <Item class="Part" referent="67">
+            <Properties>
+              <string name="Name">ArchLegR</string>
+              <bool name="Anchored">true</bool>
+              <token name="BottomSurface">0</token>
+              <bool name="CanCollide">true</bool>
+              <Color3uint8 name="Color3uint8">6176809</Color3uint8>
+              <token name="Material">512</token>
+              <Vector3 name="Position">
+                <X>-29</X>
+                <Y>13.5</Y>
+                <Z>70</Z>
+              </Vector3>
+              <Vector3 name="size">
+                <X>2.5</X>
+                <Y>18</Y>
+                <Z>2.5</Z>
+              </Vector3>
+              <token name="TopSurface">0</token>
+              <float name="Transparency">0</float>
+            </Properties>
+          </Item>
+          <Item class="Part" referent="68">
+            <Properties>
+              <string name="Name">ArchTop</string>
+              <bool name="Anchored">true</bool>
+              <token name="BottomSurface">0</token>
+              <bool name="CanCollide">true</bool>
+              <Color3uint8 name="Color3uint8">6176809</Color3uint8>
+              <token name="Material">512</token>
+              <Vector3 name="Position">
+                <X>-36</X>
+                <Y>23.5</Y>
+                <Z>70</Z>
+              </Vector3>
+              <Vector3 name="size">
+                <X>18</X>
+                <Y>2.5</Y>
+                <Z>2.5</Z>
+              </Vector3>
+              <token name="TopSurface">0</token>
+              <float name="Transparency">0</float>
+            </Properties>
+          </Item>
+          <Item class="Part" referent="69">
+            <Properties>
+              <string name="Name">Gate</string>
+              <bool name="Anchored">true</bool>
+              <token name="BottomSurface">0</token>
+              <bool name="CanCollide">false</bool>
+              <Color3uint8 name="Color3uint8">4048831</Color3uint8>
+              <token name="Material">1584</token>
+              <Vector3 name="Position">
+                <X>-36</X>
+                <Y>12.5</Y>
+                <Z>70</Z>
+              </Vector3>
+              <Vector3 name="size">
+                <X>11</X>
+                <Y>15</Y>
+                <Z>1.4</Z>
+              </Vector3>
+              <token name="TopSurface">0</token>
+              <float name="Transparency">0.25</float>
+            </Properties>
+          </Item>
+          <Item class="Part" referent="70">
+            <Properties>
+              <string name="Name">PromptAnchor</string>
+              <bool name="Anchored">true</bool>
+              <bool name="CanCollide">false</bool>
+              <bool name="CastShadow">false</bool>
+              <Vector3 name="Position">
+                <X>-36</X>
+                <Y>6.5</Y>
+                <Z>76</Z>
+              </Vector3>
+              <Vector3 name="size">
+                <X>6</X>
+                <Y>6</Y>
+                <Z>6</Z>
+              </Vector3>
+              <float name="Transparency">1</float>
+            </Properties>
+            <Item class="ProximityPrompt" referent="71">
+              <Properties>
+                <string name="Name">BoardPrompt</string>
+                <string name="ActionText">Create Crew</string>
+                <float name="HoldDuration">0.25</float>
+                <float name="MaxActivationDistance">16</float>
+                <string name="ObjectText">Voyage Portal 1</string>
+                <bool name="RequiresLineOfSight">false</bool>
+              </Properties>
+            </Item>
+          </Item>
+          <Item class="IntValue" referent="72">
+            <Properties>
+              <string name="Name">PortalIndex</string>
+              <int64 name="Value">1</int64>
+            </Properties>
+          </Item>
+        </Item>
+        <Item class="Model" referent="73">
+          <Properties>
+            <string name="Name">Portal_2</string>
+            <bool name="NeedsPivotMigration">false</bool>
+          </Properties>
+          <Item class="Part" referent="74">
+            <Properties>
+              <string name="Name">Pad</string>
+              <bool name="Anchored">true</bool>
+              <token name="BottomSurface">0</token>
+              <bool name="CanCollide">true</bool>
+              <Color3uint8 name="Color3uint8">5192484</Color3uint8>
+              <token name="Material">528</token>
+              <Vector3 name="Position">
+                <X>-12</X>
+                <Y>3.5</Y>
+                <Z>70</Z>
+              </Vector3>
+              <Vector3 name="size">
+                <X>18</X>
+                <Y>1.5</Y>
+                <Z>18</Z>
+              </Vector3>
+              <token name="TopSurface">0</token>
+              <float name="Transparency">0</float>
+            </Properties>
+          </Item>
+          <Item class="Part" referent="75">
+            <Properties>
+              <string name="Name">NeonRing</string>
+              <bool name="Anchored">true</bool>
+              <token name="BottomSurface">0</token>
+              <bool name="CanCollide">false</bool>
+              <Color3uint8 name="Color3uint8">4048831</Color3uint8>
+              <token name="Material">288</token>
+              <Vector3 name="Position">
+                <X>-12</X>
+                <Y>4.4</Y>
+                <Z>70</Z>
+              </Vector3>
+              <Vector3 name="size">
+                <X>18.5</X>
+                <Y>0.6</Y>
+                <Z>18.5</Z>
+              </Vector3>
+              <token name="TopSurface">0</token>
+              <float name="Transparency">0</float>
+            </Properties>
+          </Item>
+          <Item class="Part" referent="76">
+            <Properties>
+              <string name="Name">ArchLegL</string>
+              <bool name="Anchored">true</bool>
+              <token name="BottomSurface">0</token>
+              <bool name="CanCollide">true</bool>
+              <Color3uint8 name="Color3uint8">6176809</Color3uint8>
+              <token name="Material">512</token>
+              <Vector3 name="Position">
+                <X>-19</X>
+                <Y>13.5</Y>
+                <Z>70</Z>
+              </Vector3>
+              <Vector3 name="size">
+                <X>2.5</X>
+                <Y>18</Y>
+                <Z>2.5</Z>
+              </Vector3>
+              <token name="TopSurface">0</token>
+              <float name="Transparency">0</float>
+            </Properties>
+          </Item>
+          <Item class="Part" referent="77">
+            <Properties>
+              <string name="Name">ArchLegR</string>
+              <bool name="Anchored">true</bool>
+              <token name="BottomSurface">0</token>
+              <bool name="CanCollide">true</bool>
+              <Color3uint8 name="Color3uint8">6176809</Color3uint8>
+              <token name="Material">512</token>
+              <Vector3 name="Position">
+                <X>-5</X>
+                <Y>13.5</Y>
+                <Z>70</Z>
+              </Vector3>
+              <Vector3 name="size">
+                <X>2.5</X>
+                <Y>18</Y>
+                <Z>2.5</Z>
+              </Vector3>
+              <token name="TopSurface">0</token>
+              <float name="Transparency">0</float>
+            </Properties>
+          </Item>
+          <Item class="Part" referent="78">
+            <Properties>
+              <string name="Name">ArchTop</string>
+              <bool name="Anchored">true</bool>
+              <token name="BottomSurface">0</token>
+              <bool name="CanCollide">true</bool>
+              <Color3uint8 name="Color3uint8">6176809</Color3uint8>
+              <token name="Material">512</token>
+              <Vector3 name="Position">
+                <X>-12</X>
+                <Y>23.5</Y>
+                <Z>70</Z>
+              </Vector3>
+              <Vector3 name="size">
+                <X>18</X>
+                <Y>2.5</Y>
+                <Z>2.5</Z>
+              </Vector3>
+              <token name="TopSurface">0</token>
+              <float name="Transparency">0</float>
+            </Properties>
+          </Item>
+          <Item class="Part" referent="79">
+            <Properties>
+              <string name="Name">Gate</string>
+              <bool name="Anchored">true</bool>
+              <token name="BottomSurface">0</token>
+              <bool name="CanCollide">false</bool>
+              <Color3uint8 name="Color3uint8">4048831</Color3uint8>
+              <token name="Material">1584</token>
+              <Vector3 name="Position">
+                <X>-12</X>
+                <Y>12.5</Y>
+                <Z>70</Z>
+              </Vector3>
+              <Vector3 name="size">
+                <X>11</X>
+                <Y>15</Y>
+                <Z>1.4</Z>
+              </Vector3>
+              <token name="TopSurface">0</token>
+              <float name="Transparency">0.25</float>
+            </Properties>
+          </Item>
+          <Item class="Part" referent="80">
+            <Properties>
+              <string name="Name">PromptAnchor</string>
+              <bool name="Anchored">true</bool>
+              <bool name="CanCollide">false</bool>
+              <bool name="CastShadow">false</bool>
+              <Vector3 name="Position">
+                <X>-12</X>
+                <Y>6.5</Y>
+                <Z>76</Z>
+              </Vector3>
+              <Vector3 name="size">
+                <X>6</X>
+                <Y>6</Y>
+                <Z>6</Z>
+              </Vector3>
+              <float name="Transparency">1</float>
+            </Properties>
+            <Item class="ProximityPrompt" referent="81">
+              <Properties>
+                <string name="Name">BoardPrompt</string>
+                <string name="ActionText">Create Crew</string>
+                <float name="HoldDuration">0.25</float>
+                <float name="MaxActivationDistance">16</float>
+                <string name="ObjectText">Voyage Portal 2</string>
+                <bool name="RequiresLineOfSight">false</bool>
+              </Properties>
+            </Item>
+          </Item>
+          <Item class="IntValue" referent="82">
+            <Properties>
+              <string name="Name">PortalIndex</string>
+              <int64 name="Value">2</int64>
+            </Properties>
+          </Item>
+        </Item>
+        <Item class="Model" referent="83">
+          <Properties>
+            <string name="Name">Portal_3</string>
+            <bool name="NeedsPivotMigration">false</bool>
+          </Properties>
+          <Item class="Part" referent="84">
+            <Properties>
+              <string name="Name">Pad</string>
+              <bool name="Anchored">true</bool>
+              <token name="BottomSurface">0</token>
+              <bool name="CanCollide">true</bool>
+              <Color3uint8 name="Color3uint8">5192484</Color3uint8>
+              <token name="Material">528</token>
+              <Vector3 name="Position">
+                <X>12</X>
+                <Y>3.5</Y>
+                <Z>70</Z>
+              </Vector3>
+              <Vector3 name="size">
+                <X>18</X>
+                <Y>1.5</Y>
+                <Z>18</Z>
+              </Vector3>
+              <token name="TopSurface">0</token>
+              <float name="Transparency">0</float>
+            </Properties>
+          </Item>
+          <Item class="Part" referent="85">
+            <Properties>
+              <string name="Name">NeonRing</string>
+              <bool name="Anchored">true</bool>
+              <token name="BottomSurface">0</token>
+              <bool name="CanCollide">false</bool>
+              <Color3uint8 name="Color3uint8">4048831</Color3uint8>
+              <token name="Material">288</token>
+              <Vector3 name="Position">
+                <X>12</X>
+                <Y>4.4</Y>
+                <Z>70</Z>
+              </Vector3>
+              <Vector3 name="size">
+                <X>18.5</X>
+                <Y>0.6</Y>
+                <Z>18.5</Z>
+              </Vector3>
+              <token name="TopSurface">0</token>
+              <float name="Transparency">0</float>
+            </Properties>
+          </Item>
+          <Item class="Part" referent="86">
+            <Properties>
+              <string name="Name">ArchLegL</string>
+              <bool name="Anchored">true</bool>
+              <token name="BottomSurface">0</token>
+              <bool name="CanCollide">true</bool>
+              <Color3uint8 name="Color3uint8">6176809</Color3uint8>
+              <token name="Material">512</token>
+              <Vector3 name="Position">
+                <X>5</X>
+                <Y>13.5</Y>
+                <Z>70</Z>
+              </Vector3>
+              <Vector3 name="size">
+                <X>2.5</X>
+                <Y>18</Y>
+                <Z>2.5</Z>
+              </Vector3>
+              <token name="TopSurface">0</token>
+              <float name="Transparency">0</float>
+            </Properties>
+          </Item>
+          <Item class="Part" referent="87">
+            <Properties>
+              <string name="Name">ArchLegR</string>
+              <bool name="Anchored">true</bool>
+              <token name="BottomSurface">0</token>
+              <bool name="CanCollide">true</bool>
+              <Color3uint8 name="Color3uint8">6176809</Color3uint8>
+              <token name="Material">512</token>
+              <Vector3 name="Position">
+                <X>19</X>
+                <Y>13.5</Y>
+                <Z>70</Z>
+              </Vector3>
+              <Vector3 name="size">
+                <X>2.5</X>
+                <Y>18</Y>
+                <Z>2.5</Z>
+              </Vector3>
+              <token name="TopSurface">0</token>
+              <float name="Transparency">0</float>
+            </Properties>
+          </Item>
+          <Item class="Part" referent="88">
+            <Properties>
+              <string name="Name">ArchTop</string>
+              <bool name="Anchored">true</bool>
+              <token name="BottomSurface">0</token>
+              <bool name="CanCollide">true</bool>
+              <Color3uint8 name="Color3uint8">6176809</Color3uint8>
+              <token name="Material">512</token>
+              <Vector3 name="Position">
+                <X>12</X>
+                <Y>23.5</Y>
+                <Z>70</Z>
+              </Vector3>
+              <Vector3 name="size">
+                <X>18</X>
+                <Y>2.5</Y>
+                <Z>2.5</Z>
+              </Vector3>
+              <token name="TopSurface">0</token>
+              <float name="Transparency">0</float>
+            </Properties>
+          </Item>
+          <Item class="Part" referent="89">
+            <Properties>
+              <string name="Name">Gate</string>
+              <bool name="Anchored">true</bool>
+              <token name="BottomSurface">0</token>
+              <bool name="CanCollide">false</bool>
+              <Color3uint8 name="Color3uint8">4048831</Color3uint8>
+              <token name="Material">1584</token>
+              <Vector3 name="Position">
+                <X>12</X>
+                <Y>12.5</Y>
+                <Z>70</Z>
+              </Vector3>
+              <Vector3 name="size">
+                <X>11</X>
+                <Y>15</Y>
+                <Z>1.4</Z>
+              </Vector3>
+              <token name="TopSurface">0</token>
+              <float name="Transparency">0.25</float>
+            </Properties>
+          </Item>
+          <Item class="Part" referent="90">
+            <Properties>
+              <string name="Name">PromptAnchor</string>
+              <bool name="Anchored">true</bool>
+              <bool name="CanCollide">false</bool>
+              <bool name="CastShadow">false</bool>
+              <Vector3 name="Position">
+                <X>12</X>
+                <Y>6.5</Y>
+                <Z>76</Z>
+              </Vector3>
+              <Vector3 name="size">
+                <X>6</X>
+                <Y>6</Y>
+                <Z>6</Z>
+              </Vector3>
+              <float name="Transparency">1</float>
+            </Properties>
+            <Item class="ProximityPrompt" referent="91">
+              <Properties>
+                <string name="Name">BoardPrompt</string>
+                <string name="ActionText">Create Crew</string>
+                <float name="HoldDuration">0.25</float>
+                <float name="MaxActivationDistance">16</float>
+                <string name="ObjectText">Voyage Portal 3</string>
+                <bool name="RequiresLineOfSight">false</bool>
+              </Properties>
+            </Item>
+          </Item>
+          <Item class="IntValue" referent="92">
+            <Properties>
+              <string name="Name">PortalIndex</string>
+              <int64 name="Value">3</int64>
+            </Properties>
+          </Item>
+        </Item>
+        <Item class="Model" referent="93">
+          <Properties>
+            <string name="Name">Portal_4</string>
+            <bool name="NeedsPivotMigration">false</bool>
+          </Properties>
+          <Item class="Part" referent="94">
+            <Properties>
+              <string name="Name">Pad</string>
+              <bool name="Anchored">true</bool>
+              <token name="BottomSurface">0</token>
+              <bool name="CanCollide">true</bool>
+              <Color3uint8 name="Color3uint8">5192484</Color3uint8>
+              <token name="Material">528</token>
+              <Vector3 name="Position">
+                <X>36</X>
+                <Y>3.5</Y>
+                <Z>70</Z>
+              </Vector3>
+              <Vector3 name="size">
+                <X>18</X>
+                <Y>1.5</Y>
+                <Z>18</Z>
+              </Vector3>
+              <token name="TopSurface">0</token>
+              <float name="Transparency">0</float>
+            </Properties>
+          </Item>
+          <Item class="Part" referent="95">
+            <Properties>
+              <string name="Name">NeonRing</string>
+              <bool name="Anchored">true</bool>
+              <token name="BottomSurface">0</token>
+              <bool name="CanCollide">false</bool>
+              <Color3uint8 name="Color3uint8">4048831</Color3uint8>
+              <token name="Material">288</token>
+              <Vector3 name="Position">
+                <X>36</X>
+                <Y>4.4</Y>
+                <Z>70</Z>
+              </Vector3>
+              <Vector3 name="size">
+                <X>18.5</X>
+                <Y>0.6</Y>
+                <Z>18.5</Z>
+              </Vector3>
+              <token name="TopSurface">0</token>
+              <float name="Transparency">0</float>
+            </Properties>
+          </Item>
+          <Item class="Part" referent="96">
+            <Properties>
+              <string name="Name">ArchLegL</string>
+              <bool name="Anchored">true</bool>
+              <token name="BottomSurface">0</token>
+              <bool name="CanCollide">true</bool>
+              <Color3uint8 name="Color3uint8">6176809</Color3uint8>
+              <token name="Material">512</token>
+              <Vector3 name="Position">
+                <X>29</X>
+                <Y>13.5</Y>
+                <Z>70</Z>
+              </Vector3>
+              <Vector3 name="size">
+                <X>2.5</X>
+                <Y>18</Y>
+                <Z>2.5</Z>
+              </Vector3>
+              <token name="TopSurface">0</token>
+              <float name="Transparency">0</float>
+            </Properties>
+          </Item>
+          <Item class="Part" referent="97">
+            <Properties>
+              <string name="Name">ArchLegR</string>
+              <bool name="Anchored">true</bool>
+              <token name="BottomSurface">0</token>
+              <bool name="CanCollide">true</bool>
+              <Color3uint8 name="Color3uint8">6176809</Color3uint8>
+              <token name="Material">512</token>
+              <Vector3 name="Position">
+                <X>43</X>
+                <Y>13.5</Y>
+                <Z>70</Z>
+              </Vector3>
+              <Vector3 name="size">
+                <X>2.5</X>
+                <Y>18</Y>
+                <Z>2.5</Z>
+              </Vector3>
+              <token name="TopSurface">0</token>
+              <float name="Transparency">0</float>
+            </Properties>
+          </Item>
+          <Item class="Part" referent="98">
+            <Properties>
+              <string name="Name">ArchTop</string>
+              <bool name="Anchored">true</bool>
+              <token name="BottomSurface">0</token>
+              <bool name="CanCollide">true</bool>
+              <Color3uint8 name="Color3uint8">6176809</Color3uint8>
+              <token name="Material">512</token>
+              <Vector3 name="Position">
+                <X>36</X>
+                <Y>23.5</Y>
+                <Z>70</Z>
+              </Vector3>
+              <Vector3 name="size">
+                <X>18</X>
+                <Y>2.5</Y>
+                <Z>2.5</Z>
+              </Vector3>
+              <token name="TopSurface">0</token>
+              <float name="Transparency">0</float>
+            </Properties>
+          </Item>
+          <Item class="Part" referent="99">
+            <Properties>
+              <string name="Name">Gate</string>
+              <bool name="Anchored">true</bool>
+              <token name="BottomSurface">0</token>
+              <bool name="CanCollide">false</bool>
+              <Color3uint8 name="Color3uint8">4048831</Color3uint8>
+              <token name="Material">1584</token>
+              <Vector3 name="Position">
+                <X>36</X>
+                <Y>12.5</Y>
+                <Z>70</Z>
+              </Vector3>
+              <Vector3 name="size">
+                <X>11</X>
+                <Y>15</Y>
+                <Z>1.4</Z>
+              </Vector3>
+              <token name="TopSurface">0</token>
+              <float name="Transparency">0.25</float>
+            </Properties>
+          </Item>
+          <Item class="Part" referent="100">
+            <Properties>
+              <string name="Name">PromptAnchor</string>
+              <bool name="Anchored">true</bool>
+              <bool name="CanCollide">false</bool>
+              <bool name="CastShadow">false</bool>
+              <Vector3 name="Position">
+                <X>36</X>
+                <Y>6.5</Y>
+                <Z>76</Z>
+              </Vector3>
+              <Vector3 name="size">
+                <X>6</X>
+                <Y>6</Y>
+                <Z>6</Z>
+              </Vector3>
+              <float name="Transparency">1</float>
+            </Properties>
+            <Item class="ProximityPrompt" referent="101">
+              <Properties>
+                <string name="Name">BoardPrompt</string>
+                <string name="ActionText">Create Crew</string>
+                <float name="HoldDuration">0.25</float>
+                <float name="MaxActivationDistance">16</float>
+                <string name="ObjectText">Voyage Portal 4</string>
+                <bool name="RequiresLineOfSight">false</bool>
+              </Properties>
+            </Item>
+          </Item>
+          <Item class="IntValue" referent="102">
+            <Properties>
+              <string name="Name">PortalIndex</string>
+              <int64 name="Value">4</int64>
+            </Properties>
+          </Item>
+        </Item>
+      </Item>
+      <Item class="Folder" referent="103">
+        <Properties>
+          <string name="Name">VoyageStaging</string>
+        </Properties>
+        <Item class="Part" referent="104">
+          <Properties>
+            <string name="Name">Deck</string>
+            <bool name="Anchored">true</bool>
+            <token name="BottomSurface">0</token>
+            <bool name="CanCollide">true</bool>
+            <Color3uint8 name="Color3uint8">5849129</Color3uint8>
+            <token name="Material">528</token>
+            <Vector3 name="Position">
+              <X>0</X>
+              <Y>2</Y>
+              <Z>220</Z>
+            </Vector3>
+            <Vector3 name="size">
+              <X>70</X>
+              <Y>3</Y>
+              <Z>46</Z>
+            </Vector3>
+            <token name="TopSurface">0</token>
+            <float name="Transparency">0</float>
+          </Properties>
+        </Item>
+        <Item class="Part" referent="105">
+          <Properties>
+            <string name="Name">Hull</string>
+            <bool name="Anchored">true</bool>
+            <token name="BottomSurface">0</token>
+            <bool name="CanCollide">true</bool>
+            <Color3uint8 name="Color3uint8">4008220</Color3uint8>
+            <token name="Material">512</token>
+            <Vector3 name="Position">
+              <X>0</X>
+              <Y>7</Y>
+              <Z>240</Z>
+            </Vector3>
+            <Vector3 name="size">
+              <X>56</X>
+              <Y>12</Y>
+              <Z>8</Z>
+            </Vector3>
+            <token name="TopSurface">0</token>
+            <float name="Transparency">0</float>
+          </Properties>
+        </Item>
+      </Item>
+      <Item class="SpawnLocation" referent="106">
+        <Properties>
+          <string name="Name">LobbySpawn</string>
+          <bool name="Anchored">true</bool>
+          <bool name="CanCollide">true</bool>
+          <Color3uint8 name="Color3uint8">3401471</Color3uint8>
+          <int name="Duration">0</int>
+          <bool name="Enabled">true</bool>
+          <token name="Material">288</token>
+          <bool name="Neutral">true</bool>
+          <Vector3 name="Position">
+            <X>0</X>
+            <Y>4.2</Y>
+            <Z>0</Z>
+          </Vector3>
+          <Vector3 name="size">
+            <X>14</X>
+            <Y>1</Y>
+            <Z>14</Z>
+          </Vector3>
+          <float name="Transparency">0.25</float>
+        </Properties>
+      </Item>
+      <Item class="Part" referent="107">
+        <Properties>
+          <string name="Name">Arrow1</string>
+          <bool name="Anchored">true</bool>
+          <token name="BottomSurface">0</token>
+          <bool name="CanCollide">false</bool>
+          <Color3uint8 name="Color3uint8">4048831</Color3uint8>
+          <token name="Material">288</token>
+          <Vector3 name="Position">
+            <X>0</X>
+            <Y>4</Y>
+            <Z>20</Z>
+          </Vector3>
+          <Vector3 name="size">
+            <X>6</X>
+            <Y>0.5</Y>
+            <Z>8</Z>
+          </Vector3>
+          <token name="TopSurface">0</token>
+          <float name="Transparency">0</float>
+        </Properties>
+      </Item>
+      <Item class="Part" referent="108">
+        <Properties>
+          <string name="Name">Arrow2</string>
+          <bool name="Anchored">true</bool>
+          <token name="BottomSurface">0</token>
+          <bool name="CanCollide">false</bool>
+          <Color3uint8 name="Color3uint8">4048831</Color3uint8>
+          <token name="Material">288</token>
+          <Vector3 name="Position">
+            <X>0</X>
+            <Y>4</Y>
+            <Z>32</Z>
+          </Vector3>
+          <Vector3 name="size">
+            <X>6</X>
+            <Y>0.5</Y>
+            <Z>8</Z>
+          </Vector3>
+          <token name="TopSurface">0</token>
+          <float name="Transparency">0</float>
+        </Properties>
+      </Item>
+      <Item class="Part" referent="109">
+        <Properties>
+          <string name="Name">Arrow3</string>
+          <bool name="Anchored">true</bool>
+          <token name="BottomSurface">0</token>
+          <bool name="CanCollide">false</bool>
+          <Color3uint8 name="Color3uint8">4048831</Color3uint8>
+          <token name="Material">288</token>
+          <Vector3 name="Position">
+            <X>0</X>
+            <Y>4</Y>
+            <Z>44</Z>
+          </Vector3>
+          <Vector3 name="size">
+            <X>6</X>
+            <Y>0.5</Y>
+            <Z>8</Z>
+          </Vector3>
+          <token name="TopSurface">0</token>
+          <float name="Transparency">0</float>
+        </Properties>
+      </Item>
+      <Item class="Part" referent="110">
+        <Properties>
+          <string name="Name">Arrow4</string>
+          <bool name="Anchored">true</bool>
+          <token name="BottomSurface">0</token>
+          <bool name="CanCollide">false</bool>
+          <Color3uint8 name="Color3uint8">4048831</Color3uint8>
+          <token name="Material">288</token>
+          <Vector3 name="Position">
+            <X>0</X>
+            <Y>4</Y>
+            <Z>56</Z>
+          </Vector3>
+          <Vector3 name="size">
+            <X>6</X>
+            <Y>0.5</Y>
+            <Z>8</Z>
+          </Vector3>
+          <token name="TopSurface">0</token>
+          <float name="Transparency">0</float>
+        </Properties>
+      </Item>
+    </Item>
+  </Item>
+</roblox>

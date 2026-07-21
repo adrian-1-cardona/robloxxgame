@@ -2,36 +2,30 @@
 
 Ocean survival lobby template (Dead Rails–style boarding dock).
 
-## Run
+## Quick start (recommended)
+
+Open the built place so Workspace already has the dock:
+
+1. In a terminal: `rojo build -o SurviveAtSea.rbxlx`
+2. In Studio: **File → Open from File…** → choose `SurviveAtSea.rbxlx`
+3. Press Play — you should spawn on the wooden pier facing neon portals
+
+Or keep using live sync on an existing place (`dnd`): the **client now builds the dock itself** when `Workspace.SurviveAtSeaLobby` is missing. Stop → Play after Rojo connects.
+
+## Live sync
 
 ```bash
 rojo serve
 ```
 
-In Roblox Studio: **Plugins → Rojo → Connect** to `localhost:34872`.
+Studio → Plugins → Rojo → Connect → `localhost:34872`
 
-After connecting you should see **`Workspace.SurviveAtSeaLobby`** in Explorer (pier, portals, ocean) **even before pressing Play**.
+After Play, Explorer should show `Workspace.SurviveAtSeaLobby` (client or server created it).
 
-Then Stop → Play. Walk forward along the neon arrows to the glowing portals.
-
-## Lobby features
+## Features
 
 - Sea-themed boarding dock with voyage portals
-- Create / join crews with friends (party codes)
-- Up to **10** sailors per game state
-- Public or private berths
-- Cast-off countdown, then launch into the voyage
-- **No session saves** — party state is ephemeral (no DataStore caching yet)
-- UI tuned for phone, tablet, computer, console, and VR
-
-## Project layout
-
-```
-src/
-  map/      SurviveAtSeaLobby.model.json  (dock synced into Workspace)
-  shared/   Config, remotes, party codes
-  server/   Bootstrap + party/portal services
-  client/   Cross-platform lobby UI
-```
-
-Set `GamePlaceId` in `src/shared/Config.luau` when you have a separate voyage place; until then, crews launch into the in-place staging deck.
+- Create / join crews with codes (max **10** per game state)
+- Public / private berths, cast-off countdown
+- **No session saves** (ephemeral)
+- Phone / tablet / PC / console / VR friendly UI

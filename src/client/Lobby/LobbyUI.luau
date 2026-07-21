@@ -621,10 +621,29 @@ local function runCountdownTicker()
 	end)
 end
 
+function LobbyUI.openCreateForPortal(portalIndex: number)
+	openCreate(portalIndex)
+	showToast(`Portal {portalIndex} — pick crew size and cast your berth.`, "info")
+end
+
 function LobbyUI.start()
 	buildGui()
 	bindRemotes()
 	runCountdownTicker()
+
+	-- Client-built portals signal create via BindableEvent
+	local openEvent = ReplicatedStorage:FindFirstChild("SurviveAtSeaOpenCreate")
+	if not openEvent then
+		openEvent = Instance.new("BindableEvent")
+		openEvent.Name = "SurviveAtSeaOpenCreate"
+		openEvent.Parent = ReplicatedStorage
+	end
+	(openEvent :: BindableEvent).Event:Connect(function(portalIndex)
+		if typeof(portalIndex) == "number" then
+			LobbyUI.openCreateForPortal(portalIndex)
+		end
+	end)
+
 	showToast("Walk to a portal to board with friends.", "info")
 	print(`[SurviveAtSea] Lobby UI ready ({state.device})`)
 end

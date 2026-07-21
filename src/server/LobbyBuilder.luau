@@ -627,10 +627,9 @@ function LobbyBuilder.teleportPlayerToLobby(player: Player)
 	if not character then
 		return
 	end
-	local root = character:FindFirstChild("HumanoidRootPart")
-	if root and root:IsA("BasePart") then
-		root.CFrame = LobbyBuilder.getLobbySpawnCFrame()
-	end
+	local Shared = ReplicatedStorage:WaitForChild("Shared")
+	local LobbyWorld = require(Shared:WaitForChild("LobbyWorld"))
+	LobbyWorld.seatCharacter(character)
 end
 
 return LobbyBuilder

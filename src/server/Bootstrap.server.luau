@@ -1,8 +1,7 @@
--- Survive at Sea · Server bootstrap (flat Folder under ServerScriptService)
+-- Survive at Sea · Server bootstrap
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Workspace = game:GetService("Workspace")
 
 print("[SurviveAtSea] Server bootstrap starting…")
 
@@ -14,6 +13,7 @@ end
 local Config = require(Shared:WaitForChild("Config"))
 local Remotes = require(Shared:WaitForChild("Remotes"))
 local PartyCode = require(Shared:WaitForChild("PartyCode"))
+local LobbyWorld = require(Shared:WaitForChild("LobbyWorld"))
 
 local LobbyBuilder = require(script.Parent:WaitForChild("LobbyBuilder"))
 local PartyService = require(script.Parent:WaitForChild("PartyService"))
@@ -21,15 +21,9 @@ local PortalService = require(script.Parent:WaitForChild("PortalService"))
 
 print(`[SurviveAtSea] Booting {Config.GameName} lobby…`)
 
--- Prefer the Rojo-synced map; rebuild in code if it somehow isn't there.
-local lobby = Workspace:FindFirstChild("SurviveAtSeaLobby")
-if lobby then
-	print("[SurviveAtSea] Found Workspace.SurviveAtSeaLobby map — wiring it up")
-	LobbyBuilder.enhanceExisting(lobby)
-else
-	warn("[SurviveAtSea] Map missing — building lobby from code")
-	LobbyBuilder.build()
-end
+-- Build/replicate dock on the server so all players share it
+local lobby = LobbyWorld.ensure()
+LobbyBuilder.enhanceExisting(lobby)
 
 local remoteFolder = Remotes.createServerRemotes()
 local CreateParty = remoteFolder:WaitForChild("CreateParty")
@@ -89,14 +83,14 @@ StartLaunch.OnServerEvent:Connect(function(player)
 end)
 
 local function onPlayerReady(player)
-	player.CharacterAdded:Connect(function()
+	player.CharacterAdded:Connect(function(character)
 		task.defer(function()
-			LobbyBuilder.teleportPlayerToLobby(player)
+			LobbyWorld.seatCharacter(character)
 		end)
 	end)
 	if player.Character then
 		task.defer(function()
-			LobbyBuilder.teleportPlayerToLobby(player)
+			LobbyWorld.seatCharacter(player.Character :: Model)
 		end)
 	end
 
