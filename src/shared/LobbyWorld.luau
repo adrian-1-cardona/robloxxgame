@@ -294,35 +294,18 @@ local function buildPortal(folder: Instance, index: number, position: Vector3): 
 	model.Parent = folder
 
 	local wood = Color3.fromRGB(92, 62, 40)
-	local berthRed = Config.Berth.Red
-	local berthBlue = Config.Berth.DarkBlue
+	local purple = Config.Berth.Purple
+	local purpleDeep = Config.Berth.PurpleDeep
+	local purpleSoft = Config.Berth.PurpleSoft
 
-	-- Half red / half dark blue berth pad (left = red, right = blue)
-	local padLeft = part({
-		Name = "PadRed",
-		Parent = model,
-		Size = Vector3.new(7, 1.2, 14),
-		CFrame = CFrame.new(position + Vector3.new(-3.5, 0, 0)),
-		Color = berthRed,
-		Material = Enum.Material.WoodPlanks,
-	})
-	local padRight = part({
-		Name = "PadBlue",
-		Parent = model,
-		Size = Vector3.new(7, 1.2, 14),
-		CFrame = CFrame.new(position + Vector3.new(3.5, 0, 0)),
-		Color = berthBlue,
-		Material = Enum.Material.WoodPlanks,
-	})
-	-- Invisible primary for anchoring / PrimaryPart
+	-- Solid purple berth pad (no half-and-half overlays)
 	local pad = part({
 		Name = "Pad",
 		Parent = model,
 		Size = Vector3.new(14, 1.2, 14),
 		CFrame = CFrame.new(position),
-		Transparency = 1,
-		CanCollide = false,
-		CastShadow = false,
+		Color = purpleDeep,
+		Material = Enum.Material.WoodPlanks,
 	})
 
 	part({
@@ -330,19 +313,8 @@ local function buildPortal(folder: Instance, index: number, position: Vector3): 
 		Parent = model,
 		Size = Vector3.new(14.5, 0.35, 14.5),
 		CFrame = CFrame.new(position + Vector3.new(0, 0.75, 0)),
-		Color = Color3.fromRGB(30, 30, 40),
+		Color = purple,
 		Material = Enum.Material.Wood,
-		CanCollide = false,
-	})
-
-	-- Split center seam so the two halves read clearly
-	part({
-		Name = "BerthSeam",
-		Parent = model,
-		Size = Vector3.new(0.35, 1.35, 14.2),
-		CFrame = CFrame.new(position + Vector3.new(0, 0.05, 0)),
-		Color = Color3.fromRGB(12, 14, 22),
-		Material = Enum.Material.SmoothPlastic,
 		CanCollide = false,
 	})
 
@@ -366,57 +338,33 @@ local function buildPortal(folder: Instance, index: number, position: Vector3): 
 		Material = Enum.Material.Wood,
 	})
 
-	-- Banner: half red / half dark blue to match the berth
 	part({
-		Name = "ArchBannerRed",
+		Name = "ArchBanner",
 		Parent = model,
-		Size = Vector3.new(5.5, 1.0, 0.3),
-		CFrame = CFrame.new(position + Vector3.new(-2.8, 15.5, 0.5)),
-		Color = berthRed,
-		Material = Enum.Material.Fabric,
-		CanCollide = false,
-	})
-	part({
-		Name = "ArchBannerBlue",
-		Parent = model,
-		Size = Vector3.new(5.5, 1.0, 0.3),
-		CFrame = CFrame.new(position + Vector3.new(2.8, 15.5, 0.5)),
-		Color = berthBlue,
+		Size = Vector3.new(11.2, 1.0, 0.3),
+		CFrame = CFrame.new(position + Vector3.new(0, 15.5, 0.5)),
+		Color = purple,
 		Material = Enum.Material.Fabric,
 		CanCollide = false,
 	})
 
-	-- Soft split gate canvas
-	local gateRed = part({
-		Name = "GateRed",
+	local gate = part({
+		Name = "Gate",
 		Parent = model,
-		Size = Vector3.new(4.1, 12, 0.45),
-		CFrame = CFrame.new(position + Vector3.new(-2.1, 8.5, -0.5)),
-		Color = Color3.fromRGB(198, 110, 100),
-		Material = Enum.Material.Fabric,
-		Transparency = 0.08,
-		CanCollide = false,
-	})
-	local gateBlue = part({
-		Name = "GateBlue",
-		Parent = model,
-		Size = Vector3.new(4.1, 12, 0.45),
-		CFrame = CFrame.new(position + Vector3.new(2.1, 8.5, -0.5)),
-		Color = Color3.fromRGB(70, 100, 160),
+		Size = Vector3.new(8.2, 12, 0.45),
+		CFrame = CFrame.new(position + Vector3.new(0, 8.5, -0.5)),
+		Color = purpleSoft,
 		Material = Enum.Material.Fabric,
 		Transparency = 0.08,
 		CanCollide = false,
 	})
 
 	task.spawn(function()
-		local baseRed = gateRed.CFrame
-		local baseBlue = gateBlue.CFrame
+		local base = gate.CFrame
 		local t = index * 1.3
-		while gateRed.Parent and gateBlue.Parent do
+		while gate.Parent do
 			t += 0.05
-			local sway = CFrame.Angles(0, math.rad(math.sin(t) * 1.8), 0)
-			gateRed.CFrame = baseRed * sway
-			gateBlue.CFrame = baseBlue * sway
+			gate.CFrame = base * CFrame.Angles(0, math.rad(math.sin(t) * 1.8), 0)
 			task.wait(0.05)
 		end
 	end)
@@ -471,9 +419,6 @@ local function buildPortal(folder: Instance, index: number, position: Vector3): 
 	walkTrigger.CanTouch = true
 	walkTrigger.CanQuery = false
 
-	-- Keep padLeft/padRight referenced so they aren't optimized away by lint tools
-	local _ = padLeft
-	local __ = padRight
 	model.PrimaryPart = pad
 	return model
 end
@@ -492,13 +437,9 @@ local function stripGlowParts(root: Folder)
 			end
 			-- Absolutely no Neon materials in the lobby
 			if desc.Material == Enum.Material.Neon or desc.Material == Enum.Material.ForceField then
-				if name == "Gate" or name == "GateRed" then
+				if name == "Gate" then
 					desc.Material = Enum.Material.Fabric
-					desc.Color = Color3.fromRGB(198, 110, 100)
-					desc.Transparency = 0.08
-				elseif name == "GateBlue" then
-					desc.Material = Enum.Material.Fabric
-					desc.Color = Color3.fromRGB(70, 100, 160)
+					desc.Color = Config.Berth.PurpleSoft
 					desc.Transparency = 0.08
 				elseif name == "LighthouseLamp" then
 					desc.Material = Enum.Material.SmoothPlastic
@@ -507,14 +448,16 @@ local function stripGlowParts(root: Folder)
 					desc.Material = Enum.Material.SmoothPlastic
 				end
 			end
-			if name == "Gate" or name == "GateRed" then
+			if name == "Gate" then
 				desc.Material = Enum.Material.Fabric
-				desc.Color = Color3.fromRGB(198, 110, 100)
+				desc.Color = Config.Berth.PurpleSoft
 				desc.Transparency = 0.08
-			elseif name == "GateBlue" then
-				desc.Material = Enum.Material.Fabric
-				desc.Color = Color3.fromRGB(70, 100, 160)
-				desc.Transparency = 0.08
+			end
+			-- Clean up leftover half-and-half parts from older builds
+			if name == "PadRed" or name == "PadBlue" or name == "GateRed" or name == "GateBlue"
+				or name == "ArchBannerRed" or name == "ArchBannerBlue" or name == "BerthSeam"
+			then
+				desc:Destroy()
 			end
 		end
 	end
@@ -1057,16 +1000,16 @@ function LobbyWorld.polish(root: Folder)
 	local oceanDeep = root:FindFirstChild("OceanDeep")
 	if oceanDeep and oceanDeep:IsA("BasePart") then
 		oceanDeep.CanCollide = false
-		oceanDeep.Size = Vector3.new(2400, 40, 2400)
-		oceanDeep.CFrame = CFrame.new(0, -20, 200)
+		oceanDeep.Size = Vector3.new(4000, 40, 8000)
+		oceanDeep.CFrame = CFrame.new(0, -20, 2000)
 		oceanDeep.Color = Color3.fromRGB(8, 55, 95)
 		oceanDeep.Transparency = 0.05
 	end
 	local oceanSurface = root:FindFirstChild("OceanSurface")
 	if oceanSurface and oceanSurface:IsA("BasePart") then
 		oceanSurface.CanCollide = false
-		oceanSurface.Size = Vector3.new(2400, 2, 2400)
-		oceanSurface.CFrame = CFrame.new(0, 0.4, 200)
+		oceanSurface.Size = Vector3.new(4000, 2, 8000)
+		oceanSurface.CFrame = CFrame.new(0, 0.4, 2000)
 		oceanSurface.Color = Color3.fromRGB(28, 130, 165)
 		oceanSurface.Transparency = 0.28
 		oceanSurface.Reflectance = 0.18
@@ -1154,8 +1097,8 @@ function LobbyWorld.ensure(): Folder
 	part({
 		Name = "OceanDeep",
 		Parent = root,
-		Size = Vector3.new(2400, 40, 2400),
-		CFrame = CFrame.new(0, -20, 200),
+		Size = Vector3.new(4000, 40, 8000),
+		CFrame = CFrame.new(0, -20, 2000),
 		Color = Color3.fromRGB(8, 55, 95),
 		Material = Enum.Material.SmoothPlastic,
 		Transparency = 0.05,
@@ -1165,8 +1108,8 @@ function LobbyWorld.ensure(): Folder
 	part({
 		Name = "OceanSurface",
 		Parent = root,
-		Size = Vector3.new(2400, 2, 2400),
-		CFrame = CFrame.new(0, 0.4, 200),
+		Size = Vector3.new(4000, 2, 8000),
+		CFrame = CFrame.new(0, 0.4, 2000),
 		Color = Color3.fromRGB(28, 130, 165),
 		Material = Enum.Material.Glass,
 		Transparency = 0.28,

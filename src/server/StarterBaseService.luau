@@ -132,26 +132,26 @@ function StarterBaseService.ensureBase(code: string, portalIndex: number, privac
 	})
 	model.PrimaryPart = deck
 
-	-- Local water ring so the base always feels surrounded by ocean
+	-- Local water so the raft feels surrounded by open ocean (lobby is far beyond fog)
 	makePart({
 		Name = "LocalSea",
 		Parent = model,
-		Size = Vector3.new(size + 180, 1.5, size + 180),
+		Size = Vector3.new(size + 420, 1.5, size + 420),
 		CFrame = CFrame.new(center.X, 0.35, center.Z),
 		Color = Color3.fromRGB(22, 118, 150),
 		Material = Enum.Material.Glass,
-		Transparency = 0.32,
+		Transparency = 0.28,
 		CanCollide = false,
 		CastShadow = false,
 	})
 	makePart({
 		Name = "LocalSeaDeep",
 		Parent = model,
-		Size = Vector3.new(size + 180, 24, size + 180),
-		CFrame = CFrame.new(center.X, -12, center.Z),
+		Size = Vector3.new(size + 420, 28, size + 420),
+		CFrame = CFrame.new(center.X, -14, center.Z),
 		Color = Color3.fromRGB(6, 48, 82),
 		Material = Enum.Material.SmoothPlastic,
-		Transparency = 0.08,
+		Transparency = 0.06,
 		CanCollide = false,
 		CastShadow = false,
 	})
@@ -314,6 +314,50 @@ function StarterBaseService.teleportPlayerToLobby(player: Player)
 	LobbyWorld.seatCharacter(character)
 end
 
-local _ = Players
+-- If a crewmate falls in the water, put them back on top of their raft.
+local rescueDebounce: { [number]: boolean } = {}
+
+function StarterBaseService.startWaterRescue(
+	getSeatInfo: (Player) -> ({ portalIndex: number, slotIndex: number }?)
+)
+	local RunService = game:GetService("RunService")
+	local waterY = Config.StarterBase.WaterRescueY
+
+	RunService.Heartbeat:Connect(function()
+		for _, player in Players:GetPlayers() do
+			if rescueDebounce[player.UserId] then
+				continue
+			end
+			local seat = getSeatInfo(player)
+			if not seat then
+				continue
+			end
+			local character = player.Character
+			if not character then
+				continue
+			end
+			local humanoid = character:FindFirstChildOfClass("Humanoid")
+			local root = character:FindFirstChild("HumanoidRootPart")
+			if not (humanoid and root and root:IsA("BasePart")) then
+				continue
+			end
+			if humanoid.Health <= 0 then
+				continue
+			end
+			if root.Position.Y > waterY then
+				continue
+			end
+
+			rescueDebounce[player.UserId] = true
+			-- Kill horizontal velocity so they don't immediately slide off again
+			root.AssemblyLinearVelocity = Vector3.zero
+			root.AssemblyAngularVelocity = Vector3.zero
+			StarterBaseService.teleportPlayerToBase(player, seat.portalIndex, seat.slotIndex)
+			task.delay(1.25, function()
+				rescueDebounce[player.UserId] = nil
+			end)
+		end
+	end)
+end
 
 return StarterBaseService

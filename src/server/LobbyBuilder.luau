@@ -19,9 +19,9 @@ local function safeLighting()
 		Lighting.Brightness = 2.6
 		Lighting.Ambient = Color3.fromRGB(78, 92, 98)
 		Lighting.OutdoorAmbient = Color3.fromRGB(118, 128, 132)
-		Lighting.FogColor = Color3.fromRGB(140, 175, 190)
-		Lighting.FogStart = 220
-		Lighting.FogEnd = 1100
+		Lighting.FogColor = Color3.fromRGB(130, 170, 190)
+		Lighting.FogStart = 160
+		Lighting.FogEnd = 900
 		Lighting.GlobalShadows = true
 		Lighting.EnvironmentDiffuseScale = 0.55
 		Lighting.EnvironmentSpecularScale = 0.35
@@ -33,12 +33,12 @@ local function safeLighting()
 		end
 
 		local atmosphere = Instance.new("Atmosphere")
-		atmosphere.Density = 0.12
+		atmosphere.Density = 0.14
 		atmosphere.Offset = 0.18
-		atmosphere.Color = Color3.fromRGB(175, 190, 200)
-		atmosphere.Decay = Color3.fromRGB(70, 95, 120)
+		atmosphere.Color = Color3.fromRGB(160, 185, 200)
+		atmosphere.Decay = Color3.fromRGB(55, 90, 120)
 		atmosphere.Glare = 0
-		atmosphere.Haze = 0.35
+		atmosphere.Haze = 0.4
 		atmosphere.Parent = Lighting
 
 		local sky = Lighting:FindFirstChildOfClass("Sky")

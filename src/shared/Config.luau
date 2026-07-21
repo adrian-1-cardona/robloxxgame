@@ -28,17 +28,20 @@ local Config = {
 		-- Fixed footprint — same for solo or full (10) crews
 		SizeStuds = 72,
 		Thickness = 3,
-		-- Middle of the open ocean, well past the pier
-		Origin = Vector3.new(0, 2.2, 420),
+		-- Far open ocean — lobby pier is well beyond fog so it feels like a new place
+		Origin = Vector3.new(0, 2.2, 3200),
 		-- Spread concurrent crews along X so planks never overlap
-		SpacingX = 140,
+		SpacingX = 160,
 		DeckClearance = 3.5,
+		-- Fall into water below this Y → rescue back onto the raft
+		WaterRescueY = 1.2,
 	},
 
-	-- Berth pad colors (half red / half dark blue)
+	-- Portal / berth accent (solid purple — no half-and-half overlays)
 	Berth = {
-		Red = Color3.fromRGB(176, 48, 48),
-		DarkBlue = Color3.fromRGB(18, 42, 92),
+		Purple = Color3.fromRGB(118, 72, 168),
+		PurpleDeep = Color3.fromRGB(72, 42, 110),
+		PurpleSoft = Color3.fromRGB(168, 132, 210),
 	},
 
 	-- Ocean theme palette

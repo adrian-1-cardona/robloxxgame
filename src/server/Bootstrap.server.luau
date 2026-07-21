@@ -90,6 +90,7 @@ local function seatPlayer(player: Player)
 	end
 	local seat = PartyService.getBaseSeatInfo(player)
 	if seat then
+		-- Death / respawn while on a crew → back on the raft (for now)
 		StarterBaseService.teleportPlayerToBase(player, seat.portalIndex, seat.slotIndex)
 	else
 		LobbyWorld.seatCharacter(character)
@@ -98,6 +99,7 @@ end
 
 local function onPlayerReady(player)
 	player.CharacterAdded:Connect(function(_character)
+		-- Brief defer so HumanoidRootPart exists after respawn
 		task.defer(function()
 			seatPlayer(player)
 		end)
@@ -122,5 +124,10 @@ for _, player in Players:GetPlayers() do
 	onPlayerReady(player)
 end
 Players.PlayerAdded:Connect(onPlayerReady)
+
+-- Fall into water → rescued onto raft; death already uses CharacterAdded → seatPlayer
+StarterBaseService.startWaterRescue(function(player)
+	return PartyService.getBaseSeatInfo(player)
+end)
 
 print(`[SurviveAtSea] Lobby ready — max crew {Config.MaxPartySize}, no session saves.`)
