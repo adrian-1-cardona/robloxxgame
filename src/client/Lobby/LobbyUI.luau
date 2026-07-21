@@ -281,8 +281,8 @@ local function buildGui()
 
 	-- Responsive: on phones, stretch join panel
 	local joinConstraint = Instance.new("UISizeConstraint")
-	joinConstraint.MinSize = Vector2.new(260, 140)
-	joinConstraint.MaxSize = Vector2.new(420, 200)
+	joinConstraint.MinSize = Vector2.new(220, 120)
+	joinConstraint.MaxSize = Vector2.new(360, 160)
 	joinConstraint.Parent = joinPanel
 
 	textLabel({
