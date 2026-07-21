@@ -24,7 +24,7 @@ local function safeLighting()
 		Lighting.GlobalShadows = true
 
 		for _, child in Lighting:GetChildren() do
-			if child:IsA("Atmosphere") or child:IsA("BloomEffect") or child:IsA("ColorCorrectionEffect") then
+			if child:IsA("Atmosphere") or child:IsA("BloomEffect") or child:IsA("ColorCorrectionEffect") or child:IsA("SunRaysEffect") then
 				child:Destroy()
 			end
 		end
@@ -34,8 +34,8 @@ local function safeLighting()
 		atmosphere.Offset = 0.12
 		atmosphere.Color = Color3.fromRGB(160, 200, 210)
 		atmosphere.Decay = Color3.fromRGB(60, 100, 120)
-		atmosphere.Glare = 0.05
-		atmosphere.Haze = 0.45
+		atmosphere.Glare = 0
+		atmosphere.Haze = 0.4
 		atmosphere.Parent = Lighting
 
 		local sky = Lighting:FindFirstChildOfClass("Sky")
@@ -48,13 +48,7 @@ local function safeLighting()
 		sky.SunAngularSize = 22
 		sky.MoonAngularSize = 11
 
-		-- Soft bloom only — keep it easy on the eyes
-		local bloom = Instance.new("BloomEffect")
-		bloom.Intensity = 0.06
-		bloom.Size = 8
-		bloom.Threshold = 1.8
-		bloom.Parent = Lighting
-
+		-- No bloom — keep the lobby matte and easy on the eyes
 		local cc = Instance.new("ColorCorrectionEffect")
 		cc.TintColor = Color3.fromRGB(248, 244, 232)
 		cc.Contrast = 0.02

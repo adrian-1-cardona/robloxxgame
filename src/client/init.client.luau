@@ -81,4 +81,9 @@ pcall(function()
 	Lighting.FogStart = 200
 	Lighting.FogEnd = 800
 	Lighting.ClockTime = 16.5
+	for _, child in Lighting:GetChildren() do
+		if child:IsA("BloomEffect") or child:IsA("SunRaysEffect") then
+			child:Destroy()
+		end
+	end
 end)

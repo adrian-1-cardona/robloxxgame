@@ -392,26 +392,33 @@ end
 
 local function stripGlowParts(root: Folder)
 	for _, desc in root:GetDescendants() do
+		if desc:IsA("PointLight") or desc:IsA("SpotLight") or desc:IsA("SurfaceLight") then
+			desc:Destroy()
+			continue
+		end
 		if desc:IsA("BasePart") then
 			local name = desc.Name
 			if name == "NeonRing" or name == "Arrow" or name:find("Neon") then
 				desc:Destroy()
 				continue
 			end
-			-- Soften leftover neon materials on lobby props (keep lighthouse lamp lit via PointLight)
-			if desc.Material == Enum.Material.Neon and name ~= "LighthouseLamp" then
-				desc.Material = Enum.Material.SmoothPlastic
+			-- Absolutely no Neon materials in the lobby
+			if desc.Material == Enum.Material.Neon or desc.Material == Enum.Material.ForceField then
+				if name == "Gate" then
+					desc.Material = Enum.Material.Fabric
+					desc.Color = Color3.fromRGB(220, 210, 185)
+					desc.Transparency = 0.08
+				elseif name == "LighthouseLamp" then
+					desc.Material = Enum.Material.SmoothPlastic
+					desc.Color = Color3.fromRGB(245, 220, 160)
+				else
+					desc.Material = Enum.Material.SmoothPlastic
+				end
 			end
 			if name == "Gate" then
-				-- Restyle old ForceField gates if still present
 				desc.Material = Enum.Material.Fabric
 				desc.Color = Color3.fromRGB(220, 210, 185)
 				desc.Transparency = 0.08
-				for _, child in desc:GetChildren() do
-					if child:IsA("PointLight") then
-						child:Destroy()
-					end
-				end
 			end
 		end
 	end
@@ -672,20 +679,15 @@ local function buildDock(root: Folder)
 		Color = Color3.fromRGB(200, 60, 55),
 		Material = Enum.Material.SmoothPlastic,
 	})
-	local lamp = part({
+	part({
 		Name = "LighthouseLamp",
 		Parent = dock,
 		Size = Vector3.new(10, 8, 10),
 		CFrame = CFrame.new(-55, 52, -20),
-		Color = Config.Theme.Lantern,
+		Color = Color3.fromRGB(245, 220, 160),
 		Material = Enum.Material.SmoothPlastic,
 		CanCollide = false,
 	})
-	local light = Instance.new("PointLight")
-	light.Brightness = 1.4
-	light.Range = 50
-	light.Color = Color3.fromRGB(255, 210, 150)
-	light.Parent = lamp
 
 	for i = 1, 6 do
 		part({
