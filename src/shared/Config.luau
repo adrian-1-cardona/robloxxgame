@@ -23,15 +23,22 @@ local Config = {
 
 	-- Starter base: one huge square wooden plank per crew (not scaled by party size).
 	-- Spawned after create/join so the berth flow lands you on your base immediately.
+	-- Bases are Models with a PrimaryPart so they can be moved later (sea drift / voyage).
 	StarterBase = {
 		-- Fixed footprint — same for solo or full (10) crews
 		SizeStuds = 72,
 		Thickness = 3,
-		-- Far past the boarding pier so bases sit out on the open water
-		Origin = Vector3.new(0, 3.5, 260),
+		-- Middle of the open ocean, well past the pier
+		Origin = Vector3.new(0, 2.2, 420),
 		-- Spread concurrent crews along X so planks never overlap
-		SpacingX = 110,
-		DeckClearance = 4,
+		SpacingX = 140,
+		DeckClearance = 3.5,
+	},
+
+	-- Berth pad colors (half red / half dark blue)
+	Berth = {
+		Red = Color3.fromRGB(176, 48, 48),
+		DarkBlue = Color3.fromRGB(18, 42, 92),
 	},
 
 	-- Ocean theme palette

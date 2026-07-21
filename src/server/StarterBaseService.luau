@@ -1,5 +1,8 @@
 -- One huge square wooden plank per crew — the Survive at Sea starter base.
 -- Party size only gates who can join; it never changes the plank footprint.
+--
+-- Bases are Models with PrimaryPart = Deck so they can be moved later
+-- (sea drift / voyage travel) via setBaseCFrame without rebuilding.
 
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
@@ -10,7 +13,7 @@ local LobbyWorld = require(Shared:WaitForChild("LobbyWorld"))
 
 local StarterBaseService = {}
 
-StarterBaseService._basesByCode = {} :: { [string]: Folder }
+StarterBaseService._basesByCode = {} :: { [string]: Model }
 
 local function lobbyRoot(): Folder
 	local root = Workspace:FindFirstChild("SurviveAtSeaLobby")
@@ -51,6 +54,16 @@ local function makePart(props: { [string]: any }): Part
 	return p
 end
 
+-- Move every BasePart in a model by the same delta (keeps relative layout).
+local function shiftModel(model: Model, fromCFrame: CFrame, toCFrame: CFrame)
+	local delta = toCFrame * fromCFrame:Inverse()
+	for _, desc in model:GetDescendants() do
+		if desc:IsA("BasePart") then
+			desc.CFrame = delta * desc.CFrame
+		end
+	end
+end
+
 function StarterBaseService.getBaseCenter(portalIndex: number): Vector3
 	local cfg = Config.StarterBase
 	local count = Config.PortalCount
@@ -60,17 +73,28 @@ end
 
 function StarterBaseService.getSpawnCFrame(portalIndex: number, slotIndex: number?): CFrame
 	local center = StarterBaseService.getBaseCenter(portalIndex)
+	local base = StarterBaseService._basesByCode
+	-- If a live base exists for this portal, prefer its current deck position (supports future movement)
+	for _, model in base do
+		local portalValue = model:FindFirstChild("PortalIndex")
+		local deck = model.PrimaryPart or model:FindFirstChild("Deck")
+		if portalValue and portalValue:IsA("IntValue") and portalValue.Value == portalIndex and deck and deck:IsA("BasePart") then
+			center = deck.Position
+			break
+		end
+	end
+
 	local y = center.Y + Config.StarterBase.Thickness / 2 + Config.StarterBase.DeckClearance
 	local slot = slotIndex or 1
-	-- Spread crew slightly so they don't stack on the same stud
 	local offset = Vector3.new(((slot - 1) % 5) * 4 - 8, 0, math.floor((slot - 1) / 5) * 4 - 2)
 	local pos = Vector3.new(center.X, y, center.Z) + offset
 	return CFrame.new(pos, pos + Vector3.new(0, 0, -40))
 end
 
-function StarterBaseService.ensureBase(code: string, portalIndex: number, privacy: string): Folder
+function StarterBaseService.ensureBase(code: string, portalIndex: number, privacy: string): Model
 	local existing = StarterBaseService._basesByCode[code]
 	if existing and existing.Parent then
+		StarterBaseService.refreshPrivacyLabel(code, privacy)
 		return existing
 	end
 
@@ -78,7 +102,7 @@ function StarterBaseService.ensureBase(code: string, portalIndex: number, privac
 	local thickness = Config.StarterBase.Thickness
 	local center = StarterBaseService.getBaseCenter(portalIndex)
 
-	local model = Instance.new("Folder")
+	local model = Instance.new("Model")
 	model.Name = `StarterBase_{code}`
 	model.Parent = basesFolder()
 
@@ -92,8 +116,13 @@ function StarterBaseService.ensureBase(code: string, portalIndex: number, privac
 	portalValue.Value = portalIndex
 	portalValue.Parent = model
 
-	-- One huge square plank — the starter base itself
-	makePart({
+	local privacyValue = Instance.new("StringValue")
+	privacyValue.Name = "Privacy"
+	privacyValue.Value = privacy
+	privacyValue.Parent = model
+
+	-- Deck sits just above the ocean surface so it reads as mid-sea timber
+	local deck = makePart({
 		Name = "Deck",
 		Parent = model,
 		Size = Vector3.new(size, thickness, size),
@@ -101,8 +130,32 @@ function StarterBaseService.ensureBase(code: string, portalIndex: number, privac
 		Color = Color3.fromRGB(118, 80, 48),
 		Material = Enum.Material.WoodPlanks,
 	})
+	model.PrimaryPart = deck
 
-	-- Subtle plank seams so it reads as timber, not a flat slab
+	-- Local water ring so the base always feels surrounded by ocean
+	makePart({
+		Name = "LocalSea",
+		Parent = model,
+		Size = Vector3.new(size + 180, 1.5, size + 180),
+		CFrame = CFrame.new(center.X, 0.35, center.Z),
+		Color = Color3.fromRGB(22, 118, 150),
+		Material = Enum.Material.Glass,
+		Transparency = 0.32,
+		CanCollide = false,
+		CastShadow = false,
+	})
+	makePart({
+		Name = "LocalSeaDeep",
+		Parent = model,
+		Size = Vector3.new(size + 180, 24, size + 180),
+		CFrame = CFrame.new(center.X, -12, center.Z),
+		Color = Color3.fromRGB(6, 48, 82),
+		Material = Enum.Material.SmoothPlastic,
+		Transparency = 0.08,
+		CanCollide = false,
+		CastShadow = false,
+	})
+
 	local seamColor = Color3.fromRGB(86, 58, 34)
 	for i = -2, 2 do
 		if i ~= 0 then
@@ -127,7 +180,6 @@ function StarterBaseService.ensureBase(code: string, portalIndex: number, privac
 		end
 	end
 
-	-- Low edge rails so the square reads as a platform
 	local half = size / 2
 	local railH = 2.2
 	local railT = 1.2
@@ -148,8 +200,7 @@ function StarterBaseService.ensureBase(code: string, portalIndex: number, privac
 		})
 	end
 
-	-- Corner posts
-	for _, corner in {
+	for _, cornerOffset in {
 		Vector3.new(-half + 1.5, 0, -half + 1.5),
 		Vector3.new(half - 1.5, 0, -half + 1.5),
 		Vector3.new(-half + 1.5, 0, half - 1.5),
@@ -159,13 +210,12 @@ function StarterBaseService.ensureBase(code: string, portalIndex: number, privac
 			Name = "CornerPost",
 			Parent = model,
 			Size = Vector3.new(2.4, 5, 2.4),
-			CFrame = CFrame.new(center + corner + Vector3.new(0, thickness / 2 + 2.5, 0)),
+			CFrame = CFrame.new(center + cornerOffset + Vector3.new(0, thickness / 2 + 2.5, 0)),
 			Color = Color3.fromRGB(78, 52, 30),
 			Material = Enum.Material.Wood,
 		})
 	end
 
-	-- World label (code lives in HUD top-right; this is a deck marker)
 	local marker = makePart({
 		Name = "CodeMarker",
 		Parent = model,
@@ -178,21 +228,20 @@ function StarterBaseService.ensureBase(code: string, portalIndex: number, privac
 	local gui = Instance.new("BillboardGui")
 	gui.Name = "BaseBillboard"
 	gui.Adornee = marker
-	gui.Size = UDim2.fromOffset(220, 56)
-	gui.StudsOffsetWorldSpace = Vector3.new(0, 0, 0)
+	gui.Size = UDim2.fromOffset(200, 48)
 	gui.AlwaysOnTop = true
-	gui.MaxDistance = 140
+	gui.MaxDistance = 160
 	gui.Parent = marker
 
 	local label = Instance.new("TextLabel")
 	label.Name = "Label"
-	label.BackgroundTransparency = 0.3
+	label.BackgroundTransparency = 0.25
 	label.BackgroundColor3 = Color3.fromRGB(18, 36, 48)
 	label.Size = UDim2.fromScale(1, 1)
 	label.Font = Enum.Font.GothamBold
 	label.TextScaled = true
 	label.TextColor3 = Config.Theme.Foam
-	label.Text = if privacy == "Private" then `BASE · {code} · PRIVATE` else `BASE · {code} · PUBLIC`
+	label.Text = if privacy == "Private" then `PRIVATE · {code}` else `PUBLIC · {code}`
 	label.Parent = gui
 
 	local corner = Instance.new("UICorner")
@@ -201,6 +250,41 @@ function StarterBaseService.ensureBase(code: string, portalIndex: number, privac
 
 	StarterBaseService._basesByCode[code] = model
 	return model
+end
+
+function StarterBaseService.refreshPrivacyLabel(code: string, privacy: string)
+	local model = StarterBaseService._basesByCode[code]
+	if not model then
+		return
+	end
+	local privacyValue = model:FindFirstChild("Privacy")
+	if privacyValue and privacyValue:IsA("StringValue") then
+		privacyValue.Value = privacy
+	end
+	local marker = model:FindFirstChild("CodeMarker")
+	local gui = marker and marker:FindFirstChild("BaseBillboard")
+	local label = gui and gui:FindFirstChild("Label")
+	if label and label:IsA("TextLabel") then
+		label.Text = if privacy == "Private" then `PRIVATE · {code}` else `PUBLIC · {code}`
+	end
+end
+
+-- Future sea travel: move the whole plank (and its local water) as one unit.
+function StarterBaseService.setBaseCFrame(code: string, newDeckCFrame: CFrame): boolean
+	local model = StarterBaseService._basesByCode[code]
+	if not model then
+		return false
+	end
+	local deck = model.PrimaryPart or model:FindFirstChild("Deck")
+	if not (deck and deck:IsA("BasePart")) then
+		return false
+	end
+	shiftModel(model, deck.CFrame, newDeckCFrame)
+	return true
+end
+
+function StarterBaseService.getBaseModel(code: string): Model?
+	return StarterBaseService._basesByCode[code]
 end
 
 function StarterBaseService.destroyBase(code: string)
@@ -230,19 +314,6 @@ function StarterBaseService.teleportPlayerToLobby(player: Player)
 	LobbyWorld.seatCharacter(character)
 end
 
-function StarterBaseService.seatIfInParty(
-	player: Player,
-	lookup: (Player) -> ({ portalIndex: number, slotIndex: number }?)
-)
-	local info = lookup(player)
-	if info then
-		StarterBaseService.teleportPlayerToBase(player, info.portalIndex, info.slotIndex)
-	else
-		StarterBaseService.teleportPlayerToLobby(player)
-	end
-end
-
--- Keep Players referenced for future hooks / type clarity
 local _ = Players
 
 return StarterBaseService
