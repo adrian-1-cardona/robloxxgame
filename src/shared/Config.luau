@@ -18,7 +18,8 @@ local Config = {
 	-- Lobby layout (portals close to spawn so they're obvious)
 	LobbyCenter = Vector3.new(0, 4, 0),
 	PortalCount = 4,
-	PortalSpacing = 24,
+	-- Keep berths inside the pier rails (≈±38) so frames don't clip the bulwark
+	PortalSpacing = 18,
 
 	-- Ocean theme palette
 	Theme = {

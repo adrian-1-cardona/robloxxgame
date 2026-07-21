@@ -294,14 +294,14 @@ local function buildPortal(folder: Instance, index: number, position: Vector3): 
 	model.Parent = folder
 
 	local wood = Color3.fromRGB(92, 62, 40)
-	local woodDark = Color3.fromRGB(72, 48, 30)
 	local sailRed = Color3.fromRGB(168, 92, 82)
 	local stainRed = Color3.fromRGB(120, 58, 48)
 
+	-- Sized to stay clear of pier rails when spaced via Config.PortalSpacing
 	local pad = part({
 		Name = "Pad",
 		Parent = model,
-		Size = Vector3.new(16, 1.4, 16),
+		Size = Vector3.new(14, 1.2, 14),
 		CFrame = CFrame.new(position),
 		Color = Color3.fromRGB(98, 68, 42),
 		Material = Enum.Material.WoodPlanks,
@@ -310,41 +310,19 @@ local function buildPortal(folder: Instance, index: number, position: Vector3): 
 	part({
 		Name = "BerthRim",
 		Parent = model,
-		Size = Vector3.new(16.6, 0.4, 16.6),
-		CFrame = CFrame.new(position + Vector3.new(0, 0.85, 0)),
+		Size = Vector3.new(14.5, 0.35, 14.5),
+		CFrame = CFrame.new(position + Vector3.new(0, 0.75, 0)),
 		Color = stainRed,
 		Material = Enum.Material.Wood,
 		CanCollide = false,
 	})
 
-	for _, ox in { -6.5, 6.5 } do
-		for _, oz in { -6.5, 6.5 } do
-			part({
-				Name = "RopePost",
-				Parent = model,
-				Size = Vector3.new(1.15, 4.2, 1.15),
-				CFrame = CFrame.new(position + Vector3.new(ox, 2.6, oz)),
-				Color = woodDark,
-				Material = Enum.Material.Wood,
-			})
-			part({
-				Name = "PostWrap",
-				Parent = model,
-				Size = Vector3.new(1.35, 0.55, 1.35),
-				CFrame = CFrame.new(position + Vector3.new(ox, 3.6, oz)),
-				Color = sailRed,
-				Material = Enum.Material.Fabric,
-				CanCollide = false,
-			})
-		end
-	end
-
-	for _, offsetX in { -6.5, 6.5 } do
+	for _, offsetX in { -5.2, 5.2 } do
 		part({
 			Name = "ArchLeg",
 			Parent = model,
-			Size = Vector3.new(2.1, 16, 2.1),
-			CFrame = CFrame.new(position + Vector3.new(offsetX, 9, -1)),
+			Size = Vector3.new(1.8, 15, 1.8),
+			CFrame = CFrame.new(position + Vector3.new(offsetX, 8.5, -0.5)),
 			Color = wood,
 			Material = Enum.Material.Wood,
 		})
@@ -353,8 +331,8 @@ local function buildPortal(folder: Instance, index: number, position: Vector3): 
 	part({
 		Name = "ArchTop",
 		Parent = model,
-		Size = Vector3.new(15.5, 2.1, 2.1),
-		CFrame = CFrame.new(position + Vector3.new(0, 17.5, -1)),
+		Size = Vector3.new(12.4, 1.8, 1.8),
+		CFrame = CFrame.new(position + Vector3.new(0, 16.5, -0.5)),
 		Color = wood,
 		Material = Enum.Material.Wood,
 	})
@@ -362,19 +340,19 @@ local function buildPortal(folder: Instance, index: number, position: Vector3): 
 	part({
 		Name = "ArchBanner",
 		Parent = model,
-		Size = Vector3.new(14.5, 1.2, 0.35),
-		CFrame = CFrame.new(position + Vector3.new(0, 16.4, 0.2)),
+		Size = Vector3.new(11.2, 1.0, 0.3),
+		CFrame = CFrame.new(position + Vector3.new(0, 15.5, 0.5)),
 		Color = sailRed,
 		Material = Enum.Material.Fabric,
 		CanCollide = false,
 	})
 
-	-- Soft red-tinted canvas (matte fabric, no neon)
+	-- Soft red-tinted canvas, inset so it never clips the legs
 	local gate = part({
 		Name = "Gate",
 		Parent = model,
-		Size = Vector3.new(10, 13, 0.55),
-		CFrame = CFrame.new(position + Vector3.new(0, 9, -1)),
+		Size = Vector3.new(8.2, 12, 0.45),
+		CFrame = CFrame.new(position + Vector3.new(0, 8.5, -0.5)),
 		Color = Color3.fromRGB(198, 140, 128),
 		Material = Enum.Material.Fabric,
 		Transparency = 0.06,
@@ -386,17 +364,16 @@ local function buildPortal(folder: Instance, index: number, position: Vector3): 
 		local t = index * 1.3
 		while gate.Parent do
 			t += 0.05
-			gate.CFrame = base * CFrame.Angles(0, math.rad(math.sin(t) * 2.2), 0)
+			gate.CFrame = base * CFrame.Angles(0, math.rad(math.sin(t) * 1.8), 0)
 			task.wait(0.05)
 		end
 	end)
 
-	-- Label lives at the TOP of the berth arch
 	local signAnchor = part({
 		Name = "SignAnchor",
 		Parent = model,
 		Size = Vector3.new(1, 1, 1),
-		CFrame = CFrame.new(position + Vector3.new(0, 20.2, -1)),
+		CFrame = CFrame.new(position + Vector3.new(0, 19, -0.5)),
 		Transparency = 1,
 		CanCollide = false,
 		CastShadow = false,
@@ -406,8 +383,8 @@ local function buildPortal(folder: Instance, index: number, position: Vector3): 
 	local promptPart = part({
 		Name = "PromptAnchor",
 		Parent = model,
-		Size = Vector3.new(6, 6, 6),
-		CFrame = CFrame.new(position + Vector3.new(0, 3, 5)),
+		Size = Vector3.new(5, 5, 5),
+		CFrame = CFrame.new(position + Vector3.new(0, 3, 4)),
 		Transparency = 1,
 		CanCollide = false,
 		CastShadow = false,
@@ -432,8 +409,8 @@ local function buildPortal(folder: Instance, index: number, position: Vector3): 
 	local walkTrigger = part({
 		Name = "WalkTrigger",
 		Parent = model,
-		Size = Vector3.new(12, 14, 10),
-		CFrame = CFrame.new(position + Vector3.new(0, 8, 1)),
+		Size = Vector3.new(10, 13, 9),
+		CFrame = CFrame.new(position + Vector3.new(0, 7.5, 0.5)),
 		Transparency = 1,
 		CanCollide = false,
 		CastShadow = false,
@@ -822,6 +799,9 @@ local function clearPathwayMarkers(root: Folder)
 				killNames[name]
 				or string.sub(name, 1, 5) == "Arrow"
 				or string.sub(name, 1, 4) == "Buoy"
+				or string.sub(name, 1, 9) == "PlankWear"
+				or name == "RopePost"
+				or name == "PostWrap"
 				or string.find(string.lower(name), "path", 1, true)
 			then
 				child:Destroy()
@@ -886,19 +866,6 @@ local function buildDock(root: Folder)
 		Material = Enum.Material.WoodPlanks,
 	})
 
-	-- Soft plank variation (not a pathway stripe)
-	for i = 0, 6 do
-		part({
-			Name = "PlankWear" .. i,
-			Parent = dock,
-			Size = Vector3.new(10 + (i % 3) * 2, 0.15, 18),
-			CFrame = CFrame.new((-24 + i * 8), 3.55, -10 + (i % 2) * 30),
-			Color = Color3.fromRGB(108 + (i % 3) * 6, 74, 44),
-			Material = Enum.Material.WoodPlanks,
-			CanCollide = false,
-		})
-	end
-
 	for _, x in { -38, 38 } do
 		part({
 			Name = "Rail",
@@ -934,9 +901,9 @@ local function buildDock(root: Folder)
 	part({
 		Name = "LighthouseStripe",
 		Parent = dock,
-		Size = Vector3.new(12.4, 8, 12.4),
+		Size = Vector3.new(12.4, 5, 12.4),
 		CFrame = CFrame.new(-55, 18, -20),
-		Color = Color3.fromRGB(200, 60, 55),
+		Color = Color3.fromRGB(170, 75, 65),
 		Material = Enum.Material.SmoothPlastic,
 	})
 	part({
@@ -949,12 +916,13 @@ local function buildDock(root: Folder)
 		CanCollide = false,
 	})
 
-	for i = 1, 6 do
+	-- Supply crates near spawn only (not scattered through the berths)
+	for i = 1, 4 do
 		part({
 			Name = "Crate" .. i,
 			Parent = dock,
-			Size = Vector3.new(4.5, 4.5, 4.5),
-			CFrame = CFrame.new(-20 + i * 5.5, 6.2, -32 + (i % 3) * 4) * CFrame.Angles(0, math.rad(i * 15), 0),
+			Size = Vector3.new(4, 4, 4),
+			CFrame = CFrame.new(-16 + i * 5, 5.8, -30 + (i % 2) * 3) * CFrame.Angles(0, math.rad(i * 18), 0),
 			Color = Color3.fromRGB(130, 90, 50),
 			Material = Enum.Material.Wood,
 		})
@@ -1050,35 +1018,20 @@ function LobbyWorld.polish(root: Folder)
 		spawn.Duration = 0
 	end
 
-	-- Rebuild berths so signs stay compact / glow-free
+	-- Rebuild berths at safe Config positions (never reuse clipped map coords)
 	local portals = root:FindFirstChild("Portals")
-	if portals then
-		local snapshots: { { index: number, position: Vector3 } } = {}
-		for _, model in portals:GetChildren() do
-			if model:IsA("Model") then
-				local pad = model:FindFirstChild("Pad")
-				local indexValue = model:FindFirstChild("PortalIndex")
-				local index = if indexValue and indexValue:IsA("IntValue") then indexValue.Value else #snapshots + 1
-				local position = if pad and pad:IsA("BasePart") then pad.Position else Vector3.new(0, 3.5, 70)
-				table.insert(snapshots, { index = index, position = position })
-				model:Destroy()
-			end
-		end
-		table.sort(snapshots, function(a, b)
-			return a.index < b.index
-		end)
-		if #snapshots == 0 then
-			local startX = -((Config.PortalCount - 1) * Config.PortalSpacing) / 2
-			for i = 1, Config.PortalCount do
-				table.insert(snapshots, {
-					index = i,
-					position = Vector3.new(startX + (i - 1) * Config.PortalSpacing, 3.5, 70),
-				})
-			end
-		end
-		for _, snap in snapshots do
-			buildPortal(portals, snap.index, snap.position)
-		end
+	if not portals then
+		portals = Instance.new("Folder")
+		portals.Name = "Portals"
+		portals.Parent = root
+	end
+	for _, model in portals:GetChildren() do
+		model:Destroy()
+	end
+	local startX = -((Config.PortalCount - 1) * Config.PortalSpacing) / 2
+	for i = 1, Config.PortalCount do
+		local pos = Vector3.new(startX + (i - 1) * Config.PortalSpacing, 3.5, 68)
+		buildPortal(portals, i, pos)
 	end
 
 	local dock = root:FindFirstChild("Dock")
@@ -1160,7 +1113,7 @@ function LobbyWorld.ensure(): Folder
 
 	local startX = -((Config.PortalCount - 1) * Config.PortalSpacing) / 2
 	for i = 1, Config.PortalCount do
-		local pos = Vector3.new(startX + (i - 1) * Config.PortalSpacing, 3.5, 70)
+		local pos = Vector3.new(startX + (i - 1) * Config.PortalSpacing, 3.5, 68)
 		buildPortal(portalsFolder, i, pos)
 	end
 
