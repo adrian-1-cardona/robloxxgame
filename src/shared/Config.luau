@@ -18,7 +18,8 @@ local Config = {
 	-- Lobby layout (portals close to spawn so they're obvious)
 	LobbyCenter = Vector3.new(0, 4, 0),
 	PortalCount = 4,
-	PortalSpacing = 24,
+	-- Keep berths inside the pier rails (≈±38) so frames don't clip the bulwark
+	PortalSpacing = 18,
 
 	-- Ocean theme palette
 	Theme = {
@@ -28,7 +29,7 @@ local Config = {
 		Driftwood = Color3.fromRGB(92, 64, 42),
 		Rope = Color3.fromRGB(160, 120, 70),
 		Lantern = Color3.fromRGB(255, 186, 90),
-		PortalGlow = Color3.fromRGB(60, 200, 190),
+		SeaAccent = Color3.fromRGB(42, 120, 110),
 		DangerRed = Color3.fromRGB(220, 70, 70),
 		UIPanel = Color3.fromRGB(10, 28, 42),
 		UIAccent = Color3.fromRGB(46, 180, 170),

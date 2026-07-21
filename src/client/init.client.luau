@@ -67,6 +67,7 @@ task.spawn(function()
 		end
 
 		local portalIndex = indexValue.Value
+		-- Press-E fallback for client-built lobbies; walk-in is handled by the server.
 		prompt.Triggered:Connect(function()
 			(openEvent :: BindableEvent):Fire(portalIndex)
 		end)
@@ -81,4 +82,9 @@ pcall(function()
 	Lighting.FogStart = 200
 	Lighting.FogEnd = 800
 	Lighting.ClockTime = 16.5
+	for _, child in Lighting:GetChildren() do
+		if child:IsA("BloomEffect") or child:IsA("SunRaysEffect") then
+			child:Destroy()
+		end
+	end
 end)
