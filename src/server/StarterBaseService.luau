@@ -248,6 +248,19 @@ function StarterBaseService.ensureBase(code: string, portalIndex: number, privac
 	corner.CornerRadius = UDim.new(0, 8)
 	corner.Parent = label
 
+	-- Invisible spawn pad so deaths land on the raft (not the pier)
+	local spawn = Instance.new("SpawnLocation")
+	spawn.Name = "RaftSpawn"
+	spawn.Size = Vector3.new(10, 1, 10)
+	spawn.CFrame = CFrame.new(center + Vector3.new(0, thickness / 2 + 0.6, 0))
+	spawn.Anchored = true
+	spawn.CanCollide = false
+	spawn.Transparency = 1
+	spawn.Duration = 0
+	spawn.Neutral = true
+	spawn.Enabled = true
+	spawn.Parent = model
+
 	StarterBaseService._basesByCode[code] = model
 	return model
 end
@@ -304,6 +317,21 @@ function StarterBaseService.teleportPlayerToBase(player: Player, portalIndex: nu
 	if root and root:IsA("BasePart") then
 		root.CFrame = StarterBaseService.getSpawnCFrame(portalIndex, slotIndex)
 	end
+	-- Bind respawn to this raft so death returns here (for now)
+	for _, model in StarterBaseService._basesByCode do
+		local portalValue = model:FindFirstChild("PortalIndex")
+		local raftSpawn = model:FindFirstChild("RaftSpawn")
+		if portalValue and portalValue:IsA("IntValue") and portalValue.Value == portalIndex
+			and raftSpawn and raftSpawn:IsA("SpawnLocation")
+		then
+			player.RespawnLocation = raftSpawn
+			break
+		end
+	end
+end
+
+function StarterBaseService.clearRespawn(player: Player)
+	player.RespawnLocation = nil
 end
 
 function StarterBaseService.teleportPlayerToLobby(player: Player)
@@ -311,6 +339,7 @@ function StarterBaseService.teleportPlayerToLobby(player: Player)
 	if not character then
 		return
 	end
+	StarterBaseService.clearRespawn(player)
 	LobbyWorld.seatCharacter(character)
 end
 
