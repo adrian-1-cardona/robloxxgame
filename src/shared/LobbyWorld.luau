@@ -53,8 +53,8 @@ local function billboard(adornee: BasePart, text: string, color: Color3, size: U
 	gui.Parent = adornee
 
 	local label = Instance.new("TextLabel")
-	label.BackgroundTransparency = 0.18
-	label.BackgroundColor3 = Config.Theme.UIPanel
+	label.BackgroundTransparency = 0.28
+	label.BackgroundColor3 = Color3.fromRGB(28, 42, 48)
 	label.BorderSizePixel = 0
 	label.Size = UDim2.fromScale(1, 1)
 	label.Font = Enum.Font.GothamBold
@@ -75,8 +75,9 @@ local function billboard(adornee: BasePart, text: string, color: Color3, size: U
 	pad.Parent = label
 
 	local stroke = Instance.new("UIStroke")
-	stroke.Color = Config.Theme.Rope
-	stroke.Thickness = 2
+	stroke.Color = Color3.fromRGB(120, 100, 70)
+	stroke.Thickness = 1.5
+	stroke.Transparency = 0.35
 	stroke.Parent = label
 end
 
@@ -277,14 +278,14 @@ local function buildPortal(folder: Instance, index: number, position: Vector3): 
 		Material = Enum.Material.WoodPlanks,
 	})
 
-	-- Painted berth rim (readable, not glowing)
+	-- Painted berth rim (matte wood stain — readable, not glowing)
 	part({
 		Name = "BerthRim",
 		Parent = model,
 		Size = Vector3.new(16.6, 0.45, 16.6),
 		CFrame = CFrame.new(position + Vector3.new(0, 0.85, 0)),
-		Color = Color3.fromRGB(42, 92, 88),
-		Material = Enum.Material.SmoothPlastic,
+		Color = Color3.fromRGB(70, 95, 90),
+		Material = Enum.Material.Wood,
 		CanCollide = false,
 	})
 
@@ -346,13 +347,13 @@ local function buildPortal(folder: Instance, index: number, position: Vector3): 
 		end
 	end)
 
-	-- Number plank hanging from the arch
+	-- Number plank hanging from the arch (matte paint)
 	local numberPlank = part({
 		Name = "NumberPlank",
 		Parent = model,
 		Size = Vector3.new(5, 3, 0.5),
 		CFrame = CFrame.new(position + Vector3.new(0, 15.2, 0.4)),
-		Color = Color3.fromRGB(55, 110, 105),
+		Color = Color3.fromRGB(72, 95, 88),
 		Material = Enum.Material.Wood,
 		CanCollide = false,
 	})
@@ -416,6 +417,104 @@ local function stripGlowParts(root: Folder)
 	end
 end
 
+local function buildCannon(parent: Instance, position: Vector3, yawDegrees: number)
+	local model = Instance.new("Model")
+	model.Name = "Cannon"
+	model.Parent = parent
+
+	local yaw = math.rad(yawDegrees)
+	local baseCf = CFrame.new(position) * CFrame.Angles(0, yaw, 0)
+
+	-- Carriage
+	part({
+		Name = "Carriage",
+		Parent = model,
+		Size = Vector3.new(4.5, 1.8, 6),
+		CFrame = baseCf * CFrame.new(0, 0.9, 0),
+		Color = Color3.fromRGB(88, 60, 36),
+		Material = Enum.Material.Wood,
+	})
+	-- Wheels
+	for _, side in { -2.6, 2.6 } do
+		part({
+			Name = "Wheel",
+			Parent = model,
+			Size = Vector3.new(0.7, 3.2, 3.2),
+			CFrame = baseCf * CFrame.new(side, 1.4, 0.4) * CFrame.Angles(0, 0, math.rad(90)),
+			Color = Color3.fromRGB(55, 40, 28),
+			Material = Enum.Material.Wood,
+			Shape = Enum.PartType.Cylinder,
+		})
+	end
+	-- Barrel (iron, matte — no neon)
+	part({
+		Name = "Barrel",
+		Parent = model,
+		Size = Vector3.new(2.2, 2.2, 9),
+		CFrame = baseCf * CFrame.new(0, 2.6, -2.2) * CFrame.Angles(math.rad(-8), 0, 0),
+		Color = Color3.fromRGB(48, 48, 52),
+		Material = Enum.Material.Metal,
+	})
+	part({
+		Name = "Muzzle",
+		Parent = model,
+		Size = Vector3.new(2.5, 2.5, 1.2),
+		CFrame = baseCf * CFrame.new(0, 3.1, -6.4) * CFrame.Angles(math.rad(-8), 0, 0),
+		Color = Color3.fromRGB(40, 40, 44),
+		Material = Enum.Material.Metal,
+	})
+	-- Stack of cannonballs beside it
+	part({
+		Name = "BallPile",
+		Parent = model,
+		Size = Vector3.new(2.4, 1.6, 2.4),
+		CFrame = baseCf * CFrame.new(3.2, 1.2, 1.5),
+		Color = Color3.fromRGB(35, 35, 38),
+		Material = Enum.Material.Metal,
+		CanCollide = false,
+	})
+
+	return model
+end
+
+local function buildMiniIsland(parent: Instance, position: Vector3, size: Vector3, yawDegrees: number?)
+	local yaw = math.rad(yawDegrees or 0)
+	local island = Instance.new("Model")
+	island.Name = "MiniIsland"
+	island.Parent = parent
+
+	part({
+		Name = "Sand",
+		Parent = island,
+		Size = size,
+		CFrame = CFrame.new(position) * CFrame.Angles(0, yaw, 0),
+		Color = Color3.fromRGB(214, 192, 148),
+		Material = Enum.Material.Sand,
+		CanCollide = false,
+	})
+	-- Slight rock edge
+	part({
+		Name = "RockRim",
+		Parent = island,
+		Size = Vector3.new(size.X * 0.85, size.Y * 0.55, size.Z * 0.85),
+		CFrame = CFrame.new(position + Vector3.new(0, -size.Y * 0.25, 0)) * CFrame.Angles(0, yaw + 0.4, 0),
+		Color = Color3.fromRGB(120, 110, 95),
+		Material = Enum.Material.Slate,
+		CanCollide = false,
+	})
+
+	local top = position + Vector3.new(0, size.Y * 0.5, 0)
+	buildPalm(island, top, 0.9 + (size.X / 40))
+	if size.X > 16 then
+		buildPalm(island, top + Vector3.new(size.X * 0.22, 0, size.Z * 0.12), 0.7)
+	end
+	if size.X > 22 then
+		buildPalm(island, top + Vector3.new(-size.X * 0.18, 0, -size.Z * 0.1), 0.75)
+	end
+
+	return island
+end
+
 local function buildScenery(root: Folder)
 	local existing = root:FindFirstChild("Scenery")
 	if existing then
@@ -426,7 +525,7 @@ local function buildScenery(root: Folder)
 	scenery.Name = "Scenery"
 	scenery.Parent = root
 
-	-- Palms on the pier corners (inside barriers — decorative, walkable around)
+	-- Palms on the pier (decorative, stay out of the berth walk space)
 	local palmSpots = {
 		{ Vector3.new(-28, PIER.DeckY, -28), 1.1 },
 		{ Vector3.new(28, PIER.DeckY, -28), 1.0 },
@@ -434,9 +533,24 @@ local function buildScenery(root: Folder)
 		{ Vector3.new(30, PIER.DeckY, 55), 1.05 },
 		{ Vector3.new(-22, PIER.DeckY, 10), 0.85 },
 		{ Vector3.new(24, PIER.DeckY, 18), 0.9 },
+		{ Vector3.new(-26, PIER.DeckY, 32), 0.8 },
+		{ Vector3.new(26, PIER.DeckY, 38), 0.85 },
 	}
 	for _, spot in palmSpots do
 		buildPalm(scenery, spot[1] :: Vector3, spot[2] :: number)
+	end
+
+	-- Deck cannons aiming out to sea (props only)
+	local cannons = {
+		{ Vector3.new(-32, PIER.DeckY, 0), -90 },
+		{ Vector3.new(-32, PIER.DeckY, 40), -85 },
+		{ Vector3.new(32, PIER.DeckY, 0), 90 },
+		{ Vector3.new(32, PIER.DeckY, 40), 95 },
+		{ Vector3.new(-18, PIER.DeckY, -36), 180 },
+		{ Vector3.new(18, PIER.DeckY, -36), 180 },
+	}
+	for _, c in cannons do
+		buildCannon(scenery, c[1] :: Vector3, c[2] :: number)
 	end
 
 	-- Boats moored beside the pier (outside barriers — look, don't board)
@@ -452,47 +566,46 @@ local function buildScenery(root: Folder)
 		buildBoat(scenery, b[1] :: Vector3, b[2] :: number, b[3] :: Color3)
 	end
 
-	-- Small sand islets with extra palms (atmosphere beyond the pier)
-	for i, pos in {
-		Vector3.new(-85, -0.5, 0),
-		Vector3.new(90, -0.5, 30),
-		Vector3.new(-70, -0.5, -40),
-	} do
-		part({
-			Name = "Islet" .. i,
-			Parent = scenery,
-			Size = Vector3.new(22, 4, 16),
-			CFrame = CFrame.new(pos),
-			Color = Color3.fromRGB(210, 185, 130),
-			Material = Enum.Material.Sand,
-			CanCollide = false,
-		})
-		buildPalm(scenery, pos + Vector3.new(0, 2, 0), 1.2)
-		buildPalm(scenery, pos + Vector3.new(5, 2, 3), 0.8)
+	-- Mini islands around the outside (no walkways — scenery only)
+	local islands = {
+		{ Vector3.new(-85, -0.4, 0), Vector3.new(24, 4, 18), 15 },
+		{ Vector3.new(90, -0.4, 30), Vector3.new(26, 4.2, 17), -20 },
+		{ Vector3.new(-70, -0.5, -40), Vector3.new(20, 3.8, 15), 40 },
+		{ Vector3.new(75, -0.5, -35), Vector3.new(18, 3.6, 14), -55 },
+		{ Vector3.new(-95, -0.3, 55), Vector3.new(22, 4, 16), 8 },
+		{ Vector3.new(98, -0.4, 70), Vector3.new(20, 3.8, 15), -12 },
+		{ Vector3.new(-60, -0.5, 100), Vector3.new(16, 3.4, 12), 25 },
+		{ Vector3.new(62, -0.5, 105), Vector3.new(17, 3.5, 13), -30 },
+		{ Vector3.new(0, -0.6, -75), Vector3.new(28, 4.5, 16), 5 },
+		{ Vector3.new(-110, -0.4, 20), Vector3.new(14, 3.2, 11), 60 },
+		{ Vector3.new(115, -0.4, 10), Vector3.new(15, 3.3, 12), -45 },
+	}
+	for _, isle in islands do
+		buildMiniIsland(scenery, isle[1] :: Vector3, isle[2] :: Vector3, isle[3] :: number)
 	end
 end
 
-local function buildGuideMarks(root: Folder)
-	-- Wooden chevrons on the deck pointing to berths (no neon)
-	for z = 18, 52, 14 do
-		part({
-			Name = "GuidePlank",
-			Parent = root,
-			Size = Vector3.new(5, 0.35, 6),
-			CFrame = CFrame.new(0, 4.05, z),
-			Color = Color3.fromRGB(55, 110, 100),
-			Material = Enum.Material.Wood,
-			CanCollide = false,
-		})
-		part({
-			Name = "GuideTip",
-			Parent = root,
-			Size = Vector3.new(3.5, 0.35, 3.5),
-			CFrame = CFrame.new(0, 4.1, z + 4) * CFrame.Angles(0, math.rad(45), 0),
-			Color = Color3.fromRGB(210, 175, 90),
-			Material = Enum.Material.Wood,
-			CanCollide = false,
-		})
+local function clearPathwayMarkers(root: Folder)
+	-- No glowing arrows / guide walkways — keep the pier calm and easy on the eyes
+	for _, child in root:GetDescendants() do
+		if child:IsA("BasePart") then
+			local name = child.Name
+			if name == "Arrow" or name == "GuidePlank" or name == "GuideTip" or name == "CenterPlank" then
+				-- Soften the bright center stripe into matching deck wood (keep collision volume)
+				if name == "CenterPlank" then
+					child.Color = Color3.fromRGB(125, 86, 52)
+					child.Material = Enum.Material.WoodPlanks
+				else
+					child:Destroy()
+				end
+			end
+		end
+	end
+	-- Also clear direct children left from older builds
+	for _, child in root:GetChildren() do
+		if child.Name == "Arrow" or child.Name == "GuidePlank" or child.Name == "GuideTip" then
+			child:Destroy()
+		end
 	end
 end
 
@@ -515,7 +628,7 @@ local function buildDock(root: Folder)
 		Parent = dock,
 		Size = Vector3.new(8, 3.2, 140),
 		CFrame = CFrame.new(0, 2, 20),
-		Color = Color3.fromRGB(170, 120, 70),
+		Color = Color3.fromRGB(125, 86, 52),
 		Material = Enum.Material.WoodPlanks,
 	})
 
@@ -569,9 +682,9 @@ local function buildDock(root: Folder)
 		CanCollide = false,
 	})
 	local light = Instance.new("PointLight")
-	light.Brightness = 2.5
-	light.Range = 70
-	light.Color = Config.Theme.Lantern
+	light.Brightness = 1.4
+	light.Range = 50
+	light.Color = Color3.fromRGB(255, 210, 150)
 	light.Parent = lamp
 
 	for i = 1, 6 do
@@ -663,20 +776,15 @@ function LobbyWorld.polish(root: Folder)
 	end
 
 	buildBarriers(root)
-
-	if not root:FindFirstChild("Scenery") then
-		buildScenery(root)
-	else
-		-- Refresh scenery so palms/boats always match latest layout
-		buildScenery(root)
-	end
+	buildScenery(root)
+	clearPathwayMarkers(root)
 
 	-- Soften spawn pad (wood, not neon)
 	local spawn = root:FindFirstChild("LobbySpawn")
 	if spawn and spawn:IsA("SpawnLocation") then
 		spawn.Material = Enum.Material.WoodPlanks
 		spawn.BrickColor = BrickColor.new("Brown")
-		spawn.Transparency = 0.15
+		spawn.Transparency = 0.2
 		spawn.Enabled = true
 		spawn.Neutral = true
 	end
@@ -705,24 +813,6 @@ function LobbyWorld.polish(root: Folder)
 		end
 	end
 
-	-- Replace neon arrows with wooden guides if still present
-	local hadNeonArrow = false
-	for _, child in root:GetChildren() do
-		if child.Name == "Arrow" then
-			hadNeonArrow = true
-			child:Destroy()
-		end
-	end
-	if hadNeonArrow or not root:FindFirstChild("GuidePlank") then
-		-- Clear old guides then rebuild
-		for _, child in root:GetChildren() do
-			if child.Name == "GuidePlank" or child.Name == "GuideTip" then
-				child:Destroy()
-			end
-		end
-		buildGuideMarks(root)
-	end
-
 	local dock = root:FindFirstChild("Dock")
 	if dock and not dock:FindFirstChild("TitleBanner") and not dock:FindFirstChild("TitleAnchor") then
 		local titleAnchor = part({
@@ -737,7 +827,7 @@ function LobbyWorld.polish(root: Folder)
 		billboard(titleAnchor, "SURVIVE AT SEA\nBOARDING PIER", Config.Theme.Foam, UDim2.fromOffset(480, 120), 0)
 	end
 
-	print("[SurviveAtSea] Lobby polished — pier barriers, palms, boats, glow-free berths")
+	print("[SurviveAtSea] Lobby polished — cannons, palms, mini islands, no glow pathways")
 end
 
 function LobbyWorld.ensure(): Folder
@@ -810,8 +900,6 @@ function LobbyWorld.ensure(): Folder
 		local pos = Vector3.new(startX + (i - 1) * Config.PortalSpacing, 3.5, 70)
 		buildPortal(portalsFolder, i, pos)
 	end
-
-	buildGuideMarks(root)
 
 	local staging = Instance.new("Folder")
 	staging.Name = "VoyageStaging"

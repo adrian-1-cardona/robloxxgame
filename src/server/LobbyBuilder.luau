@@ -48,17 +48,17 @@ local function safeLighting()
 		sky.SunAngularSize = 22
 		sky.MoonAngularSize = 11
 
-		-- Soft bloom only — no heavy glow look
+		-- Soft bloom only — keep it easy on the eyes
 		local bloom = Instance.new("BloomEffect")
-		bloom.Intensity = 0.12
-		bloom.Size = 10
-		bloom.Threshold = 1.5
+		bloom.Intensity = 0.06
+		bloom.Size = 8
+		bloom.Threshold = 1.8
 		bloom.Parent = Lighting
 
 		local cc = Instance.new("ColorCorrectionEffect")
-		cc.TintColor = Color3.fromRGB(245, 240, 225)
-		cc.Contrast = 0.04
-		cc.Saturation = 0.12
+		cc.TintColor = Color3.fromRGB(248, 244, 232)
+		cc.Contrast = 0.02
+		cc.Saturation = 0.08
 		cc.Parent = Lighting
 	end)
 	if not ok then
