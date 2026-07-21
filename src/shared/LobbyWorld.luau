@@ -303,13 +303,13 @@ local function buildPortal(folder: Instance, index: number, position: Vector3): 
 		Material = Enum.Material.WoodPlanks,
 	})
 
-	-- Painted berth rim (matte wood stain — readable, not glowing)
+	-- Painted berth rim (matte wood — no colored runway ring)
 	part({
 		Name = "BerthRim",
 		Parent = model,
 		Size = Vector3.new(16.6, 0.45, 16.6),
 		CFrame = CFrame.new(position + Vector3.new(0, 0.85, 0)),
-		Color = Color3.fromRGB(70, 95, 90),
+		Color = Color3.fromRGB(78, 56, 36),
 		Material = Enum.Material.Wood,
 		CanCollide = false,
 	})
@@ -378,7 +378,7 @@ local function buildPortal(folder: Instance, index: number, position: Vector3): 
 		Parent = model,
 		Size = Vector3.new(2.4, 1.6, 0.35),
 		CFrame = CFrame.new(position + Vector3.new(0, 16.2, 0.5)),
-		Color = Color3.fromRGB(68, 88, 82),
+		Color = Color3.fromRGB(86, 64, 42),
 		Material = Enum.Material.Wood,
 		CanCollide = false,
 	})
@@ -410,8 +410,23 @@ local function buildPortal(folder: Instance, index: number, position: Vector3): 
 	indexValue.Value = index
 	indexValue.Parent = model
 
-	-- Compact label — proximity prompt carries most of the UX
-	billboard(pad, `Berth {index}  ·  E`, Config.Theme.Foam, UDim2.fromOffset(120, 32), 5.5, 14)
+	-- Compact label — walk in or press E
+	billboard(pad, `Berth {index}`, Config.Theme.Foam, UDim2.fromOffset(100, 28), 5.2, 13)
+
+	-- Walk-into volume (invisible) — stepping through the berth opens create/join
+	local walkTrigger = part({
+		Name = "WalkTrigger",
+		Parent = model,
+		Size = Vector3.new(12, 14, 10),
+		CFrame = CFrame.new(position + Vector3.new(0, 8, 1)),
+		Transparency = 1,
+		CanCollide = false,
+		CastShadow = false,
+		Material = Enum.Material.SmoothPlastic,
+	})
+	walkTrigger.CanTouch = true
+	walkTrigger.CanQuery = false
+
 	model.PrimaryPart = pad
 	return model
 end
@@ -777,25 +792,32 @@ local function buildScenery(root: Folder)
 end
 
 local function clearPathwayMarkers(root: Folder)
-	-- No path / arrow / center stripe — pier deck only
+	-- Strip every leftover path stripe / arrow / foam runway
+	local killNames = {
+		CenterPlank = true,
+		GuidePlank = true,
+		GuideTip = true,
+		Foam = true,
+		Arrow = true,
+	}
 	for _, child in root:GetDescendants() do
 		if child:IsA("BasePart") then
 			local name = child.Name
-			if
-				name == "CenterPlank"
-				or name == "GuidePlank"
-				or name == "GuideTip"
-				or name == "Arrow"
-				or string.sub(name, 1, 5) == "Arrow"
-			then
+			if killNames[name] or string.sub(name, 1, 5) == "Arrow" or string.find(string.lower(name), "path", 1, true) then
 				child:Destroy()
+				continue
 			end
-		end
-	end
-	for _, child in root:GetChildren() do
-		local name = child.Name
-		if name == "GuidePlank" or name == "GuideTip" or name == "Arrow" or string.sub(name, 1, 5) == "Arrow" then
-			child:Destroy()
+			-- Catch leftover bright cyan / red flat “pathway” parts by look
+			local size = child.Size
+			local flat = size.Y <= 2.5 and (size.X >= 5 or size.Z >= 5)
+			if flat and child.Parent and child.Parent.Name ~= "Barriers" and child.Name ~= "PierDeck" and child.Name ~= "Pad" then
+				local c = child.Color
+				local isCyan = c.G > 0.45 and c.B > 0.55 and c.R < 0.55
+				local isHotRed = c.R > 0.7 and c.G < 0.35 and c.B < 0.35
+				if (isCyan or isHotRed) and child.Material ~= Enum.Material.WoodPlanks then
+					child:Destroy()
+				end
+			end
 		end
 	end
 end
@@ -928,8 +950,9 @@ local function buildDock(root: Folder)
 			Name = "Buoy" .. i,
 			Parent = dock,
 			Size = Vector3.new(3.5, 6, 3.5),
-			CFrame = CFrame.new(-65 + i * 28, 2.5, 95 + (i % 2) * 10),
-			Color = if i % 2 == 0 then Color3.fromRGB(220, 70, 55) else Color3.fromRGB(245, 245, 245),
+			-- Scattered offshore — not a straight colored “pathway”
+			CFrame = CFrame.new(-90 + (i * 37) % 50, 2.5, 110 + (i % 3) * 18),
+			Color = if i % 2 == 0 then Color3.fromRGB(200, 85, 60) else Color3.fromRGB(235, 230, 220),
 			Material = Enum.Material.SmoothPlastic,
 			CanCollide = false,
 		})
@@ -994,14 +1017,16 @@ function LobbyWorld.polish(root: Folder)
 	clearPathwayMarkers(root)
 	hideVoyageStagingBoat(root)
 
-	-- Soften spawn pad (wood, not neon)
+	-- Soften spawn pad into the deck (no cyan marker pad)
 	local spawn = root:FindFirstChild("LobbySpawn")
 	if spawn and spawn:IsA("SpawnLocation") then
 		spawn.Material = Enum.Material.WoodPlanks
 		spawn.BrickColor = BrickColor.new("Brown")
-		spawn.Transparency = 0.2
+		spawn.Color = Color3.fromRGB(118, 80, 48)
+		spawn.Transparency = 1
 		spawn.Enabled = true
 		spawn.Neutral = true
+		spawn.Duration = 0
 	end
 
 	-- Rebuild berths so signs stay compact / glow-free
@@ -1104,16 +1129,7 @@ function LobbyWorld.ensure(): Folder
 		CanCollide = false,
 	})
 
-	part({
-		Name = "Foam",
-		Parent = root,
-		Size = Vector3.new(160, 0.6, 160),
-		CFrame = CFrame.new(0, 1.2, 20),
-		Color = Config.Theme.Foam,
-		Material = Enum.Material.SmoothPlastic,
-		Transparency = 0.55,
-		CanCollide = false,
-	})
+	-- No Foam runway / colored path around the pier
 
 	buildDock(root)
 
@@ -1138,8 +1154,9 @@ function LobbyWorld.ensure(): Folder
 	spawn.Duration = 0
 	spawn.Neutral = true
 	spawn.Enabled = true
-	spawn.Transparency = 0.15
+	spawn.Transparency = 1
 	spawn.BrickColor = BrickColor.new("Brown")
+	spawn.Color = Color3.fromRGB(118, 80, 48)
 	spawn.Material = Enum.Material.WoodPlanks
 	spawn.Parent = root
 

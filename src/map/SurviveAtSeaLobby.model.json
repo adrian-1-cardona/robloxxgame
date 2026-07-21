@@ -57,33 +57,6 @@
       }
     },
     {
-      "Name": "Foam",
-      "ClassName": "Part",
-      "Properties": {
-        "Anchored": true,
-        "Size": [
-          160,
-          0.6,
-          160
-        ],
-        "Position": [
-          0,
-          1.2,
-          20
-        ],
-        "Color": [
-          0.82,
-          0.92,
-          0.94
-        ],
-        "Material": "SmoothPlastic",
-        "Transparency": 0.55,
-        "CanCollide": false,
-        "TopSurface": "Smooth",
-        "BottomSurface": "Smooth"
-      }
-    },
-    {
       "Name": "Dock",
       "ClassName": "Folder",
       "Children": [
@@ -1755,11 +1728,11 @@
         "Duration": 0,
         "Neutral": true,
         "Enabled": true,
-        "Transparency": 0.2,
+        "Transparency": 1,
         "Color": [
-          0.2,
-          0.9,
-          1.0
+          0.46,
+          0.31,
+          0.19
         ],
         "Material": "WoodPlanks",
         "CanCollide": true

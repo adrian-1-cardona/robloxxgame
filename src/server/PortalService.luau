@@ -1,4 +1,6 @@
--- Wires portal proximity prompts and keeps world signs in sync with parties.
+-- Wires portal proximity prompts + walk-in triggers; keeps berth signs in sync.
+
+local Players = game:GetService("Players")
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
@@ -7,6 +9,8 @@ local LobbyBuilder = require(script.Parent.LobbyBuilder)
 local PartyService = require(script.Parent.PartyService)
 
 local PortalService = {}
+
+local touchDebounce: { [string]: boolean } = {}
 
 local function refreshPortalVisuals(portals)
 	for _, info in portals do
@@ -36,12 +40,7 @@ local function refreshPortalVisuals(portals)
 				prompt.Enabled = false
 			end
 		elseif info.status == "Full" then
-			LobbyBuilder.updatePortalSign(
-				model,
-				`Berth {info.portalIndex}`,
-				"Full",
-				Config.Theme.DangerRed
-			)
+			LobbyBuilder.updatePortalSign(model, `Berth {info.portalIndex}`, "Full", Config.Theme.DangerRed)
 			if prompt and prompt:IsA("ProximityPrompt") then
 				prompt.ActionText = "Crew Full"
 				prompt.Enabled = false
@@ -63,13 +62,87 @@ local function refreshPortalVisuals(portals)
 	end
 end
 
+local function handlePortalUse(
+	player: Player,
+	portalIndex: number,
+	toastRemote: RemoteEvent,
+	partyUpdated: RemoteEvent
+)
+	local infos = PartyService.getPortalInfos()
+	local info = infos[portalIndex]
+	if not info or info.status == "Empty" then
+		toastRemote:FireClient(player, "Pick crew size and cast your berth.", "info")
+		partyUpdated:FireClient(player, {
+			__openCreate = true,
+			portalIndex = portalIndex,
+		})
+		return
+	end
+
+	local ok, message, snapshot = PartyService.joinPortal(player, portalIndex)
+	toastRemote:FireClient(player, message, if ok then "success" else "error")
+	if ok and snapshot then
+		partyUpdated:FireClient(player, snapshot)
+	end
+end
+
+local function wirePortalModel(
+	model: Model,
+	toastRemote: RemoteEvent,
+	partyUpdated: RemoteEvent
+)
+	local indexValue = model:FindFirstChild("PortalIndex")
+	local promptAnchor = model:FindFirstChild("PromptAnchor")
+	local prompt = promptAnchor and promptAnchor:FindFirstChild("BoardPrompt")
+	if not (indexValue and indexValue:IsA("IntValue")) then
+		return
+	end
+
+	local portalIndex = indexValue.Value
+
+	if prompt and prompt:IsA("ProximityPrompt") then
+		prompt.Triggered:Connect(function(player: Player)
+			handlePortalUse(player, portalIndex, toastRemote, partyUpdated)
+		end)
+	end
+
+	local walkTrigger = model:FindFirstChild("WalkTrigger")
+	if walkTrigger and walkTrigger:IsA("BasePart") then
+		walkTrigger.Touched:Connect(function(hit: BasePart)
+			local character = hit.Parent
+			if not character then
+				return
+			end
+			local humanoid = character:FindFirstChildOfClass("Humanoid")
+			if not humanoid or humanoid.Health <= 0 then
+				return
+			end
+			local player = Players:GetPlayerFromCharacter(character)
+			if not player then
+				return
+			end
+
+			local key = `{player.UserId}:{portalIndex}`
+			if touchDebounce[key] then
+				return
+			end
+			touchDebounce[key] = true
+			task.delay(1.6, function()
+				touchDebounce[key] = nil
+			end)
+
+			handlePortalUse(player, portalIndex, toastRemote, partyUpdated)
+		end)
+	end
+end
+
 function PortalService.start(toastRemote: RemoteEvent, partyUpdated: RemoteEvent, portalsUpdated: RemoteEvent)
 	PartyService.setChangedCallback(function(partySnapshot, portalInfos)
 		refreshPortalVisuals(portalInfos)
 		portalsUpdated:FireAllClients(portalInfos)
 		if partySnapshot then
 			for _, member in partySnapshot.members do
-				local player = game:GetService("Players"):GetPlayerByUserId(member.userId)
+				local player = Players:GetPlayerByUserId(member.userId)
 				if player then
 					partyUpdated:FireClient(player, partySnapshot)
 				end
@@ -77,44 +150,24 @@ function PortalService.start(toastRemote: RemoteEvent, partyUpdated: RemoteEvent
 		end
 	end)
 
-	-- Initial paint
 	refreshPortalVisuals(PartyService.getPortalInfos())
 
 	local root = game:GetService("Workspace"):WaitForChild("SurviveAtSeaLobby")
 	local portalsFolder = root:WaitForChild("Portals")
 
 	for _, model in portalsFolder:GetChildren() do
-		if not model:IsA("Model") then
-			continue
+		if model:IsA("Model") then
+			wirePortalModel(model, toastRemote, partyUpdated)
 		end
-		local indexValue = model:FindFirstChild("PortalIndex")
-		local promptAnchor = model:FindFirstChild("PromptAnchor")
-		local prompt = promptAnchor and promptAnchor:FindFirstChild("BoardPrompt")
-		if not (indexValue and indexValue:IsA("IntValue") and prompt and prompt:IsA("ProximityPrompt")) then
-			continue
-		end
-
-		local portalIndex = indexValue.Value
-		prompt.Triggered:Connect(function(player: Player)
-			local infos = PartyService.getPortalInfos()
-			local info = infos[portalIndex]
-			if not info or info.status == "Empty" then
-				-- Client opens create UI; server just acknowledges empty portal.
-				toastRemote:FireClient(player, "Pick crew size and cast your berth.", "info")
-				partyUpdated:FireClient(player, {
-					__openCreate = true,
-					portalIndex = portalIndex,
-				})
-				return
-			end
-
-			local ok, message, snapshot = PartyService.joinPortal(player, portalIndex)
-			toastRemote:FireClient(player, message, if ok then "success" else "error")
-			if ok and snapshot then
-				partyUpdated:FireClient(player, snapshot)
-			end
-		end)
 	end
+
+	portalsFolder.ChildAdded:Connect(function(child)
+		if child:IsA("Model") then
+			task.defer(function()
+				wirePortalModel(child, toastRemote, partyUpdated)
+			end)
+		end
+	end)
 end
 
 return PortalService
