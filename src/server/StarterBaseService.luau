@@ -11,9 +11,14 @@ local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
 local LobbyWorld = require(Shared:WaitForChild("LobbyWorld"))
 
+local RaftStarterKit = require(script.Parent:WaitForChild("RaftStarterKit"))
+
 local StarterBaseService = {}
 
 StarterBaseService._basesByCode = {} :: { [string]: Model }
+-- Optional hook so HelmService can bind the wheel prompt when a base is built.
+StarterBaseService._onBaseBuilt = nil :: ((string, Model) -> ())?
+StarterBaseService._onBaseDestroyed = nil :: ((string) -> ())?
 
 local function lobbyRoot(): Folder
 	local root = Workspace:FindFirstChild("SurviveAtSeaLobby")
@@ -261,7 +266,13 @@ function StarterBaseService.ensureBase(code: string, portalIndex: number, privac
 	spawn.Enabled = true
 	spawn.Parent = model
 
+	-- Starter kit: mast + white flag + pirate steering wheel
+	RaftStarterKit.attach(model, deck, center)
+
 	StarterBaseService._basesByCode[code] = model
+	if StarterBaseService._onBaseBuilt then
+		StarterBaseService._onBaseBuilt(code, model)
+	end
 	return model
 end
 
@@ -303,6 +314,9 @@ end
 function StarterBaseService.destroyBase(code: string)
 	local base = StarterBaseService._basesByCode[code]
 	StarterBaseService._basesByCode[code] = nil
+	if StarterBaseService._onBaseDestroyed then
+		StarterBaseService._onBaseDestroyed(code)
+	end
 	if base then
 		base:Destroy()
 	end
@@ -347,7 +361,8 @@ end
 local rescueDebounce: { [number]: boolean } = {}
 
 function StarterBaseService.startWaterRescue(
-	getSeatInfo: (Player) -> ({ portalIndex: number, slotIndex: number }?)
+	getSeatInfo: (Player) -> ({ portalIndex: number, slotIndex: number }?),
+	shouldSkip: ((Player) -> boolean)?
 )
 	local RunService = game:GetService("RunService")
 	local waterY = Config.StarterBase.WaterRescueY
@@ -355,6 +370,9 @@ function StarterBaseService.startWaterRescue(
 	RunService.Heartbeat:Connect(function()
 		for _, player in Players:GetPlayers() do
 			if rescueDebounce[player.UserId] then
+				continue
+			end
+			if shouldSkip and shouldSkip(player) then
 				continue
 			end
 			local seat = getSeatInfo(player)

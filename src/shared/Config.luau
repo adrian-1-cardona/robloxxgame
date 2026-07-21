@@ -37,6 +37,19 @@ local Config = {
 		WaterRescueY = 1.2,
 	},
 
+	-- Starter raft kit: mast + white flag + look-steered helm wheel.
+	-- Take the helm → locked standing at the wheel; look steers the raft forever;
+	-- jump up to unlock and step away.
+	Helm = {
+		SpeedStudsPerSecond = 48,
+		TurnLerp = 6,
+		-- Stand offset from deck top (Y is added on top of thickness/2)
+		StandLocalOffset = Vector3.new(0, 0, 22),
+		MastLocalOffset = Vector3.new(0, 0, -6),
+		LookSendHz = 20,
+		PromptDistance = 10,
+	},
+
 	-- Portal / berth accent (solid purple — no half-and-half overlays)
 	Berth = {
 		Purple = Color3.fromRGB(118, 72, 168),

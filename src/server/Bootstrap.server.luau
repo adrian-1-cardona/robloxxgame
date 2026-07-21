@@ -19,6 +19,7 @@ local LobbyBuilder = require(script.Parent:WaitForChild("LobbyBuilder"))
 local PartyService = require(script.Parent:WaitForChild("PartyService"))
 local PortalService = require(script.Parent:WaitForChild("PortalService"))
 local StarterBaseService = require(script.Parent:WaitForChild("StarterBaseService"))
+local HelmService = require(script.Parent:WaitForChild("HelmService"))
 
 print(`[SurviveAtSea] Booting {Config.GameName} lobby…`)
 
@@ -35,6 +36,41 @@ local PartyUpdated = remoteFolder:WaitForChild("PartyUpdated")
 local PortalsUpdated = remoteFolder:WaitForChild("PortalsUpdated")
 local Toast = remoteFolder:WaitForChild("Toast")
 local GetLobbyState = remoteFolder:WaitForChild("GetLobbyState")
+local HelmLook = remoteFolder:WaitForChild("HelmLook")
+local HelmState = remoteFolder:WaitForChild("HelmState")
+local HelmDismount = remoteFolder:WaitForChild("HelmDismount")
+
+-- Helm: look-steered raft, jump to unlock
+StarterBaseService._onBaseBuilt = function(code, model)
+	HelmService.bindBase(code, model)
+end
+StarterBaseService._onBaseDestroyed = function(code)
+	HelmService.onBaseDestroyed(code)
+end
+
+HelmService.start(
+	HelmState :: RemoteEvent,
+	Toast :: RemoteEvent,
+	function(player: Player): string?
+		return PartyService.getPartyCode(player)
+	end,
+	function(code: string): { number }
+		return PartyService.getMemberUserIds(code)
+	end
+)
+
+HelmLook.OnServerEvent:Connect(function(player, look)
+	if typeof(look) ~= "Vector3" then
+		return
+	end
+	HelmService.setLook(player, look)
+end)
+
+HelmDismount.OnServerEvent:Connect(function(player)
+	if HelmService.isHelming(player) then
+		HelmService.release(player, "Left the helm.")
+	end
+end)
 
 PortalService.start(Toast, PartyUpdated, PortalsUpdated)
 
@@ -117,6 +153,7 @@ local function onPlayerReady(player)
 end
 
 Players.PlayerRemoving:Connect(function(player)
+	HelmService.releaseIfHelming(player)
 	PartyService.onPlayerRemoving(player)
 end)
 
@@ -126,8 +163,11 @@ end
 Players.PlayerAdded:Connect(onPlayerReady)
 
 -- Fall into water → rescued onto raft; death already uses CharacterAdded → seatPlayer
+-- Skip while at the helm (stand lock owns their position)
 StarterBaseService.startWaterRescue(function(player)
 	return PartyService.getBaseSeatInfo(player)
+end, function(player)
+	return HelmService.isHelming(player)
 end)
 
 print(`[SurviveAtSea] Lobby ready — max crew {Config.MaxPartySize}, no session saves.`)
