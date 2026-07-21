@@ -34,8 +34,8 @@ local createPanel
 local joinPanel
 local toastFrame
 local countdownLabel
-local brandLabel
-local deviceLabel
+local privacyPublicBtn
+local privacyPrivateBtn
 
 local function corner(parent: Instance, radius: number?)
 	local c = Instance.new("UICorner")
@@ -153,34 +153,63 @@ local function refreshPartyPanel()
 	local title = partyPanel:FindFirstChild("Title") :: TextLabel
 	local members = partyPanel:FindFirstChild("Members") :: TextLabel
 	local codeLabel = partyPanel:FindFirstChild("Code") :: TextLabel
+	local privacyLabel = partyPanel:FindFirstChild("Privacy") :: TextLabel
 	local castOff = partyPanel:FindFirstChild("CastOff") :: TextButton
 	local leaveBtn = partyPanel:FindFirstChild("Leave") :: TextButton
 
 	if typeof(party) ~= "table" or party.__openCreate then
 		partyPanel.Visible = false
+		if joinPanel then
+			joinPanel.Visible = true
+		end
 		return
 	end
 
 	partyPanel.Visible = true
-	title.Text = `CREW · Berth {party.portalIndex}`
-	codeLabel.Text = `CODE  {party.code}  ·  {party.privacy}`
+	-- On a crew: hide the join box so the top-right is the live code
+	if joinPanel then
+		joinPanel.Visible = false
+	end
+
+	title.Text = `BASE · Berth {party.portalIndex}`
+	codeLabel.Text = party.code
+	if privacyLabel then
+		if party.privacy == "Private" then
+			privacyLabel.Text = "PRIVATE"
+			privacyLabel.TextColor3 = Config.Theme.Lantern
+		else
+			privacyLabel.Text = "PUBLIC"
+			privacyLabel.TextColor3 = Config.Theme.UIAccent
+		end
+	end
 
 	local lines = {}
 	for _, member in party.members do
 		local tag = if member.isHost then "★ " else "• "
 		table.insert(lines, tag .. member.displayName)
 	end
-	members.Text = table.concat(lines, "\n") .. `\n\n{ #party.members }/{party.maxPlayers} sailors`
+	members.Text = table.concat(lines, "\n") .. `\n{ #party.members }/{party.maxPlayers}`
 
 	local isHost = party.hostUserId == player.UserId
 	castOff.Visible = isHost and party.status == "Open"
-	leaveBtn.Visible = party.status == "Open"
+	leaveBtn.Visible = party.status == "Open" or party.status == "Departed"
 
 	if party.status == "Launching" and party.countdownEndsAt then
 		countdownLabel.Visible = true
 	else
 		countdownLabel.Visible = false
 	end
+end
+
+local function refreshPrivacyButtons()
+	if not (privacyPublicBtn and privacyPrivateBtn) then
+		return
+	end
+	local isPublic = state.privacy == "Public"
+	privacyPublicBtn.BackgroundColor3 = if isPublic then Config.Theme.UIAccent else Color3.fromRGB(28, 48, 62)
+	privacyPublicBtn.TextColor3 = if isPublic then Config.Theme.DeepOcean else Config.Theme.Foam
+	privacyPrivateBtn.BackgroundColor3 = if not isPublic then Config.Theme.Lantern else Color3.fromRGB(28, 48, 62)
+	privacyPrivateBtn.TextColor3 = if not isPublic then Config.Theme.DeepOcean else Config.Theme.Foam
 end
 
 local function openCreate(portalIndex: number)
@@ -193,6 +222,7 @@ local function openCreate(portalIndex: number)
 		if sliderLabel then
 			sliderLabel.Text = `Crew size: {state.selectedMax}`
 		end
+		refreshPrivacyButtons()
 	end
 	if joinPanel then
 		joinPanel.Visible = false
@@ -222,38 +252,7 @@ local function buildGui()
 	scaler.Scale = scale
 	scaler.Parent = root
 
-	-- Brand hero signal (not just nav chrome)
-	brandLabel = textLabel({
-		Name = "Brand",
-		Parent = root,
-		Text = Config.GameName,
-		Font = Enum.Font.GothamBlack,
-		TextColor3 = Config.Theme.Foam,
-		Size = UDim2.new(0.56, 0, 0, 52),
-		Position = UDim2.new(0, 8, 0, 4),
-		MaxTextSize = 40,
-	})
-
-	local tagline = textLabel({
-		Name = "Tagline",
-		Parent = root,
-		Text = Config.Tagline,
-		TextColor3 = Config.Theme.UIMuted,
-		Size = UDim2.new(0.56, 0, 0, 28),
-		Position = UDim2.new(0, 8, 0, 52),
-		MaxTextSize = 18,
-	})
-
-	deviceLabel = textLabel({
-		Name = "Device",
-		Parent = root,
-		Text = `Deck ready · {state.device}`,
-		TextColor3 = Config.Theme.UIAccent,
-		TextXAlignment = Enum.TextXAlignment.Right,
-		Size = UDim2.new(0.38, 0, 0, 24),
-		Position = UDim2.new(0.62, -8, 0, 12),
-		MaxTextSize = 16,
-	})
+	-- No top-left brand/tagline chrome — keeps the ocean view clean
 
 	countdownLabel = textLabel({
 		Name = "Countdown",
@@ -262,62 +261,62 @@ local function buildGui()
 		TextColor3 = Config.Theme.Lantern,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		Font = Enum.Font.GothamBlack,
-		Size = UDim2.new(0.6, 0, 0, 48),
-		Position = UDim2.new(0.2, 0, 0.12, 0),
-		MaxTextSize = 36,
+		Size = UDim2.new(0.5, 0, 0, 40),
+		Position = UDim2.new(0.25, 0, 0.08, 0),
+		MaxTextSize = 30,
 	})
 	countdownLabel.Visible = false
 
-	-- Join by code (always available — Dead Rails style)
+	-- Join by code (bottom-right when not already on a crew)
 	joinPanel = Instance.new("Frame")
 	joinPanel.Name = "JoinPanel"
 	joinPanel.BackgroundColor3 = Config.Theme.UIPanel
 	joinPanel.BackgroundTransparency = 0.12
-	joinPanel.Size = UDim2.new(0, 320, 0, 150)
-	joinPanel.Position = UDim2.new(1, -336, 1, -170)
+	joinPanel.Size = UDim2.new(0, 260, 0, 132)
+	joinPanel.Position = UDim2.new(1, -276, 1, -148)
 	joinPanel.AnchorPoint = Vector2.new(0, 0)
 	joinPanel.Parent = root
-	corner(joinPanel, 16)
+	corner(joinPanel, 12)
 	stroke(joinPanel)
 
 	-- Responsive: on phones, stretch join panel
 	local joinConstraint = Instance.new("UISizeConstraint")
-	joinConstraint.MinSize = Vector2.new(260, 140)
-	joinConstraint.MaxSize = Vector2.new(420, 200)
+	joinConstraint.MinSize = Vector2.new(220, 120)
+	joinConstraint.MaxSize = Vector2.new(360, 160)
 	joinConstraint.Parent = joinPanel
 
 	textLabel({
 		Name = "JoinTitle",
 		Parent = joinPanel,
-		Text = "JOIN CREW BY CODE",
+		Text = "JOIN BY CODE",
 		Font = Config.UI.Font,
-		Size = UDim2.new(1, -24, 0, 28),
-		Position = UDim2.new(0, 12, 0, 10),
-		MaxTextSize = 18,
+		Size = UDim2.new(1, -20, 0, 24),
+		Position = UDim2.new(0, 10, 0, 8),
+		MaxTextSize = 16,
 	})
 
 	local codeBox = Instance.new("TextBox")
 	codeBox.Name = "CodeBox"
-	codeBox.Size = UDim2.new(1, -24, 0, 44)
-	codeBox.Position = UDim2.new(0, 12, 0, 46)
+	codeBox.Size = UDim2.new(1, -20, 0, 36)
+	codeBox.Position = UDim2.new(0, 10, 0, 36)
 	codeBox.BackgroundColor3 = Color3.fromRGB(6, 20, 32)
 	codeBox.TextColor3 = Config.Theme.Foam
-	codeBox.PlaceholderText = "Enter code (e.g. K7QM)"
+	codeBox.PlaceholderText = "Code (e.g. K7QM)"
 	codeBox.PlaceholderColor3 = Config.Theme.UIMuted
 	codeBox.Font = Config.UI.Font
 	codeBox.Text = ""
 	codeBox.TextScaled = true
 	codeBox.ClearTextOnFocus = false
 	codeBox.Parent = joinPanel
-	corner(codeBox, 10)
+	corner(codeBox, 8)
 	stroke(codeBox, Config.Theme.SeaTeal, 1)
 
 	button({
 		Name = "JoinButton",
 		Parent = joinPanel,
-		Text = "Join Friends",
-		Size = UDim2.new(1, -24, 0, 44),
-		Position = UDim2.new(0, 12, 0, 98),
+		Text = "Join",
+		Size = UDim2.new(1, -20, 0, 40),
+		Position = UDim2.new(0, 10, 0, 80),
 		OnClick = function()
 			remotes.JoinParty:FireServer(codeBox.Text)
 		end,
@@ -339,11 +338,21 @@ local function buildGui()
 	textLabel({
 		Name = "CreateTitle",
 		Parent = createPanel,
-		Text = "CREATE CREW BERTH",
+		Text = "CREATE CREW BASE",
 		Font = Enum.Font.GothamBlack,
 		Size = UDim2.new(1, -28, 0, 34),
 		Position = UDim2.new(0, 14, 0, 14),
 		MaxTextSize = 24,
+	})
+
+	textLabel({
+		Name = "CreateHint",
+		Parent = createPanel,
+		Text = "You'll spawn on one huge wooden plank — size is for who can join.",
+		TextColor3 = Config.Theme.UIMuted,
+		Size = UDim2.new(1, -28, 0, 36),
+		Position = UDim2.new(0, 14, 0, 46),
+		MaxTextSize = 14,
 	})
 
 	local maxLabel = textLabel({
@@ -351,7 +360,7 @@ local function buildGui()
 		Parent = createPanel,
 		Text = `Crew size: {state.selectedMax}`,
 		Size = UDim2.new(1, -28, 0, 28),
-		Position = UDim2.new(0, 14, 0, 56),
+		Position = UDim2.new(0, 14, 0, 88),
 		MaxTextSize = 20,
 	})
 
@@ -360,7 +369,7 @@ local function buildGui()
 		Parent = createPanel,
 		Text = "−",
 		Size = UDim2.new(0, 56, 0, 48),
-		Position = UDim2.new(0, 14, 0, 96),
+		Position = UDim2.new(0, 14, 0, 122),
 		BackgroundColor3 = Config.Theme.SeaTeal,
 		TextColor3 = Config.Theme.Foam,
 		OnClick = function()
@@ -374,7 +383,7 @@ local function buildGui()
 		Parent = createPanel,
 		Text = "+",
 		Size = UDim2.new(0, 56, 0, 48),
-		Position = UDim2.new(0, 80, 0, 96),
+		Position = UDim2.new(0, 80, 0, 122),
 		BackgroundColor3 = Config.Theme.SeaTeal,
 		TextColor3 = Config.Theme.Foam,
 		OnClick = function()
@@ -383,26 +392,50 @@ local function buildGui()
 		end,
 	})
 
-	local privacyBtn = button({
-		Name = "Privacy",
+	textLabel({
+		Name = "PrivacyHint",
 		Parent = createPanel,
-		Text = "Privacy: Public",
-		Size = UDim2.new(1, -28, 0, 48),
-		Position = UDim2.new(0, 14, 0, 156),
-		BackgroundColor3 = Color3.fromRGB(20, 70, 90),
+		Text = "Public = anyone can walk in · Private = code only",
+		TextColor3 = Config.Theme.UIMuted,
+		Size = UDim2.new(1, -28, 0, 20),
+		Position = UDim2.new(0, 14, 0, 174),
+		MaxTextSize = 13,
+	})
+
+	privacyPublicBtn = button({
+		Name = "PrivacyPublic",
+		Parent = createPanel,
+		Text = "Public",
+		Size = UDim2.new(0.5, -18, 0, 44),
+		Position = UDim2.new(0, 14, 0, 198),
+		BackgroundColor3 = Config.Theme.UIAccent,
+		TextColor3 = Config.Theme.DeepOcean,
+		OnClick = function()
+			state.privacy = "Public"
+			refreshPrivacyButtons()
+		end,
+	})
+
+	privacyPrivateBtn = button({
+		Name = "PrivacyPrivate",
+		Parent = createPanel,
+		Text = "Private",
+		Size = UDim2.new(0.5, -18, 0, 44),
+		Position = UDim2.new(0.5, 4, 0, 198),
+		BackgroundColor3 = Color3.fromRGB(28, 48, 62),
 		TextColor3 = Config.Theme.Foam,
 		OnClick = function()
-			state.privacy = if state.privacy == "Public" then "Private" else "Public"
-			privacyBtn.Text = `Privacy: {state.privacy}`
+			state.privacy = "Private"
+			refreshPrivacyButtons()
 		end,
 	})
 
 	button({
 		Name = "ConfirmCreate",
 		Parent = createPanel,
-		Text = "Open Berth",
+		Text = "Spawn Base",
 		Size = UDim2.new(0.55, -10, 0, 48),
-		Position = UDim2.new(0, 14, 0, 216),
+		Position = UDim2.new(0, 14, 0, 254),
 		OnClick = function()
 			remotes.CreateParty:FireServer(state.createPortalIndex, state.selectedMax, state.privacy)
 			createPanel.Visible = false
@@ -414,44 +447,72 @@ local function buildGui()
 		Parent = createPanel,
 		Text = "Cancel",
 		Size = UDim2.new(0.45, -18, 0, 48),
-		Position = UDim2.new(0.55, 4, 0, 216),
+		Position = UDim2.new(0.55, 4, 0, 254),
 		BackgroundColor3 = Color3.fromRGB(50, 60, 70),
 		TextColor3 = Config.Theme.Foam,
 		OnClick = function()
 			createPanel.Visible = false
+			if joinPanel and not state.party then
+				joinPanel.Visible = true
+			end
 		end,
 	})
 
-	-- Active party panel
+	createPanel.Size = UDim2.new(0, 360, 0, 318)
+
+	-- Compact top-right code panel
 	partyPanel = Instance.new("Frame")
 	partyPanel.Name = "PartyPanel"
 	partyPanel.BackgroundColor3 = Config.Theme.UIPanel
 	partyPanel.BackgroundTransparency = 0.1
-	partyPanel.Size = UDim2.new(0, 300, 0, 260)
-	partyPanel.Position = UDim2.new(0, 12, 1, -280)
+	partyPanel.Size = UDim2.new(0, 196, 0, 188)
+	partyPanel.Position = UDim2.new(1, -208, 0, 10)
 	partyPanel.Visible = false
 	partyPanel.Parent = root
-	corner(partyPanel, 16)
-	stroke(partyPanel, Config.Theme.Lantern, 1.5)
+	corner(partyPanel, 10)
+	stroke(partyPanel, Config.Theme.Lantern, 1.2)
 
 	textLabel({
 		Name = "Title",
 		Parent = partyPanel,
-		Text = "CREW",
+		Text = "BASE",
 		Font = Enum.Font.GothamBlack,
-		Size = UDim2.new(1, -20, 0, 30),
-		Position = UDim2.new(0, 10, 0, 10),
-		MaxTextSize = 22,
+		Size = UDim2.new(1, -14, 0, 18),
+		Position = UDim2.new(0, 7, 0, 6),
+		MaxTextSize = 13,
+	})
+
+	textLabel({
+		Name = "CodeCaption",
+		Parent = partyPanel,
+		Text = "CODE",
+		TextColor3 = Config.Theme.UIMuted,
+		Size = UDim2.new(1, -14, 0, 12),
+		Position = UDim2.new(0, 7, 0, 24),
+		MaxTextSize = 10,
 	})
 
 	textLabel({
 		Name = "Code",
 		Parent = partyPanel,
-		Text = "CODE",
+		Text = "----",
+		Font = Enum.Font.GothamBlack,
 		TextColor3 = Config.Theme.UIAccent,
-		Size = UDim2.new(1, -20, 0, 24),
-		Position = UDim2.new(0, 10, 0, 42),
-		MaxTextSize = 18,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Size = UDim2.new(1, -14, 0, 28),
+		Position = UDim2.new(0, 7, 0, 36),
+		MaxTextSize = 24,
+	})
+
+	textLabel({
+		Name = "Privacy",
+		Parent = partyPanel,
+		Text = "PUBLIC",
+		TextColor3 = Config.Theme.UIAccent,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Size = UDim2.new(1, -14, 0, 14),
+		Position = UDim2.new(0, 7, 0, 64),
+		MaxTextSize = 11,
 	})
 
 	textLabel({
@@ -459,17 +520,17 @@ local function buildGui()
 		Parent = partyPanel,
 		Text = "",
 		TextYAlignment = Enum.TextYAlignment.Top,
-		Size = UDim2.new(1, -20, 0, 110),
-		Position = UDim2.new(0, 10, 0, 72),
-		MaxTextSize = 16,
+		Size = UDim2.new(1, -14, 0, 48),
+		Position = UDim2.new(0, 7, 0, 80),
+		MaxTextSize = 12,
 	})
 
 	button({
 		Name = "CastOff",
 		Parent = partyPanel,
-		Text = "Cast Off →",
-		Size = UDim2.new(1, -20, 0, 44),
-		Position = UDim2.new(0, 10, 0, 190),
+		Text = "Cast Off",
+		Size = UDim2.new(1, -14, 0, 28),
+		Position = UDim2.new(0, 7, 0, 128),
 		BackgroundColor3 = Config.Theme.Lantern,
 		OnClick = function()
 			remotes.StartLaunch:FireServer()
@@ -479,9 +540,9 @@ local function buildGui()
 	button({
 		Name = "Leave",
 		Parent = partyPanel,
-		Text = "Leave Crew",
-		Size = UDim2.new(1, -20, 0, 40),
-		Position = UDim2.new(0, 10, 0, 238),
+		Text = "Leave",
+		Size = UDim2.new(1, -14, 0, 24),
+		Position = UDim2.new(0, 7, 0, 158),
 		BackgroundColor3 = Color3.fromRGB(70, 40, 45),
 		TextColor3 = Config.Theme.Foam,
 		OnClick = function()
@@ -514,40 +575,24 @@ local function buildGui()
 		MaxTextSize = 20,
 	})
 
-	-- Soft brand bob
-	task.spawn(function()
-		local t = 0
-		while brandLabel.Parent do
-			t += 0.03
-			brandLabel.Position = UDim2.new(0, 8, 0, 4 + math.sin(t) * 2)
-			tagline.TextTransparency = 0.15 + math.sin(t * 0.8) * 0.08
-			task.wait(0.05)
-		end
-	end)
-
 	-- Layout adaptation on resize / device
 	local function relayout()
 		state.device = PlatformInput.getDeviceKind()
-		deviceLabel.Text = `Deck ready · {state.device}`
 		scaler.Scale = PlatformInput.scaleForDevice()
 
 		local cam = workspace.CurrentCamera
 		local width = if cam then cam.ViewportSize.X else 1280
 		if width < 700 then
-			joinPanel.Size = UDim2.new(1, -24, 0, 150)
-			joinPanel.Position = UDim2.new(0, 12, 1, -166)
-			partyPanel.Size = UDim2.new(1, -24, 0, 250)
-			partyPanel.Position = UDim2.new(0, 12, 1, -420)
-			createPanel.Size = UDim2.new(1, -24, 0, 300)
-			brandLabel.Size = UDim2.new(1, -16, 0, 44)
-		elseif width < 1100 then
-			joinPanel.Size = UDim2.new(0, 320, 0, 150)
-			joinPanel.Position = UDim2.new(1, -336, 1, -170)
-			partyPanel.Position = UDim2.new(0, 12, 1, -280)
+			joinPanel.Size = UDim2.new(1, -24, 0, 132)
+			joinPanel.Position = UDim2.new(0, 12, 1, -148)
+			partyPanel.Size = UDim2.new(0, 180, 0, 188)
+			partyPanel.Position = UDim2.new(1, -192, 0, 8)
+			createPanel.Size = UDim2.new(1, -24, 0, 330)
 		else
-			joinPanel.Size = UDim2.new(0, 320, 0, 150)
-			joinPanel.Position = UDim2.new(1, -336, 1, -170)
-			partyPanel.Position = UDim2.new(0, 12, 1, -280)
+			joinPanel.Size = UDim2.new(0, 260, 0, 132)
+			joinPanel.Position = UDim2.new(1, -276, 1, -148)
+			partyPanel.Size = UDim2.new(0, 196, 0, 188)
+			partyPanel.Position = UDim2.new(1, -208, 0, 10)
 		end
 	end
 
@@ -623,7 +668,7 @@ end
 
 function LobbyUI.openCreateForPortal(portalIndex: number)
 	openCreate(portalIndex)
-	showToast(`Berth {portalIndex} — pick crew size and cast your berth.`, "info")
+	showToast(`Berth {portalIndex} — pick size & privacy, then spawn on your plank.`, "info")
 end
 
 function LobbyUI.start()
@@ -644,7 +689,7 @@ function LobbyUI.start()
 		end
 	end)
 
-	showToast("Walk into a berth to board with friends.", "info")
+	showToast("Walk into a berth → pick size → spawn on your wooden plank.", "info")
 	print(`[SurviveAtSea] Lobby UI ready ({state.device})`)
 end
 

@@ -26,6 +26,7 @@ export type PublicPortalInfo = {
 	memberCount: number,
 	maxPlayers: number,
 	status: "Empty" | "Open" | "Launching" | "Full",
+	privacy: PartyPrivacy?,
 }
 
 return {}

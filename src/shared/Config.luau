@@ -12,7 +12,7 @@ local Config = {
 	LaunchCountdownSeconds = 10,
 
 	-- Set this to your voyage PlaceId when the sea run place exists.
-	-- Until then, parties launch into the in-place VoyageStaging zone.
+	-- Until then, Cast Off locks joins and keeps the crew on their wooden plank starter base.
 	GamePlaceId = nil :: number?,
 
 	-- Lobby layout (portals close to spawn so they're obvious)
@@ -20,6 +20,29 @@ local Config = {
 	PortalCount = 4,
 	-- Keep berths inside the pier rails (≈±38) so frames don't clip the bulwark
 	PortalSpacing = 18,
+
+	-- Starter base: one huge square wooden plank per crew (not scaled by party size).
+	-- Spawned after create/join so the berth flow lands you on your base immediately.
+	-- Bases are Models with a PrimaryPart so they can be moved later (sea drift / voyage).
+	StarterBase = {
+		-- Fixed footprint — same for solo or full (10) crews
+		SizeStuds = 72,
+		Thickness = 3,
+		-- Far open ocean — lobby pier is well beyond fog so it feels like a new place
+		Origin = Vector3.new(0, 2.2, 3200),
+		-- Spread concurrent crews along X so planks never overlap
+		SpacingX = 160,
+		DeckClearance = 3.5,
+		-- Fall into water below this Y → rescue back onto the raft
+		WaterRescueY = 1.2,
+	},
+
+	-- Portal / berth accent (solid purple — no half-and-half overlays)
+	Berth = {
+		Purple = Color3.fromRGB(118, 72, 168),
+		PurpleDeep = Color3.fromRGB(72, 42, 110),
+		PurpleSoft = Color3.fromRGB(168, 132, 210),
+	},
 
 	-- Ocean theme palette
 	Theme = {

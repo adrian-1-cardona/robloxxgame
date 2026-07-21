@@ -46,17 +46,19 @@ local function refreshPortalVisuals(portals)
 				prompt.Enabled = false
 			end
 		else
-			local codeLine = if info.code then info.code else "Private"
+			-- Strict privacy: Public shows code + walk-in; Private is code-only.
+			local isPublic = info.privacy == "Public"
+			local codeLine = if isPublic and info.code then `PUBLIC {info.code}` else "PRIVATE · code only"
 			LobbyBuilder.updatePortalSign(
 				model,
 				`Berth {info.portalIndex}`,
 				`{info.memberCount}/{info.maxPlayers} · {codeLine}`,
-				Config.Theme.UIAccent
+				if isPublic then Config.Theme.UIAccent else Config.Theme.Lantern
 			)
 			if prompt and prompt:IsA("ProximityPrompt") then
-				prompt.ActionText = if info.code then "Join Public Crew" else "Private — use code"
+				prompt.ActionText = if isPublic then "Join Public Crew" else "Private — use code"
 				prompt.ObjectText = `Berth {info.portalIndex}`
-				prompt.Enabled = info.code ~= nil
+				prompt.Enabled = isPublic
 			end
 		end
 	end
