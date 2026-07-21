@@ -1,6 +1,7 @@
 -- Shared type aliases for Survive at Sea lobby / party flow.
+-- Crews are always private — friends join with the host's code only.
 
-export type PartyPrivacy = "Public" | "Private"
+export type PartyPrivacy = "Private"
 
 export type PartyMember = {
 	userId: number,
@@ -14,19 +15,18 @@ export type PartySnapshot = {
 	maxPlayers: number,
 	privacy: PartyPrivacy,
 	members: { PartyMember },
+	-- Pier portal used to open create (atmosphere only — not a capacity lock)
 	portalIndex: number,
+	-- Independent raft placement slot (concurrent crews are not capped by portal count)
+	baseSlot: number,
 	countdownEndsAt: number?,
 	status: "Open" | "Launching" | "Departed",
 }
 
+-- Pier portals are reusable boarding gates, not exclusive party pads.
 export type PublicPortalInfo = {
 	portalIndex: number,
-	code: string?,
-	hostName: string?,
-	memberCount: number,
-	maxPlayers: number,
-	status: "Empty" | "Open" | "Launching" | "Full",
-	privacy: PartyPrivacy?,
+	status: "Ready",
 }
 
 return {}

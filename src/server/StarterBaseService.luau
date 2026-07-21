@@ -69,21 +69,22 @@ local function shiftModel(model: Model, fromCFrame: CFrame, toCFrame: CFrame)
 	end
 end
 
-function StarterBaseService.getBaseCenter(portalIndex: number): Vector3
+-- baseSlot is an independent raft index — not tied to pier PortalCount.
+function StarterBaseService.getBaseCenter(baseSlot: number): Vector3
 	local cfg = Config.StarterBase
-	local count = Config.PortalCount
-	local offsetIndex = portalIndex - (count + 1) / 2
+	-- Slot 1 at origin, then ±SpacingX for additional concurrent crews
+	local offsetIndex = baseSlot - 1
 	return cfg.Origin + Vector3.new(offsetIndex * cfg.SpacingX, 0, 0)
 end
 
-function StarterBaseService.getSpawnCFrame(portalIndex: number, slotIndex: number?): CFrame
-	local center = StarterBaseService.getBaseCenter(portalIndex)
+function StarterBaseService.getSpawnCFrame(baseSlot: number, slotIndex: number?): CFrame
+	local center = StarterBaseService.getBaseCenter(baseSlot)
 	local base = StarterBaseService._basesByCode
-	-- If a live base exists for this portal, prefer its current deck position (supports future movement)
+	-- If a live base exists for this slot, prefer its current deck position (supports future movement)
 	for _, model in base do
-		local portalValue = model:FindFirstChild("PortalIndex")
+		local slotValue = model:FindFirstChild("BaseSlot")
 		local deck = model.PrimaryPart or model:FindFirstChild("Deck")
-		if portalValue and portalValue:IsA("IntValue") and portalValue.Value == portalIndex and deck and deck:IsA("BasePart") then
+		if slotValue and slotValue:IsA("IntValue") and slotValue.Value == baseSlot and deck and deck:IsA("BasePart") then
 			center = deck.Position
 			break
 		end
@@ -96,16 +97,16 @@ function StarterBaseService.getSpawnCFrame(portalIndex: number, slotIndex: numbe
 	return CFrame.new(pos, pos + Vector3.new(0, 0, -40))
 end
 
-function StarterBaseService.ensureBase(code: string, portalIndex: number, privacy: string): Model
+function StarterBaseService.ensureBase(code: string, baseSlot: number): Model
 	local existing = StarterBaseService._basesByCode[code]
 	if existing and existing.Parent then
-		StarterBaseService.refreshPrivacyLabel(code, privacy)
+		StarterBaseService.refreshCodeLabel(code)
 		return existing
 	end
 
 	local size = Config.StarterBase.SizeStuds
 	local thickness = Config.StarterBase.Thickness
-	local center = StarterBaseService.getBaseCenter(portalIndex)
+	local center = StarterBaseService.getBaseCenter(baseSlot)
 
 	local model = Instance.new("Model")
 	model.Name = `StarterBase_{code}`
@@ -116,14 +117,14 @@ function StarterBaseService.ensureBase(code: string, portalIndex: number, privac
 	codeValue.Value = code
 	codeValue.Parent = model
 
-	local portalValue = Instance.new("IntValue")
-	portalValue.Name = "PortalIndex"
-	portalValue.Value = portalIndex
-	portalValue.Parent = model
+	local slotValue = Instance.new("IntValue")
+	slotValue.Name = "BaseSlot"
+	slotValue.Value = baseSlot
+	slotValue.Parent = model
 
 	local privacyValue = Instance.new("StringValue")
 	privacyValue.Name = "Privacy"
-	privacyValue.Value = privacy
+	privacyValue.Value = "Private"
 	privacyValue.Parent = model
 
 	-- Deck sits just above the ocean surface so it reads as mid-sea timber
@@ -246,7 +247,7 @@ function StarterBaseService.ensureBase(code: string, portalIndex: number, privac
 	label.Font = Enum.Font.GothamBold
 	label.TextScaled = true
 	label.TextColor3 = Config.Theme.Foam
-	label.Text = if privacy == "Private" then `PRIVATE · {code}` else `PUBLIC · {code}`
+	label.Text = `PRIVATE · {code}`
 	label.Parent = gui
 
 	local corner = Instance.new("UICorner")
@@ -276,20 +277,20 @@ function StarterBaseService.ensureBase(code: string, portalIndex: number, privac
 	return model
 end
 
-function StarterBaseService.refreshPrivacyLabel(code: string, privacy: string)
+function StarterBaseService.refreshCodeLabel(code: string)
 	local model = StarterBaseService._basesByCode[code]
 	if not model then
 		return
 	end
 	local privacyValue = model:FindFirstChild("Privacy")
 	if privacyValue and privacyValue:IsA("StringValue") then
-		privacyValue.Value = privacy
+		privacyValue.Value = "Private"
 	end
 	local marker = model:FindFirstChild("CodeMarker")
 	local gui = marker and marker:FindFirstChild("BaseBillboard")
 	local label = gui and gui:FindFirstChild("Label")
 	if label and label:IsA("TextLabel") then
-		label.Text = if privacy == "Private" then `PRIVATE · {code}` else `PUBLIC · {code}`
+		label.Text = `PRIVATE · {code}`
 	end
 end
 
@@ -322,20 +323,20 @@ function StarterBaseService.destroyBase(code: string)
 	end
 end
 
-function StarterBaseService.teleportPlayerToBase(player: Player, portalIndex: number, slotIndex: number)
+function StarterBaseService.teleportPlayerToBase(player: Player, baseSlot: number, slotIndex: number)
 	local character = player.Character
 	if not character then
 		return
 	end
 	local root = character:FindFirstChild("HumanoidRootPart")
 	if root and root:IsA("BasePart") then
-		root.CFrame = StarterBaseService.getSpawnCFrame(portalIndex, slotIndex)
+		root.CFrame = StarterBaseService.getSpawnCFrame(baseSlot, slotIndex)
 	end
 	-- Bind respawn to this raft so death returns here (for now)
 	for _, model in StarterBaseService._basesByCode do
-		local portalValue = model:FindFirstChild("PortalIndex")
+		local slotValue = model:FindFirstChild("BaseSlot")
 		local raftSpawn = model:FindFirstChild("RaftSpawn")
-		if portalValue and portalValue:IsA("IntValue") and portalValue.Value == portalIndex
+		if slotValue and slotValue:IsA("IntValue") and slotValue.Value == baseSlot
 			and raftSpawn and raftSpawn:IsA("SpawnLocation")
 		then
 			player.RespawnLocation = raftSpawn
@@ -361,7 +362,7 @@ end
 local rescueDebounce: { [number]: boolean } = {}
 
 function StarterBaseService.startWaterRescue(
-	getSeatInfo: (Player) -> ({ portalIndex: number, slotIndex: number }?),
+	getSeatInfo: (Player) -> ({ baseSlot: number, slotIndex: number }?),
 	shouldSkip: ((Player) -> boolean)?
 )
 	local RunService = game:GetService("RunService")
@@ -399,7 +400,7 @@ function StarterBaseService.startWaterRescue(
 			-- Kill horizontal velocity so they don't immediately slide off again
 			root.AssemblyLinearVelocity = Vector3.zero
 			root.AssemblyAngularVelocity = Vector3.zero
-			StarterBaseService.teleportPlayerToBase(player, seat.portalIndex, seat.slotIndex)
+			StarterBaseService.teleportPlayerToBase(player, seat.baseSlot, seat.slotIndex)
 			task.delay(1.25, function()
 				rescueDebounce[player.UserId] = nil
 			end)

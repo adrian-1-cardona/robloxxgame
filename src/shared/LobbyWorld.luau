@@ -378,7 +378,7 @@ local function buildPortal(folder: Instance, index: number, position: Vector3): 
 		CanCollide = false,
 		CastShadow = false,
 	})
-	billboard(signAnchor, `Berth {index}`, Color3.fromRGB(255, 236, 228), UDim2.fromOffset(120, 30), 0, 14)
+	billboard(signAnchor, `Portal {index}`, Color3.fromRGB(255, 236, 228), UDim2.fromOffset(120, 30), 0, 14)
 
 	local promptPart = part({
 		Name = "PromptAnchor",
@@ -392,7 +392,7 @@ local function buildPortal(folder: Instance, index: number, position: Vector3): 
 
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "BoardPrompt"
-	prompt.ObjectText = "Berth " .. index
+	prompt.ObjectText = "Portal " .. index
 	prompt.ActionText = "Create Crew"
 	prompt.HoldDuration = 0.2
 	prompt.MaxActivationDistance = 14
