@@ -14,14 +14,17 @@ local LobbyBuilder = {}
 
 local function safeLighting()
 	local ok, err = pcall(function()
-		Lighting.ClockTime = 16.5
-		Lighting.Brightness = 3
-		Lighting.Ambient = Color3.fromRGB(70, 110, 120)
-		Lighting.OutdoorAmbient = Color3.fromRGB(110, 150, 160)
-		Lighting.FogColor = Color3.fromRGB(90, 160, 175)
-		Lighting.FogStart = 220
-		Lighting.FogEnd = 900
+		-- Warm late-afternoon harbor light (no bloom / no neon glare)
+		Lighting.ClockTime = 17.1
+		Lighting.Brightness = 2.6
+		Lighting.Ambient = Color3.fromRGB(78, 92, 98)
+		Lighting.OutdoorAmbient = Color3.fromRGB(118, 128, 132)
+		Lighting.FogColor = Color3.fromRGB(120, 150, 160)
+		Lighting.FogStart = 180
+		Lighting.FogEnd = 780
 		Lighting.GlobalShadows = true
+		Lighting.EnvironmentDiffuseScale = 0.55
+		Lighting.EnvironmentSpecularScale = 0.35
 
 		for _, child in Lighting:GetChildren() do
 			if child:IsA("Atmosphere") or child:IsA("BloomEffect") or child:IsA("ColorCorrectionEffect") or child:IsA("SunRaysEffect") then
@@ -30,12 +33,12 @@ local function safeLighting()
 		end
 
 		local atmosphere = Instance.new("Atmosphere")
-		atmosphere.Density = 0.14
-		atmosphere.Offset = 0.12
-		atmosphere.Color = Color3.fromRGB(160, 200, 210)
-		atmosphere.Decay = Color3.fromRGB(60, 100, 120)
+		atmosphere.Density = 0.16
+		atmosphere.Offset = 0.18
+		atmosphere.Color = Color3.fromRGB(175, 185, 190)
+		atmosphere.Decay = Color3.fromRGB(85, 95, 110)
 		atmosphere.Glare = 0
-		atmosphere.Haze = 0.4
+		atmosphere.Haze = 0.55
 		atmosphere.Parent = Lighting
 
 		local sky = Lighting:FindFirstChildOfClass("Sky")
@@ -44,15 +47,15 @@ local function safeLighting()
 			sky.Parent = Lighting
 		end
 		sky.CelestialBodiesShown = true
-		sky.StarCount = 800
-		sky.SunAngularSize = 22
+		sky.StarCount = 600
+		sky.SunAngularSize = 20
 		sky.MoonAngularSize = 11
 
-		-- No bloom — keep the lobby matte and easy on the eyes
 		local cc = Instance.new("ColorCorrectionEffect")
-		cc.TintColor = Color3.fromRGB(248, 244, 232)
-		cc.Contrast = 0.02
-		cc.Saturation = 0.08
+		cc.TintColor = Color3.fromRGB(255, 246, 236)
+		cc.Contrast = 0.06
+		cc.Saturation = 0.05
+		cc.Brightness = 0.02
 		cc.Parent = Lighting
 	end)
 	if not ok then

@@ -553,7 +553,7 @@
             "Anchored": true,
             "Size": [
               12.4,
-              8,
+              5,
               12.4
             ],
             "Position": [
@@ -562,9 +562,9 @@
               -20
             ],
             "Color": [
-              0.78,
-              0.24,
-              0.22
+              0.6666666666666666,
+              0.29411764705882354,
+              0.2549019607843137
             ],
             "Material": "SmoothPlastic",
             "Transparency": 0,
@@ -812,168 +812,6 @@
             "Material": "Wood",
             "Transparency": 0,
             "CanCollide": true,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth"
-          }
-        },
-        {
-          "Name": "Buoy1",
-          "ClassName": "Part",
-          "Properties": {
-            "Anchored": true,
-            "Size": [
-              4,
-              7,
-              4
-            ],
-            "Position": [
-              -44,
-              3,
-              55
-            ],
-            "Color": [
-              0.9,
-              0.22,
-              0.2
-            ],
-            "Material": "SmoothPlastic",
-            "Transparency": 0,
-            "CanCollide": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth"
-          }
-        },
-        {
-          "Name": "Buoy2",
-          "ClassName": "Part",
-          "Properties": {
-            "Anchored": true,
-            "Size": [
-              4,
-              7,
-              4
-            ],
-            "Position": [
-              -18,
-              3,
-              69
-            ],
-            "Color": [
-              0.96,
-              0.96,
-              0.96
-            ],
-            "Material": "SmoothPlastic",
-            "Transparency": 0,
-            "CanCollide": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth"
-          }
-        },
-        {
-          "Name": "Buoy3",
-          "ClassName": "Part",
-          "Properties": {
-            "Anchored": true,
-            "Size": [
-              4,
-              7,
-              4
-            ],
-            "Position": [
-              8,
-              3,
-              55
-            ],
-            "Color": [
-              0.9,
-              0.22,
-              0.2
-            ],
-            "Material": "SmoothPlastic",
-            "Transparency": 0,
-            "CanCollide": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth"
-          }
-        },
-        {
-          "Name": "Buoy4",
-          "ClassName": "Part",
-          "Properties": {
-            "Anchored": true,
-            "Size": [
-              4,
-              7,
-              4
-            ],
-            "Position": [
-              34,
-              3,
-              69
-            ],
-            "Color": [
-              0.96,
-              0.96,
-              0.96
-            ],
-            "Material": "SmoothPlastic",
-            "Transparency": 0,
-            "CanCollide": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth"
-          }
-        },
-        {
-          "Name": "Buoy5",
-          "ClassName": "Part",
-          "Properties": {
-            "Anchored": true,
-            "Size": [
-              4,
-              7,
-              4
-            ],
-            "Position": [
-              60,
-              3,
-              55
-            ],
-            "Color": [
-              0.9,
-              0.22,
-              0.2
-            ],
-            "Material": "SmoothPlastic",
-            "Transparency": 0,
-            "CanCollide": false,
-            "TopSurface": "Smooth",
-            "BottomSurface": "Smooth"
-          }
-        },
-        {
-          "Name": "Buoy6",
-          "ClassName": "Part",
-          "Properties": {
-            "Anchored": true,
-            "Size": [
-              4,
-              7,
-              4
-            ],
-            "Position": [
-              86,
-              3,
-              69
-            ],
-            "Color": [
-              0.96,
-              0.96,
-              0.96
-            ],
-            "Material": "SmoothPlastic",
-            "Transparency": 0,
-            "CanCollide": false,
             "TopSurface": "Smooth",
             "BottomSurface": "Smooth"
           }

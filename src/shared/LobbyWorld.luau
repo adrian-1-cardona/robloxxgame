@@ -293,7 +293,11 @@ local function buildPortal(folder: Instance, index: number, position: Vector3): 
 	model.Name = "Portal_" .. index
 	model.Parent = folder
 
-	-- Boarding berth pad (wood only — no neon rings)
+	local wood = Color3.fromRGB(92, 62, 40)
+	local woodDark = Color3.fromRGB(72, 48, 30)
+	local sailRed = Color3.fromRGB(168, 92, 82)
+	local stainRed = Color3.fromRGB(120, 58, 48)
+
 	local pad = part({
 		Name = "Pad",
 		Parent = model,
@@ -303,39 +307,45 @@ local function buildPortal(folder: Instance, index: number, position: Vector3): 
 		Material = Enum.Material.WoodPlanks,
 	})
 
-	-- Painted berth rim (matte wood — no colored runway ring)
 	part({
 		Name = "BerthRim",
 		Parent = model,
-		Size = Vector3.new(16.6, 0.45, 16.6),
+		Size = Vector3.new(16.6, 0.4, 16.6),
 		CFrame = CFrame.new(position + Vector3.new(0, 0.85, 0)),
-		Color = Color3.fromRGB(78, 56, 36),
+		Color = stainRed,
 		Material = Enum.Material.Wood,
 		CanCollide = false,
 	})
 
-	-- Rope posts at corners
 	for _, ox in { -6.5, 6.5 } do
 		for _, oz in { -6.5, 6.5 } do
 			part({
 				Name = "RopePost",
 				Parent = model,
-				Size = Vector3.new(1.2, 4, 1.2),
-				CFrame = CFrame.new(position + Vector3.new(ox, 2.5, oz)),
-				Color = Color3.fromRGB(85, 58, 34),
+				Size = Vector3.new(1.15, 4.2, 1.15),
+				CFrame = CFrame.new(position + Vector3.new(ox, 2.6, oz)),
+				Color = woodDark,
 				Material = Enum.Material.Wood,
+			})
+			part({
+				Name = "PostWrap",
+				Parent = model,
+				Size = Vector3.new(1.35, 0.55, 1.35),
+				CFrame = CFrame.new(position + Vector3.new(ox, 3.6, oz)),
+				Color = sailRed,
+				Material = Enum.Material.Fabric,
+				CanCollide = false,
 			})
 		end
 	end
 
-	-- Wooden arch (gangway frame)
 	for _, offsetX in { -6.5, 6.5 } do
 		part({
 			Name = "ArchLeg",
 			Parent = model,
-			Size = Vector3.new(2.2, 16, 2.2),
+			Size = Vector3.new(2.1, 16, 2.1),
 			CFrame = CFrame.new(position + Vector3.new(offsetX, 9, -1)),
-			Color = Color3.fromRGB(88, 60, 36),
+			Color = wood,
 			Material = Enum.Material.Wood,
 		})
 	end
@@ -343,46 +353,55 @@ local function buildPortal(folder: Instance, index: number, position: Vector3): 
 	part({
 		Name = "ArchTop",
 		Parent = model,
-		Size = Vector3.new(15.5, 2.2, 2.2),
+		Size = Vector3.new(15.5, 2.1, 2.1),
 		CFrame = CFrame.new(position + Vector3.new(0, 17.5, -1)),
-		Color = Color3.fromRGB(88, 60, 36),
+		Color = wood,
 		Material = Enum.Material.Wood,
 	})
 
-	-- Canvas sail gate (fabric, not ForceField / neon)
-	local gate = part({
-		Name = "Gate",
+	part({
+		Name = "ArchBanner",
 		Parent = model,
-		Size = Vector3.new(10, 13, 0.6),
-		CFrame = CFrame.new(position + Vector3.new(0, 9, -1)),
-		Color = Color3.fromRGB(220, 210, 185),
+		Size = Vector3.new(14.5, 1.2, 0.35),
+		CFrame = CFrame.new(position + Vector3.new(0, 16.4, 0.2)),
+		Color = sailRed,
 		Material = Enum.Material.Fabric,
-		Transparency = 0.08,
 		CanCollide = false,
 	})
 
-	-- Soft sway on the canvas (motion, not glow)
+	-- Soft red-tinted canvas (matte fabric, no neon)
+	local gate = part({
+		Name = "Gate",
+		Parent = model,
+		Size = Vector3.new(10, 13, 0.55),
+		CFrame = CFrame.new(position + Vector3.new(0, 9, -1)),
+		Color = Color3.fromRGB(198, 140, 128),
+		Material = Enum.Material.Fabric,
+		Transparency = 0.06,
+		CanCollide = false,
+	})
+
 	task.spawn(function()
 		local base = gate.CFrame
 		local t = index * 1.3
 		while gate.Parent do
 			t += 0.05
-			gate.CFrame = base * CFrame.Angles(0, math.rad(math.sin(t) * 2.5), 0)
+			gate.CFrame = base * CFrame.Angles(0, math.rad(math.sin(t) * 2.2), 0)
 			task.wait(0.05)
 		end
 	end)
 
-	-- Small painted number plaque (not a giant floating billboard)
-	local numberPlank = part({
-		Name = "NumberPlank",
+	-- Label lives at the TOP of the berth arch
+	local signAnchor = part({
+		Name = "SignAnchor",
 		Parent = model,
-		Size = Vector3.new(2.4, 1.6, 0.35),
-		CFrame = CFrame.new(position + Vector3.new(0, 16.2, 0.5)),
-		Color = Color3.fromRGB(86, 64, 42),
-		Material = Enum.Material.Wood,
+		Size = Vector3.new(1, 1, 1),
+		CFrame = CFrame.new(position + Vector3.new(0, 20.2, -1)),
+		Transparency = 1,
 		CanCollide = false,
+		CastShadow = false,
 	})
-	billboard(numberPlank, tostring(index), Config.Theme.Foam, UDim2.fromOffset(36, 32), 0.2, 18)
+	billboard(signAnchor, `Berth {index}`, Color3.fromRGB(255, 236, 228), UDim2.fromOffset(120, 30), 0, 14)
 
 	local promptPart = part({
 		Name = "PromptAnchor",
@@ -410,10 +429,6 @@ local function buildPortal(folder: Instance, index: number, position: Vector3): 
 	indexValue.Value = index
 	indexValue.Parent = model
 
-	-- Compact label — walk in or press E
-	billboard(pad, `Berth {index}`, Config.Theme.Foam, UDim2.fromOffset(100, 28), 5.2, 13)
-
-	-- Walk-into volume (invisible) — stepping through the berth opens create/join
 	local walkTrigger = part({
 		Name = "WalkTrigger",
 		Parent = model,
@@ -447,8 +462,8 @@ local function stripGlowParts(root: Folder)
 			if desc.Material == Enum.Material.Neon or desc.Material == Enum.Material.ForceField then
 				if name == "Gate" then
 					desc.Material = Enum.Material.Fabric
-					desc.Color = Color3.fromRGB(220, 210, 185)
-					desc.Transparency = 0.08
+					desc.Color = Color3.fromRGB(198, 140, 128)
+					desc.Transparency = 0.06
 				elseif name == "LighthouseLamp" then
 					desc.Material = Enum.Material.SmoothPlastic
 					desc.Color = Color3.fromRGB(245, 220, 160)
@@ -458,8 +473,8 @@ local function stripGlowParts(root: Folder)
 			end
 			if name == "Gate" then
 				desc.Material = Enum.Material.Fabric
-				desc.Color = Color3.fromRGB(220, 210, 185)
-				desc.Transparency = 0.08
+				desc.Color = Color3.fromRGB(198, 140, 128)
+				desc.Transparency = 0.06
 			end
 		end
 	end
@@ -729,42 +744,42 @@ local function buildScenery(root: Folder)
 	scenery.Name = "Scenery"
 	scenery.Parent = root
 
-	-- Palms on the pier (decorative, stay out of the berth walk space)
+	-- Palms on the pier (keep clear of berth row at z≈70)
 	local palmSpots = {
 		{ Vector3.new(-28, PIER.DeckY, -28), 1.1 },
 		{ Vector3.new(28, PIER.DeckY, -28), 1.0 },
-		{ Vector3.new(-30, PIER.DeckY, 55), 0.95 },
-		{ Vector3.new(30, PIER.DeckY, 55), 1.05 },
-		{ Vector3.new(-22, PIER.DeckY, 10), 0.85 },
-		{ Vector3.new(24, PIER.DeckY, 18), 0.9 },
-		{ Vector3.new(-26, PIER.DeckY, 32), 0.8 },
-		{ Vector3.new(26, PIER.DeckY, 38), 0.85 },
+		{ Vector3.new(-30, PIER.DeckY, 38), 0.95 },
+		{ Vector3.new(30, PIER.DeckY, 38), 1.05 },
+		{ Vector3.new(-22, PIER.DeckY, 8), 0.85 },
+		{ Vector3.new(24, PIER.DeckY, 16), 0.9 },
+		{ Vector3.new(-26, PIER.DeckY, 26), 0.8 },
+		{ Vector3.new(26, PIER.DeckY, 28), 0.85 },
 	}
 	for _, spot in palmSpots do
 		buildPalm(scenery, spot[1] :: Vector3, spot[2] :: number)
 	end
 
-	-- Deck cannons aiming out to sea (props only)
+	-- Deck cannons aimed OUTWARD away from the pier
 	local cannons = {
-		{ Vector3.new(-32, PIER.DeckY, 0), -90 },
-		{ Vector3.new(-32, PIER.DeckY, 40), -85 },
-		{ Vector3.new(32, PIER.DeckY, 0), 90 },
-		{ Vector3.new(32, PIER.DeckY, 40), 95 },
-		{ Vector3.new(-18, PIER.DeckY, -36), 180 },
-		{ Vector3.new(18, PIER.DeckY, -36), 180 },
+		{ Vector3.new(-34, PIER.DeckY, 8), -90 }, -- west
+		{ Vector3.new(-34, PIER.DeckY, 42), -90 },
+		{ Vector3.new(34, PIER.DeckY, 8), 90 }, -- east
+		{ Vector3.new(34, PIER.DeckY, 42), 90 },
+		{ Vector3.new(-18, PIER.DeckY, -38), 0 }, -- south (away = -Z)
+		{ Vector3.new(18, PIER.DeckY, -38), 0 },
 	}
 	for _, c in cannons do
 		buildCannon(scenery, c[1] :: Vector3, c[2] :: number)
 	end
 
-	-- Boats moored beside the pier (outside barriers — look, don't board)
+	-- Boats well clear of the berth row (z≈70) — especially berth 4 at x≈36
 	local boats = {
-		{ Vector3.new(-52, 1.5, 10), 20, Color3.fromRGB(160, 90, 50) },
-		{ Vector3.new(-55, 1.2, 45), -10, Color3.fromRGB(70, 95, 120) },
-		{ Vector3.new(52, 1.4, 5), -160, Color3.fromRGB(145, 75, 55) },
-		{ Vector3.new(54, 1.3, 50), 170, Color3.fromRGB(180, 140, 70) },
-		{ Vector3.new(-48, 1.1, 75), 5, Color3.fromRGB(95, 70, 45) },
-		{ Vector3.new(50, 1.2, 78), -175, Color3.fromRGB(55, 85, 100) },
+		{ Vector3.new(-70, 1.4, 5), 25, Color3.fromRGB(160, 90, 50) },
+		{ Vector3.new(-78, 1.2, 40), -15, Color3.fromRGB(70, 95, 120) },
+		{ Vector3.new(72, 1.3, 8), -155, Color3.fromRGB(145, 75, 55) },
+		{ Vector3.new(80, 1.2, 45), 165, Color3.fromRGB(180, 140, 70) },
+		{ Vector3.new(-75, 1.1, 110), 10, Color3.fromRGB(95, 70, 45) },
+		{ Vector3.new(78, 1.15, 115), -170, Color3.fromRGB(55, 85, 100) },
 	}
 	for _, b in boats do
 		buildBoat(scenery, b[1] :: Vector3, b[2] :: number, b[3] :: Color3)
@@ -792,7 +807,7 @@ local function buildScenery(root: Folder)
 end
 
 local function clearPathwayMarkers(root: Folder)
-	-- Strip every leftover path stripe / arrow / foam runway
+	-- Strip leftover path stripes, foam runways, and red buoy “blocks” near berths
 	local killNames = {
 		CenterPlank = true,
 		GuidePlank = true,
@@ -803,18 +818,31 @@ local function clearPathwayMarkers(root: Folder)
 	for _, child in root:GetDescendants() do
 		if child:IsA("BasePart") then
 			local name = child.Name
-			if killNames[name] or string.sub(name, 1, 5) == "Arrow" or string.find(string.lower(name), "path", 1, true) then
+			if
+				killNames[name]
+				or string.sub(name, 1, 5) == "Arrow"
+				or string.sub(name, 1, 4) == "Buoy"
+				or string.find(string.lower(name), "path", 1, true)
+			then
 				child:Destroy()
 				continue
 			end
-			-- Catch leftover bright cyan / red flat “pathway” parts by look
 			local size = child.Size
 			local flat = size.Y <= 2.5 and (size.X >= 5 or size.Z >= 5)
 			if flat and child.Parent and child.Parent.Name ~= "Barriers" and child.Name ~= "PierDeck" and child.Name ~= "Pad" then
 				local c = child.Color
 				local isCyan = c.G > 0.45 and c.B > 0.55 and c.R < 0.55
-				local isHotRed = c.R > 0.7 and c.G < 0.35 and c.B < 0.35
+				local isHotRed = c.R > 0.65 and c.G < 0.4 and c.B < 0.4
 				if (isCyan or isHotRed) and child.Material ~= Enum.Material.WoodPlanks then
+					child:Destroy()
+				end
+			end
+			-- Tall red buoy-like blocks near the berth row
+			local pos = child.Position
+			if pos.Z > 45 and pos.Z < 95 and math.abs(pos.X) < 100 then
+				local c = child.Color
+				local isHotRed = c.R > 0.65 and c.G < 0.45 and c.B < 0.45
+				if isHotRed and child.Material == Enum.Material.SmoothPlastic and size.Y >= 4 then
 					child:Destroy()
 				end
 			end
@@ -945,28 +973,7 @@ local function buildDock(root: Folder)
 		})
 	end
 
-	for i = 1, 5 do
-		local buoy = part({
-			Name = "Buoy" .. i,
-			Parent = dock,
-			Size = Vector3.new(3.5, 6, 3.5),
-			-- Scattered offshore — not a straight colored “pathway”
-			CFrame = CFrame.new(-90 + (i * 37) % 50, 2.5, 110 + (i % 3) * 18),
-			Color = if i % 2 == 0 then Color3.fromRGB(200, 85, 60) else Color3.fromRGB(235, 230, 220),
-			Material = Enum.Material.SmoothPlastic,
-			CanCollide = false,
-		})
-		task.spawn(function()
-			local t = i * 1.4
-			local x, z = buoy.Position.X, buoy.Position.Z
-			while buoy.Parent do
-				t += 0.05
-				buoy.CFrame = CFrame.new(x, 2.5 + math.sin(t) * 0.7, z)
-					* CFrame.Angles(0, t * 0.2, math.rad(math.sin(t) * 6))
-				task.wait(0.05)
-			end
-		end)
-	end
+	-- No red buoy blocks near berths — keep the pier clear
 
 	local title = part({
 		Name = "TitleBanner",
@@ -985,17 +992,31 @@ function LobbyWorld.getLobbySpawnCFrame(): CFrame
 end
 
 function LobbyWorld.updatePortalSign(portalModel: Model, title: string, subtitle: string, color: Color3?)
-	local pad = portalModel:FindFirstChild("Pad")
-	if not (pad and pad:IsA("BasePart")) then
+	local anchor = portalModel:FindFirstChild("SignAnchor")
+	if not (anchor and anchor:IsA("BasePart")) then
+		anchor = portalModel:FindFirstChild("ArchTop")
+	end
+	if not (anchor and anchor:IsA("BasePart")) then
+		anchor = portalModel:FindFirstChild("Pad")
+	end
+	if not (anchor and anchor:IsA("BasePart")) then
 		return
 	end
-	local old = pad:FindFirstChild("LobbyBillboard")
+	local old = anchor:FindFirstChild("LobbyBillboard")
 	if old then
 		old:Destroy()
 	end
-	-- Keep status text compact
+	-- Also clear any leftover pad-level signs from older builds
+	local pad = portalModel:FindFirstChild("Pad")
+	if pad and pad ~= anchor then
+		local padSign = pad:FindFirstChild("LobbyBillboard")
+		if padSign then
+			padSign:Destroy()
+		end
+	end
 	local line = if subtitle ~= "" then `{title}  ·  {subtitle}` else title
-	billboard(pad, line, color or Config.Theme.Foam, UDim2.fromOffset(150, 36), 5.5, 13)
+	local offsetY = if anchor.Name == "SignAnchor" then 0 else 3
+	billboard(anchor, line, color or Color3.fromRGB(255, 236, 228), UDim2.fromOffset(150, 32), offsetY, 13)
 end
 
 -- Polish any lobby (fresh or Rojo-synced): no glows, barriers, palms, boats.
