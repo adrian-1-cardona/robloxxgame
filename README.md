@@ -8,7 +8,11 @@ Ocean survival lobby template (Dead Rails–style boarding dock).
 rojo serve
 ```
 
-Connect Roblox Studio via the Rojo plugin to `localhost:34872`.
+In Roblox Studio: **Plugins → Rojo → Connect** to `localhost:34872`.
+
+After connecting you should see **`Workspace.SurviveAtSeaLobby`** in Explorer (pier, portals, ocean) **even before pressing Play**.
+
+Then Stop → Play. Walk forward along the neon arrows to the glowing portals.
 
 ## Lobby features
 
@@ -24,8 +28,9 @@ Connect Roblox Studio via the Rojo plugin to `localhost:34872`.
 
 ```
 src/
+  map/      SurviveAtSeaLobby.model.json  (dock synced into Workspace)
   shared/   Config, remotes, party codes
-  server/   Lobby world, party service, portals
+  server/   Bootstrap + party/portal services
   client/   Cross-platform lobby UI
 ```
 
