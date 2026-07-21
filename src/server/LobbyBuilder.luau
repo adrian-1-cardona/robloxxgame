@@ -126,7 +126,7 @@ function LobbyBuilder.getPortalModel(index: number): Model?
 end
 
 function LobbyBuilder.getVoyageSpawnCFrame(): CFrame
-	return CFrame.new(0, 6, 220)
+	return CFrame.new(0, 6, 420)
 end
 
 function LobbyBuilder.getLobbySpawnCFrame(): CFrame

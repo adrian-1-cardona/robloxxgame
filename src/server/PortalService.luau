@@ -19,17 +19,17 @@ local function refreshPortalVisuals(portals)
 		local prompt = promptAnchor and promptAnchor:FindFirstChild("BoardPrompt")
 
 		if info.status == "Empty" then
-			LobbyBuilder.updatePortalSign(model, `BERTH {info.portalIndex}`, "Empty — create a crew", Config.Theme.Foam)
+			LobbyBuilder.updatePortalSign(model, `Berth {info.portalIndex}`, "Empty", Config.Theme.Foam)
 			if prompt and prompt:IsA("ProximityPrompt") then
 				prompt.ActionText = "Create Crew"
-				prompt.ObjectText = `Boarding Berth {info.portalIndex}`
+				prompt.ObjectText = `Berth {info.portalIndex}`
 				prompt.Enabled = true
 			end
 		elseif info.status == "Launching" then
 			LobbyBuilder.updatePortalSign(
 				model,
-				`BERTH {info.portalIndex}`,
-				`Casting off — {info.memberCount}/{info.maxPlayers}`,
+				`Berth {info.portalIndex}`,
+				`Casting off {info.memberCount}/{info.maxPlayers}`,
 				Config.Theme.Lantern
 			)
 			if prompt and prompt:IsA("ProximityPrompt") then
@@ -38,8 +38,8 @@ local function refreshPortalVisuals(portals)
 		elseif info.status == "Full" then
 			LobbyBuilder.updatePortalSign(
 				model,
-				`BERTH {info.portalIndex}`,
-				`Full crew · {info.hostName}`,
+				`Berth {info.portalIndex}`,
+				"Full",
 				Config.Theme.DangerRed
 			)
 			if prompt and prompt:IsA("ProximityPrompt") then
@@ -47,16 +47,16 @@ local function refreshPortalVisuals(portals)
 				prompt.Enabled = false
 			end
 		else
-			local codeLine = if info.code then `Code {info.code}` else "Private berth"
+			local codeLine = if info.code then info.code else "Private"
 			LobbyBuilder.updatePortalSign(
 				model,
-				`BERTH {info.portalIndex}`,
-				`{info.hostName} · {info.memberCount}/{info.maxPlayers}\n{codeLine}`,
+				`Berth {info.portalIndex}`,
+				`{info.memberCount}/{info.maxPlayers} · {codeLine}`,
 				Config.Theme.UIAccent
 			)
 			if prompt and prompt:IsA("ProximityPrompt") then
 				prompt.ActionText = if info.code then "Join Public Crew" else "Private — use code"
-				prompt.ObjectText = `Boarding Berth {info.portalIndex}`
+				prompt.ObjectText = `Berth {info.portalIndex}`
 				prompt.Enabled = info.code ~= nil
 			end
 		end
