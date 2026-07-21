@@ -1,0 +1,2072 @@
+{
+  "ClassName": "Folder",
+  "Children": [
+    {
+      "Name": "OceanDeep",
+      "ClassName": "Part",
+      "Properties": {
+        "Anchored": true,
+        "Size": [
+          1200,
+          30,
+          1200
+        ],
+        "Position": [
+          0,
+          -16,
+          0
+        ],
+        "Color": [
+          0.02,
+          0.16,
+          0.27
+        ],
+        "Material": "SmoothPlastic",
+        "Transparency": 0.1,
+        "CanCollide": true,
+        "TopSurface": "Smooth",
+        "BottomSurface": "Smooth"
+      }
+    },
+    {
+      "Name": "OceanSurface",
+      "ClassName": "Part",
+      "Properties": {
+        "Anchored": true,
+        "Size": [
+          1200,
+          2,
+          1200
+        ],
+        "Position": [
+          0,
+          0,
+          0
+        ],
+        "Color": [
+          0.08,
+          0.47,
+          0.59
+        ],
+        "Material": "Glass",
+        "Transparency": 0.45,
+        "CanCollide": false,
+        "TopSurface": "Smooth",
+        "BottomSurface": "Smooth",
+        "Reflectance": 0.15
+      }
+    },
+    {
+      "Name": "Foam",
+      "ClassName": "Part",
+      "Properties": {
+        "Anchored": true,
+        "Size": [
+          160,
+          0.6,
+          160
+        ],
+        "Position": [
+          0,
+          1.2,
+          20
+        ],
+        "Color": [
+          0.82,
+          0.92,
+          0.94
+        ],
+        "Material": "SmoothPlastic",
+        "Transparency": 0.55,
+        "CanCollide": false,
+        "TopSurface": "Smooth",
+        "BottomSurface": "Smooth"
+      }
+    },
+    {
+      "Name": "Dock",
+      "ClassName": "Folder",
+      "Children": [
+        {
+          "Name": "PierDeck",
+          "ClassName": "Part",
+          "Properties": {
+            "Anchored": true,
+            "Size": [
+              80,
+              3,
+              140
+            ],
+            "Position": [
+              0,
+              2,
+              20
+            ],
+            "Color": [
+              0.47,
+              0.32,
+              0.19
+            ],
+            "Material": "WoodPlanks",
+            "Transparency": 0,
+            "CanCollide": true,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth"
+          }
+        },
+        {
+          "Name": "CenterPlank",
+          "ClassName": "Part",
+          "Properties": {
+            "Anchored": true,
+            "Size": [
+              8,
+              3.2,
+              140
+            ],
+            "Position": [
+              0,
+              2,
+              20
+            ],
+            "Color": [
+              0.67,
+              0.47,
+              0.27
+            ],
+            "Material": "WoodPlanks",
+            "Transparency": 0,
+            "CanCollide": true,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth"
+          }
+        },
+        {
+          "Name": "RailL",
+          "ClassName": "Part",
+          "Properties": {
+            "Anchored": true,
+            "Size": [
+              1.5,
+              4,
+              140
+            ],
+            "Position": [
+              -38,
+              5,
+              20
+            ],
+            "Color": [
+              0.35,
+              0.24,
+              0.14
+            ],
+            "Material": "Wood",
+            "Transparency": 0,
+            "CanCollide": true,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth"
+          }
+        },
+        {
+          "Name": "RailR",
+          "ClassName": "Part",
+          "Properties": {
+            "Anchored": true,
+            "Size": [
+              1.5,
+              4,
+              140
+            ],
+            "Position": [
+              38,
+              5,
+              20
+            ],
+            "Color": [
+              0.35,
+              0.24,
+              0.14
+            ],
+            "Material": "Wood",
+            "Transparency": 0,
+            "CanCollide": true,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth"
+          }
+        },
+        {
+          "Name": "PillarL0",
+          "ClassName": "Part",
+          "Properties": {
+            "Anchored": true,
+            "Size": [
+              4,
+              18,
+              4
+            ],
+            "Position": [
+              -30,
+              -5,
+              -40.0
+            ],
+            "Color": [
+              0.27,
+              0.19,
+              0.11
+            ],
+            "Material": "Wood",
+            "Transparency": 0,
+            "CanCollide": true,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth"
+          }
+        },
+        {
+          "Name": "PillarL1",
+          "ClassName": "Part",
+          "Properties": {
+            "Anchored": true,
+            "Size": [
+              4,
+              18,
+              4
+            ],
+            "Position": [
+              -30,
+              -5,
+              -20.0
+            ],
+            "Color": [
+              0.27,
+              0.19,
+              0.11
+            ],
+            "Material": "Wood",
+            "Transparency": 0,
+            "CanCollide": true,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth"
+          }
+        },
+        {
+          "Name": "PillarL2",
+          "ClassName": "Part",
+          "Properties": {
+            "Anchored": true,
+            "Size": [
+              4,
+              18,
+              4
+            ],
+            "Position": [
+              -30,
+              -5,
+              0.0
+            ],
+            "Color": [
+              0.27,
+              0.19,
+              0.11
+            ],
+            "Material": "Wood",
+            "Transparency": 0,
+            "CanCollide": true,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth"
+          }
+        },
+        {
+          "Name": "PillarL3",
+          "ClassName": "Part",
+          "Properties": {
+            "Anchored": true,
+            "Size": [
+              4,
+              18,
+              4
+            ],
+            "Position": [
+              -30,
+              -5,
+              20.0
+            ],
+            "Color": [
+              0.27,
+              0.19,
+              0.11
+            ],
+            "Material": "Wood",
+            "Transparency": 0,
+            "CanCollide": true,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth"
+          }
+        },
+        {
+          "Name": "PillarL4",
+          "ClassName": "Part",
+          "Properties": {
+            "Anchored": true,
+            "Size": [
+              4,
+              18,
+              4
+            ],
+            "Position": [
+              -30,
+              -5,
+              40.0
+            ],
+            "Color": [
+              0.27,
+              0.19,
+              0.11
+            ],
+            "Material": "Wood",
+            "Transparency": 0,
+            "CanCollide": true,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth"
+          }
+        },
+        {
+          "Name": "PillarL5",
+          "ClassName": "Part",
+          "Properties": {
+            "Anchored": true,
+            "Size": [
+              4,
+              18,
+              4
+            ],
+            "Position": [
+              -30,
+              -5,
+              60.0
+            ],
+            "Color": [
+              0.27,
+              0.19,
+              0.11
+            ],
+            "Material": "Wood",
+            "Transparency": 0,
+            "CanCollide": true,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth"
+          }
+        },
+        {
+          "Name": "PillarL6",
+          "ClassName": "Part",
+          "Properties": {
+            "Anchored": true,
+            "Size": [
+              4,
+              18,
+              4
+            ],
+            "Position": [
+              -30,
+              -5,
+              80.0
+            ],
+            "Color": [
+              0.27,
+              0.19,
+              0.11
+            ],
+            "Material": "Wood",
+            "Transparency": 0,
+            "CanCollide": true,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth"
+          }
+        },
+        {
+          "Name": "PillarR0",
+          "ClassName": "Part",
+          "Properties": {
+            "Anchored": true,
+            "Size": [
+              4,
+              18,
+              4
+            ],
+            "Position": [
+              30,
+              -5,
+              -40.0
+            ],
+            "Color": [
+              0.27,
+              0.19,
+              0.11
+            ],
+            "Material": "Wood",
+            "Transparency": 0,
+            "CanCollide": true,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth"
+          }
+        },
+        {
+          "Name": "PillarR1",
+          "ClassName": "Part",
+          "Properties": {
+            "Anchored": true,
+            "Size": [
+              4,
+              18,
+              4
+            ],
+            "Position": [
+              30,
+              -5,
+              -20.0
+            ],
+            "Color": [
+              0.27,
+              0.19,
+              0.11
+            ],
+            "Material": "Wood",
+            "Transparency": 0,
+            "CanCollide": true,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth"
+          }
+        },
+        {
+          "Name": "PillarR2",
+          "ClassName": "Part",
+          "Properties": {
+            "Anchored": true,
+            "Size": [
+              4,
+              18,
+              4
+            ],
+            "Position": [
+              30,
+              -5,
+              0.0
+            ],
+            "Color": [
+              0.27,
+              0.19,
+              0.11
+            ],
+            "Material": "Wood",
+            "Transparency": 0,
+            "CanCollide": true,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth"
+          }
+        },
+        {
+          "Name": "PillarR3",
+          "ClassName": "Part",
+          "Properties": {
+            "Anchored": true,
+            "Size": [
+              4,
+              18,
+              4
+            ],
+            "Position": [
+              30,
+              -5,
+              20.0
+            ],
+            "Color": [
+              0.27,
+              0.19,
+              0.11
+            ],
+            "Material": "Wood",
+            "Transparency": 0,
+            "CanCollide": true,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth"
+          }
+        },
+        {
+          "Name": "PillarR4",
+          "ClassName": "Part",
+          "Properties": {
+            "Anchored": true,
+            "Size": [
+              4,
+              18,
+              4
+            ],
+            "Position": [
+              30,
+              -5,
+              40.0
+            ],
+            "Color": [
+              0.27,
+              0.19,
+              0.11
+            ],
+            "Material": "Wood",
+            "Transparency": 0,
+            "CanCollide": true,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth"
+          }
+        },
+        {
+          "Name": "PillarR5",
+          "ClassName": "Part",
+          "Properties": {
+            "Anchored": true,
+            "Size": [
+              4,
+              18,
+              4
+            ],
+            "Position": [
+              30,
+              -5,
+              60.0
+            ],
+            "Color": [
+              0.27,
+              0.19,
+              0.11
+            ],
+            "Material": "Wood",
+            "Transparency": 0,
+            "CanCollide": true,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth"
+          }
+        },
+        {
+          "Name": "PillarR6",
+          "ClassName": "Part",
+          "Properties": {
+            "Anchored": true,
+            "Size": [
+              4,
+              18,
+              4
+            ],
+            "Position": [
+              30,
+              -5,
+              80.0
+            ],
+            "Color": [
+              0.27,
+              0.19,
+              0.11
+            ],
+            "Material": "Wood",
+            "Transparency": 0,
+            "CanCollide": true,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth"
+          }
+        },
+        {
+          "Name": "Lighthouse",
+          "ClassName": "Part",
+          "Properties": {
+            "Anchored": true,
+            "Size": [
+              12,
+              48,
+              12
+            ],
+            "Position": [
+              -55,
+              25,
+              -20
+            ],
+            "Color": [
+              0.94,
+              0.94,
+              0.92
+            ],
+            "Material": "SmoothPlastic",
+            "Transparency": 0,
+            "CanCollide": true,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth"
+          }
+        },
+        {
+          "Name": "LighthouseStripe",
+          "ClassName": "Part",
+          "Properties": {
+            "Anchored": true,
+            "Size": [
+              12.4,
+              8,
+              12.4
+            ],
+            "Position": [
+              -55,
+              18,
+              -20
+            ],
+            "Color": [
+              0.78,
+              0.24,
+              0.22
+            ],
+            "Material": "SmoothPlastic",
+            "Transparency": 0,
+            "CanCollide": true,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth"
+          }
+        },
+        {
+          "Name": "LighthouseLamp",
+          "ClassName": "Part",
+          "Properties": {
+            "Anchored": true,
+            "Size": [
+              10,
+              8,
+              10
+            ],
+            "Position": [
+              -55,
+              52,
+              -20
+            ],
+            "Color": [
+              1.0,
+              0.73,
+              0.35
+            ],
+            "Material": "Neon",
+            "Transparency": 0,
+            "CanCollide": false,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth"
+          }
+        },
+        {
+          "Name": "Crate1",
+          "ClassName": "Part",
+          "Properties": {
+            "Anchored": true,
+            "Size": [
+              5,
+              5,
+              5
+            ],
+            "Position": [
+              -17,
+              6.5,
+              -30
+            ],
+            "Color": [
+              0.51,
+              0.35,
+              0.2
+            ],
+            "Material": "Wood",
+            "Transparency": 0,
+            "CanCollide": true,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth"
+          }
+        },
+        {
+          "Name": "Crate2",
+          "ClassName": "Part",
+          "Properties": {
+            "Anchored": true,
+            "Size": [
+              5,
+              5,
+              5
+            ],
+            "Position": [
+              -12,
+              6.5,
+              -25
+            ],
+            "Color": [
+              0.51,
+              0.35,
+              0.2
+            ],
+            "Material": "Wood",
+            "Transparency": 0,
+            "CanCollide": true,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth"
+          }
+        },
+        {
+          "Name": "Crate3",
+          "ClassName": "Part",
+          "Properties": {
+            "Anchored": true,
+            "Size": [
+              5,
+              5,
+              5
+            ],
+            "Position": [
+              -7,
+              6.5,
+              -20
+            ],
+            "Color": [
+              0.51,
+              0.35,
+              0.2
+            ],
+            "Material": "Wood",
+            "Transparency": 0,
+            "CanCollide": true,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth"
+          }
+        },
+        {
+          "Name": "Crate4",
+          "ClassName": "Part",
+          "Properties": {
+            "Anchored": true,
+            "Size": [
+              5,
+              5,
+              5
+            ],
+            "Position": [
+              -2,
+              6.5,
+              -30
+            ],
+            "Color": [
+              0.51,
+              0.35,
+              0.2
+            ],
+            "Material": "Wood",
+            "Transparency": 0,
+            "CanCollide": true,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth"
+          }
+        },
+        {
+          "Name": "Crate5",
+          "ClassName": "Part",
+          "Properties": {
+            "Anchored": true,
+            "Size": [
+              5,
+              5,
+              5
+            ],
+            "Position": [
+              3,
+              6.5,
+              -25
+            ],
+            "Color": [
+              0.51,
+              0.35,
+              0.2
+            ],
+            "Material": "Wood",
+            "Transparency": 0,
+            "CanCollide": true,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth"
+          }
+        },
+        {
+          "Name": "Crate6",
+          "ClassName": "Part",
+          "Properties": {
+            "Anchored": true,
+            "Size": [
+              5,
+              5,
+              5
+            ],
+            "Position": [
+              8,
+              6.5,
+              -20
+            ],
+            "Color": [
+              0.51,
+              0.35,
+              0.2
+            ],
+            "Material": "Wood",
+            "Transparency": 0,
+            "CanCollide": true,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth"
+          }
+        },
+        {
+          "Name": "Crate7",
+          "ClassName": "Part",
+          "Properties": {
+            "Anchored": true,
+            "Size": [
+              5,
+              5,
+              5
+            ],
+            "Position": [
+              13,
+              6.5,
+              -30
+            ],
+            "Color": [
+              0.51,
+              0.35,
+              0.2
+            ],
+            "Material": "Wood",
+            "Transparency": 0,
+            "CanCollide": true,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth"
+          }
+        },
+        {
+          "Name": "Crate8",
+          "ClassName": "Part",
+          "Properties": {
+            "Anchored": true,
+            "Size": [
+              5,
+              5,
+              5
+            ],
+            "Position": [
+              18,
+              6.5,
+              -25
+            ],
+            "Color": [
+              0.51,
+              0.35,
+              0.2
+            ],
+            "Material": "Wood",
+            "Transparency": 0,
+            "CanCollide": true,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth"
+          }
+        },
+        {
+          "Name": "Buoy1",
+          "ClassName": "Part",
+          "Properties": {
+            "Anchored": true,
+            "Size": [
+              4,
+              7,
+              4
+            ],
+            "Position": [
+              -44,
+              3,
+              55
+            ],
+            "Color": [
+              0.9,
+              0.22,
+              0.2
+            ],
+            "Material": "SmoothPlastic",
+            "Transparency": 0,
+            "CanCollide": false,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth"
+          }
+        },
+        {
+          "Name": "Buoy2",
+          "ClassName": "Part",
+          "Properties": {
+            "Anchored": true,
+            "Size": [
+              4,
+              7,
+              4
+            ],
+            "Position": [
+              -18,
+              3,
+              69
+            ],
+            "Color": [
+              0.96,
+              0.96,
+              0.96
+            ],
+            "Material": "SmoothPlastic",
+            "Transparency": 0,
+            "CanCollide": false,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth"
+          }
+        },
+        {
+          "Name": "Buoy3",
+          "ClassName": "Part",
+          "Properties": {
+            "Anchored": true,
+            "Size": [
+              4,
+              7,
+              4
+            ],
+            "Position": [
+              8,
+              3,
+              55
+            ],
+            "Color": [
+              0.9,
+              0.22,
+              0.2
+            ],
+            "Material": "SmoothPlastic",
+            "Transparency": 0,
+            "CanCollide": false,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth"
+          }
+        },
+        {
+          "Name": "Buoy4",
+          "ClassName": "Part",
+          "Properties": {
+            "Anchored": true,
+            "Size": [
+              4,
+              7,
+              4
+            ],
+            "Position": [
+              34,
+              3,
+              69
+            ],
+            "Color": [
+              0.96,
+              0.96,
+              0.96
+            ],
+            "Material": "SmoothPlastic",
+            "Transparency": 0,
+            "CanCollide": false,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth"
+          }
+        },
+        {
+          "Name": "Buoy5",
+          "ClassName": "Part",
+          "Properties": {
+            "Anchored": true,
+            "Size": [
+              4,
+              7,
+              4
+            ],
+            "Position": [
+              60,
+              3,
+              55
+            ],
+            "Color": [
+              0.9,
+              0.22,
+              0.2
+            ],
+            "Material": "SmoothPlastic",
+            "Transparency": 0,
+            "CanCollide": false,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth"
+          }
+        },
+        {
+          "Name": "Buoy6",
+          "ClassName": "Part",
+          "Properties": {
+            "Anchored": true,
+            "Size": [
+              4,
+              7,
+              4
+            ],
+            "Position": [
+              86,
+              3,
+              69
+            ],
+            "Color": [
+              0.96,
+              0.96,
+              0.96
+            ],
+            "Material": "SmoothPlastic",
+            "Transparency": 0,
+            "CanCollide": false,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth"
+          }
+        }
+      ]
+    },
+    {
+      "Name": "Portals",
+      "ClassName": "Folder",
+      "Children": [
+        {
+          "Name": "Portal_1",
+          "ClassName": "Model",
+          "Children": [
+            {
+              "Name": "Pad",
+              "ClassName": "Part",
+              "Properties": {
+                "Anchored": true,
+                "Size": [
+                  18,
+                  1.5,
+                  18
+                ],
+                "Position": [
+                  -36.0,
+                  3.5,
+                  70.0
+                ],
+                "Color": [
+                  0.31,
+                  0.23,
+                  0.14
+                ],
+                "Material": "WoodPlanks",
+                "Transparency": 0,
+                "CanCollide": true,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth"
+              }
+            },
+            {
+              "Name": "NeonRing",
+              "ClassName": "Part",
+              "Properties": {
+                "Anchored": true,
+                "Size": [
+                  18.5,
+                  0.6,
+                  18.5
+                ],
+                "Position": [
+                  -36.0,
+                  4.4,
+                  70.0
+                ],
+                "Color": [
+                  0.24,
+                  0.78,
+                  0.75
+                ],
+                "Material": "Neon",
+                "Transparency": 0,
+                "CanCollide": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth"
+              }
+            },
+            {
+              "Name": "ArchLegL",
+              "ClassName": "Part",
+              "Properties": {
+                "Anchored": true,
+                "Size": [
+                  2.5,
+                  18,
+                  2.5
+                ],
+                "Position": [
+                  -43.0,
+                  13.5,
+                  70.0
+                ],
+                "Color": [
+                  0.37,
+                  0.25,
+                  0.16
+                ],
+                "Material": "Wood",
+                "Transparency": 0,
+                "CanCollide": true,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth"
+              }
+            },
+            {
+              "Name": "ArchLegR",
+              "ClassName": "Part",
+              "Properties": {
+                "Anchored": true,
+                "Size": [
+                  2.5,
+                  18,
+                  2.5
+                ],
+                "Position": [
+                  -29.0,
+                  13.5,
+                  70.0
+                ],
+                "Color": [
+                  0.37,
+                  0.25,
+                  0.16
+                ],
+                "Material": "Wood",
+                "Transparency": 0,
+                "CanCollide": true,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth"
+              }
+            },
+            {
+              "Name": "ArchTop",
+              "ClassName": "Part",
+              "Properties": {
+                "Anchored": true,
+                "Size": [
+                  18,
+                  2.5,
+                  2.5
+                ],
+                "Position": [
+                  -36.0,
+                  23.5,
+                  70.0
+                ],
+                "Color": [
+                  0.37,
+                  0.25,
+                  0.16
+                ],
+                "Material": "Wood",
+                "Transparency": 0,
+                "CanCollide": true,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth"
+              }
+            },
+            {
+              "Name": "Gate",
+              "ClassName": "Part",
+              "Properties": {
+                "Anchored": true,
+                "Size": [
+                  11,
+                  15,
+                  1.4
+                ],
+                "Position": [
+                  -36.0,
+                  12.5,
+                  70.0
+                ],
+                "Color": [
+                  0.24,
+                  0.78,
+                  0.75
+                ],
+                "Material": "ForceField",
+                "Transparency": 0.25,
+                "CanCollide": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth"
+              }
+            },
+            {
+              "Name": "PromptAnchor",
+              "ClassName": "Part",
+              "Properties": {
+                "Anchored": true,
+                "Size": [
+                  6,
+                  6,
+                  6
+                ],
+                "Position": [
+                  -36.0,
+                  6.5,
+                  76.0
+                ],
+                "Transparency": 1,
+                "CanCollide": false,
+                "CastShadow": false
+              },
+              "Children": [
+                {
+                  "Name": "BoardPrompt",
+                  "ClassName": "ProximityPrompt",
+                  "Properties": {
+                    "ObjectText": "Voyage Portal 1",
+                    "ActionText": "Create Crew",
+                    "HoldDuration": 0.25,
+                    "MaxActivationDistance": 16,
+                    "RequiresLineOfSight": false
+                  }
+                }
+              ]
+            },
+            {
+              "Name": "PortalIndex",
+              "ClassName": "IntValue",
+              "Properties": {
+                "Value": 1
+              }
+            }
+          ]
+        },
+        {
+          "Name": "Portal_2",
+          "ClassName": "Model",
+          "Children": [
+            {
+              "Name": "Pad",
+              "ClassName": "Part",
+              "Properties": {
+                "Anchored": true,
+                "Size": [
+                  18,
+                  1.5,
+                  18
+                ],
+                "Position": [
+                  -12.0,
+                  3.5,
+                  70.0
+                ],
+                "Color": [
+                  0.31,
+                  0.23,
+                  0.14
+                ],
+                "Material": "WoodPlanks",
+                "Transparency": 0,
+                "CanCollide": true,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth"
+              }
+            },
+            {
+              "Name": "NeonRing",
+              "ClassName": "Part",
+              "Properties": {
+                "Anchored": true,
+                "Size": [
+                  18.5,
+                  0.6,
+                  18.5
+                ],
+                "Position": [
+                  -12.0,
+                  4.4,
+                  70.0
+                ],
+                "Color": [
+                  0.24,
+                  0.78,
+                  0.75
+                ],
+                "Material": "Neon",
+                "Transparency": 0,
+                "CanCollide": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth"
+              }
+            },
+            {
+              "Name": "ArchLegL",
+              "ClassName": "Part",
+              "Properties": {
+                "Anchored": true,
+                "Size": [
+                  2.5,
+                  18,
+                  2.5
+                ],
+                "Position": [
+                  -19.0,
+                  13.5,
+                  70.0
+                ],
+                "Color": [
+                  0.37,
+                  0.25,
+                  0.16
+                ],
+                "Material": "Wood",
+                "Transparency": 0,
+                "CanCollide": true,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth"
+              }
+            },
+            {
+              "Name": "ArchLegR",
+              "ClassName": "Part",
+              "Properties": {
+                "Anchored": true,
+                "Size": [
+                  2.5,
+                  18,
+                  2.5
+                ],
+                "Position": [
+                  -5.0,
+                  13.5,
+                  70.0
+                ],
+                "Color": [
+                  0.37,
+                  0.25,
+                  0.16
+                ],
+                "Material": "Wood",
+                "Transparency": 0,
+                "CanCollide": true,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth"
+              }
+            },
+            {
+              "Name": "ArchTop",
+              "ClassName": "Part",
+              "Properties": {
+                "Anchored": true,
+                "Size": [
+                  18,
+                  2.5,
+                  2.5
+                ],
+                "Position": [
+                  -12.0,
+                  23.5,
+                  70.0
+                ],
+                "Color": [
+                  0.37,
+                  0.25,
+                  0.16
+                ],
+                "Material": "Wood",
+                "Transparency": 0,
+                "CanCollide": true,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth"
+              }
+            },
+            {
+              "Name": "Gate",
+              "ClassName": "Part",
+              "Properties": {
+                "Anchored": true,
+                "Size": [
+                  11,
+                  15,
+                  1.4
+                ],
+                "Position": [
+                  -12.0,
+                  12.5,
+                  70.0
+                ],
+                "Color": [
+                  0.24,
+                  0.78,
+                  0.75
+                ],
+                "Material": "ForceField",
+                "Transparency": 0.25,
+                "CanCollide": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth"
+              }
+            },
+            {
+              "Name": "PromptAnchor",
+              "ClassName": "Part",
+              "Properties": {
+                "Anchored": true,
+                "Size": [
+                  6,
+                  6,
+                  6
+                ],
+                "Position": [
+                  -12.0,
+                  6.5,
+                  76.0
+                ],
+                "Transparency": 1,
+                "CanCollide": false,
+                "CastShadow": false
+              },
+              "Children": [
+                {
+                  "Name": "BoardPrompt",
+                  "ClassName": "ProximityPrompt",
+                  "Properties": {
+                    "ObjectText": "Voyage Portal 2",
+                    "ActionText": "Create Crew",
+                    "HoldDuration": 0.25,
+                    "MaxActivationDistance": 16,
+                    "RequiresLineOfSight": false
+                  }
+                }
+              ]
+            },
+            {
+              "Name": "PortalIndex",
+              "ClassName": "IntValue",
+              "Properties": {
+                "Value": 2
+              }
+            }
+          ]
+        },
+        {
+          "Name": "Portal_3",
+          "ClassName": "Model",
+          "Children": [
+            {
+              "Name": "Pad",
+              "ClassName": "Part",
+              "Properties": {
+                "Anchored": true,
+                "Size": [
+                  18,
+                  1.5,
+                  18
+                ],
+                "Position": [
+                  12.0,
+                  3.5,
+                  70.0
+                ],
+                "Color": [
+                  0.31,
+                  0.23,
+                  0.14
+                ],
+                "Material": "WoodPlanks",
+                "Transparency": 0,
+                "CanCollide": true,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth"
+              }
+            },
+            {
+              "Name": "NeonRing",
+              "ClassName": "Part",
+              "Properties": {
+                "Anchored": true,
+                "Size": [
+                  18.5,
+                  0.6,
+                  18.5
+                ],
+                "Position": [
+                  12.0,
+                  4.4,
+                  70.0
+                ],
+                "Color": [
+                  0.24,
+                  0.78,
+                  0.75
+                ],
+                "Material": "Neon",
+                "Transparency": 0,
+                "CanCollide": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth"
+              }
+            },
+            {
+              "Name": "ArchLegL",
+              "ClassName": "Part",
+              "Properties": {
+                "Anchored": true,
+                "Size": [
+                  2.5,
+                  18,
+                  2.5
+                ],
+                "Position": [
+                  5.0,
+                  13.5,
+                  70.0
+                ],
+                "Color": [
+                  0.37,
+                  0.25,
+                  0.16
+                ],
+                "Material": "Wood",
+                "Transparency": 0,
+                "CanCollide": true,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth"
+              }
+            },
+            {
+              "Name": "ArchLegR",
+              "ClassName": "Part",
+              "Properties": {
+                "Anchored": true,
+                "Size": [
+                  2.5,
+                  18,
+                  2.5
+                ],
+                "Position": [
+                  19.0,
+                  13.5,
+                  70.0
+                ],
+                "Color": [
+                  0.37,
+                  0.25,
+                  0.16
+                ],
+                "Material": "Wood",
+                "Transparency": 0,
+                "CanCollide": true,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth"
+              }
+            },
+            {
+              "Name": "ArchTop",
+              "ClassName": "Part",
+              "Properties": {
+                "Anchored": true,
+                "Size": [
+                  18,
+                  2.5,
+                  2.5
+                ],
+                "Position": [
+                  12.0,
+                  23.5,
+                  70.0
+                ],
+                "Color": [
+                  0.37,
+                  0.25,
+                  0.16
+                ],
+                "Material": "Wood",
+                "Transparency": 0,
+                "CanCollide": true,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth"
+              }
+            },
+            {
+              "Name": "Gate",
+              "ClassName": "Part",
+              "Properties": {
+                "Anchored": true,
+                "Size": [
+                  11,
+                  15,
+                  1.4
+                ],
+                "Position": [
+                  12.0,
+                  12.5,
+                  70.0
+                ],
+                "Color": [
+                  0.24,
+                  0.78,
+                  0.75
+                ],
+                "Material": "ForceField",
+                "Transparency": 0.25,
+                "CanCollide": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth"
+              }
+            },
+            {
+              "Name": "PromptAnchor",
+              "ClassName": "Part",
+              "Properties": {
+                "Anchored": true,
+                "Size": [
+                  6,
+                  6,
+                  6
+                ],
+                "Position": [
+                  12.0,
+                  6.5,
+                  76.0
+                ],
+                "Transparency": 1,
+                "CanCollide": false,
+                "CastShadow": false
+              },
+              "Children": [
+                {
+                  "Name": "BoardPrompt",
+                  "ClassName": "ProximityPrompt",
+                  "Properties": {
+                    "ObjectText": "Voyage Portal 3",
+                    "ActionText": "Create Crew",
+                    "HoldDuration": 0.25,
+                    "MaxActivationDistance": 16,
+                    "RequiresLineOfSight": false
+                  }
+                }
+              ]
+            },
+            {
+              "Name": "PortalIndex",
+              "ClassName": "IntValue",
+              "Properties": {
+                "Value": 3
+              }
+            }
+          ]
+        },
+        {
+          "Name": "Portal_4",
+          "ClassName": "Model",
+          "Children": [
+            {
+              "Name": "Pad",
+              "ClassName": "Part",
+              "Properties": {
+                "Anchored": true,
+                "Size": [
+                  18,
+                  1.5,
+                  18
+                ],
+                "Position": [
+                  36.0,
+                  3.5,
+                  70.0
+                ],
+                "Color": [
+                  0.31,
+                  0.23,
+                  0.14
+                ],
+                "Material": "WoodPlanks",
+                "Transparency": 0,
+                "CanCollide": true,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth"
+              }
+            },
+            {
+              "Name": "NeonRing",
+              "ClassName": "Part",
+              "Properties": {
+                "Anchored": true,
+                "Size": [
+                  18.5,
+                  0.6,
+                  18.5
+                ],
+                "Position": [
+                  36.0,
+                  4.4,
+                  70.0
+                ],
+                "Color": [
+                  0.24,
+                  0.78,
+                  0.75
+                ],
+                "Material": "Neon",
+                "Transparency": 0,
+                "CanCollide": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth"
+              }
+            },
+            {
+              "Name": "ArchLegL",
+              "ClassName": "Part",
+              "Properties": {
+                "Anchored": true,
+                "Size": [
+                  2.5,
+                  18,
+                  2.5
+                ],
+                "Position": [
+                  29.0,
+                  13.5,
+                  70.0
+                ],
+                "Color": [
+                  0.37,
+                  0.25,
+                  0.16
+                ],
+                "Material": "Wood",
+                "Transparency": 0,
+                "CanCollide": true,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth"
+              }
+            },
+            {
+              "Name": "ArchLegR",
+              "ClassName": "Part",
+              "Properties": {
+                "Anchored": true,
+                "Size": [
+                  2.5,
+                  18,
+                  2.5
+                ],
+                "Position": [
+                  43.0,
+                  13.5,
+                  70.0
+                ],
+                "Color": [
+                  0.37,
+                  0.25,
+                  0.16
+                ],
+                "Material": "Wood",
+                "Transparency": 0,
+                "CanCollide": true,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth"
+              }
+            },
+            {
+              "Name": "ArchTop",
+              "ClassName": "Part",
+              "Properties": {
+                "Anchored": true,
+                "Size": [
+                  18,
+                  2.5,
+                  2.5
+                ],
+                "Position": [
+                  36.0,
+                  23.5,
+                  70.0
+                ],
+                "Color": [
+                  0.37,
+                  0.25,
+                  0.16
+                ],
+                "Material": "Wood",
+                "Transparency": 0,
+                "CanCollide": true,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth"
+              }
+            },
+            {
+              "Name": "Gate",
+              "ClassName": "Part",
+              "Properties": {
+                "Anchored": true,
+                "Size": [
+                  11,
+                  15,
+                  1.4
+                ],
+                "Position": [
+                  36.0,
+                  12.5,
+                  70.0
+                ],
+                "Color": [
+                  0.24,
+                  0.78,
+                  0.75
+                ],
+                "Material": "ForceField",
+                "Transparency": 0.25,
+                "CanCollide": false,
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth"
+              }
+            },
+            {
+              "Name": "PromptAnchor",
+              "ClassName": "Part",
+              "Properties": {
+                "Anchored": true,
+                "Size": [
+                  6,
+                  6,
+                  6
+                ],
+                "Position": [
+                  36.0,
+                  6.5,
+                  76.0
+                ],
+                "Transparency": 1,
+                "CanCollide": false,
+                "CastShadow": false
+              },
+              "Children": [
+                {
+                  "Name": "BoardPrompt",
+                  "ClassName": "ProximityPrompt",
+                  "Properties": {
+                    "ObjectText": "Voyage Portal 4",
+                    "ActionText": "Create Crew",
+                    "HoldDuration": 0.25,
+                    "MaxActivationDistance": 16,
+                    "RequiresLineOfSight": false
+                  }
+                }
+              ]
+            },
+            {
+              "Name": "PortalIndex",
+              "ClassName": "IntValue",
+              "Properties": {
+                "Value": 4
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "Name": "VoyageStaging",
+      "ClassName": "Folder",
+      "Children": [
+        {
+          "Name": "Deck",
+          "ClassName": "Part",
+          "Properties": {
+            "Anchored": true,
+            "Size": [
+              70,
+              3,
+              46
+            ],
+            "Position": [
+              0,
+              2,
+              220
+            ],
+            "Color": [
+              0.35,
+              0.25,
+              0.16
+            ],
+            "Material": "WoodPlanks",
+            "Transparency": 0,
+            "CanCollide": true,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth"
+          }
+        },
+        {
+          "Name": "Hull",
+          "ClassName": "Part",
+          "Properties": {
+            "Anchored": true,
+            "Size": [
+              56,
+              12,
+              8
+            ],
+            "Position": [
+              0,
+              7,
+              240
+            ],
+            "Color": [
+              0.24,
+              0.16,
+              0.11
+            ],
+            "Material": "Wood",
+            "Transparency": 0,
+            "CanCollide": true,
+            "TopSurface": "Smooth",
+            "BottomSurface": "Smooth"
+          }
+        }
+      ]
+    },
+    {
+      "Name": "LobbySpawn",
+      "ClassName": "SpawnLocation",
+      "Properties": {
+        "Anchored": true,
+        "Size": [
+          14,
+          1,
+          14
+        ],
+        "Position": [
+          0,
+          4.2,
+          0
+        ],
+        "Duration": 0,
+        "Neutral": true,
+        "Enabled": true,
+        "Transparency": 0.25,
+        "Color": [
+          0.2,
+          0.9,
+          1.0
+        ],
+        "Material": "Neon",
+        "CanCollide": true
+      }
+    },
+    {
+      "Name": "Arrow1",
+      "ClassName": "Part",
+      "Properties": {
+        "Anchored": true,
+        "Size": [
+          6,
+          0.5,
+          8
+        ],
+        "Position": [
+          0,
+          4,
+          20.0
+        ],
+        "Color": [
+          0.24,
+          0.78,
+          0.75
+        ],
+        "Material": "Neon",
+        "Transparency": 0,
+        "CanCollide": false,
+        "TopSurface": "Smooth",
+        "BottomSurface": "Smooth"
+      }
+    },
+    {
+      "Name": "Arrow2",
+      "ClassName": "Part",
+      "Properties": {
+        "Anchored": true,
+        "Size": [
+          6,
+          0.5,
+          8
+        ],
+        "Position": [
+          0,
+          4,
+          32.0
+        ],
+        "Color": [
+          0.24,
+          0.78,
+          0.75
+        ],
+        "Material": "Neon",
+        "Transparency": 0,
+        "CanCollide": false,
+        "TopSurface": "Smooth",
+        "BottomSurface": "Smooth"
+      }
+    },
+    {
+      "Name": "Arrow3",
+      "ClassName": "Part",
+      "Properties": {
+        "Anchored": true,
+        "Size": [
+          6,
+          0.5,
+          8
+        ],
+        "Position": [
+          0,
+          4,
+          44.0
+        ],
+        "Color": [
+          0.24,
+          0.78,
+          0.75
+        ],
+        "Material": "Neon",
+        "Transparency": 0,
+        "CanCollide": false,
+        "TopSurface": "Smooth",
+        "BottomSurface": "Smooth"
+      }
+    },
+    {
+      "Name": "Arrow4",
+      "ClassName": "Part",
+      "Properties": {
+        "Anchored": true,
+        "Size": [
+          6,
+          0.5,
+          8
+        ],
+        "Position": [
+          0,
+          4,
+          56.0
+        ],
+        "Color": [
+          0.24,
+          0.78,
+          0.75
+        ],
+        "Material": "Neon",
+        "Transparency": 0,
+        "CanCollide": false,
+        "TopSurface": "Smooth",
+        "BottomSurface": "Smooth"
+      }
+    }
+  ]
+}

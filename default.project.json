@@ -1,5 +1,5 @@
 {
-  "name": "robloxxgame",
+  "name": "SurviveAtSea",
   "tree": {
     "$className": "DataModel",
 
@@ -10,7 +10,7 @@
     },
 
     "ServerScriptService": {
-      "Server": {
+      "SurviveAtSea": {
         "$path": "src/server"
       }
     },
@@ -20,6 +20,9 @@
         "Client": {
           "$path": "src/client"
         }
+      },
+      "$properties": {
+        "CameraMaxZoomDistance": 40
       }
     },
 
@@ -27,42 +30,27 @@
       "$properties": {
         "FilteringEnabled": true
       },
-      "Baseplate": {
-        "$className": "Part",
-        "$properties": {
-          "Anchored": true,
-          "Color": [
-            0.38823,
-            0.37254,
-            0.38823
-          ],
-          "Locked": true,
-          "Position": [
-            0,
-            -10,
-            0
-          ],
-          "Size": [
-            512,
-            20,
-            512
-          ]
-        }
+      "$ignoreUnknownInstances": true,
+      "SurviveAtSeaLobby": {
+        "$path": "src/map/SurviveAtSeaLobby.model.json"
       }
     },
+
     "Lighting": {
       "$properties": {
-        "Ambient": [
-          0,
-          0,
-          0
-        ],
-        "Brightness": 2,
+        "Ambient": [0.2, 0.35, 0.42],
+        "Brightness": 3,
+        "ClockTime": 16.5,
+        "FogColor": [0.27, 0.55, 0.66],
+        "FogEnd": 800,
+        "FogStart": 200,
         "GlobalShadows": true,
         "Outlines": false,
+        "OutdoorAmbient": [0.35, 0.55, 0.63],
         "Technology": "Voxel"
       }
     },
+
     "SoundService": {
       "$properties": {
         "RespectFilteringEnabled": true
