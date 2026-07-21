@@ -5,7 +5,8 @@ local Config = {
 	GameName = "Survive at Sea",
 	Tagline = "Gather your crew. Board the voyage. Survive the deep.",
 
-	-- Party / server limits (Dead Rails-style: 1–10 players per run)
+	-- Crew size per private run (host picks; friends join by code).
+	-- This is player capacity — NOT the pier portal count.
 	MinPartySize = 1,
 	MaxPartySize = 10,
 	DefaultPartySize = 4,
@@ -15,14 +16,16 @@ local Config = {
 	-- Until then, Cast Off locks joins and keeps the crew on their wooden plank starter base.
 	GamePlaceId = nil :: number?,
 
-	-- Lobby layout (portals close to spawn so they're obvious)
+	-- Pier boarding portals: walk-in gates that open the create flow.
+	-- They are reusable atmosphere portals — not exclusive party slots and not a player cap.
+	-- Concurrent crews scale with lobby players; each crew gets its own raft via baseSlot.
 	LobbyCenter = Vector3.new(0, 4, 0),
-	PortalCount = 4,
-	-- Keep berths inside the pier rails (≈±38) so frames don't clip the bulwark
-	PortalSpacing = 18,
+	PortalCount = 6,
+	-- Keep portals inside the pier rails (≈±38) so frames don't clip the bulwark
+	PortalSpacing = 14,
 
 	-- Starter base: one huge square wooden plank per crew (not scaled by party size).
-	-- Spawned after create/join so the berth flow lands you on your base immediately.
+	-- Spawned after create/join so the portal flow lands you on your base immediately.
 	-- Bases are Models with a PrimaryPart so they can be moved later (sea drift / voyage).
 	StarterBase = {
 		-- Fixed footprint — same for solo or full (10) crews
@@ -30,7 +33,7 @@ local Config = {
 		Thickness = 3,
 		-- Far open ocean — lobby pier is well beyond fog so it feels like a new place
 		Origin = Vector3.new(0, 2.2, 3200),
-		-- Spread concurrent crews along X so planks never overlap
+		-- Spread concurrent crews along X so planks never overlap (indexed by baseSlot)
 		SpacingX = 160,
 		DeckClearance = 3.5,
 		-- Fall into water below this Y → rescue back onto the raft

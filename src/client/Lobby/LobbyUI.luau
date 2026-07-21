@@ -23,7 +23,6 @@ local state = {
 	portals = {} :: { any },
 	createPortalIndex = 1,
 	selectedMax = Config.DefaultPartySize,
-	privacy = "Public",
 	device = PlatformInput.getDeviceKind(),
 }
 
@@ -34,8 +33,6 @@ local createPanel
 local joinPanel
 local toastFrame
 local countdownLabel
-local privacyPublicBtn
-local privacyPrivateBtn
 
 local function corner(parent: Instance, radius: number?)
 	local c = Instance.new("UICorner")
@@ -171,16 +168,11 @@ local function refreshPartyPanel()
 		joinPanel.Visible = false
 	end
 
-	title.Text = `BASE · Berth {party.portalIndex}`
+	title.Text = "CREW BASE"
 	codeLabel.Text = party.code
 	if privacyLabel then
-		if party.privacy == "Private" then
-			privacyLabel.Text = "PRIVATE"
-			privacyLabel.TextColor3 = Config.Theme.Lantern
-		else
-			privacyLabel.Text = "PUBLIC"
-			privacyLabel.TextColor3 = Config.Theme.UIAccent
-		end
+		privacyLabel.Text = "PRIVATE · CODE ONLY"
+		privacyLabel.TextColor3 = Config.Theme.Lantern
 	end
 
 	local lines = {}
@@ -201,28 +193,15 @@ local function refreshPartyPanel()
 	end
 end
 
-local function refreshPrivacyButtons()
-	if not (privacyPublicBtn and privacyPrivateBtn) then
-		return
-	end
-	local isPublic = state.privacy == "Public"
-	privacyPublicBtn.BackgroundColor3 = if isPublic then Config.Theme.UIAccent else Color3.fromRGB(28, 48, 62)
-	privacyPublicBtn.TextColor3 = if isPublic then Config.Theme.DeepOcean else Config.Theme.Foam
-	privacyPrivateBtn.BackgroundColor3 = if not isPublic then Config.Theme.Lantern else Color3.fromRGB(28, 48, 62)
-	privacyPrivateBtn.TextColor3 = if not isPublic then Config.Theme.DeepOcean else Config.Theme.Foam
-end
-
 local function openCreate(portalIndex: number)
 	state.createPortalIndex = portalIndex
 	state.selectedMax = Config.DefaultPartySize
-	state.privacy = "Public"
 	if createPanel then
 		createPanel.Visible = true
 		local sliderLabel = createPanel:FindFirstChild("MaxLabel") :: TextLabel
 		if sliderLabel then
 			sliderLabel.Text = `Crew size: {state.selectedMax}`
 		end
-		refreshPrivacyButtons()
 	end
 	if joinPanel then
 		joinPanel.Visible = false
@@ -348,7 +327,7 @@ local function buildGui()
 	textLabel({
 		Name = "CreateHint",
 		Parent = createPanel,
-		Text = "You'll spawn on one huge wooden plank — size is for who can join.",
+		Text = "Private crew — share your code. Size is how many can join (up to 10).",
 		TextColor3 = Config.Theme.UIMuted,
 		Size = UDim2.new(1, -28, 0, 36),
 		Position = UDim2.new(0, 14, 0, 46),
@@ -392,52 +371,14 @@ local function buildGui()
 		end,
 	})
 
-	textLabel({
-		Name = "PrivacyHint",
-		Parent = createPanel,
-		Text = "Public = anyone can walk in · Private = code only",
-		TextColor3 = Config.Theme.UIMuted,
-		Size = UDim2.new(1, -28, 0, 20),
-		Position = UDim2.new(0, 14, 0, 174),
-		MaxTextSize = 13,
-	})
-
-	privacyPublicBtn = button({
-		Name = "PrivacyPublic",
-		Parent = createPanel,
-		Text = "Public",
-		Size = UDim2.new(0.5, -18, 0, 44),
-		Position = UDim2.new(0, 14, 0, 198),
-		BackgroundColor3 = Config.Theme.UIAccent,
-		TextColor3 = Config.Theme.DeepOcean,
-		OnClick = function()
-			state.privacy = "Public"
-			refreshPrivacyButtons()
-		end,
-	})
-
-	privacyPrivateBtn = button({
-		Name = "PrivacyPrivate",
-		Parent = createPanel,
-		Text = "Private",
-		Size = UDim2.new(0.5, -18, 0, 44),
-		Position = UDim2.new(0.5, 4, 0, 198),
-		BackgroundColor3 = Color3.fromRGB(28, 48, 62),
-		TextColor3 = Config.Theme.Foam,
-		OnClick = function()
-			state.privacy = "Private"
-			refreshPrivacyButtons()
-		end,
-	})
-
 	button({
 		Name = "ConfirmCreate",
 		Parent = createPanel,
 		Text = "Spawn Base",
 		Size = UDim2.new(0.55, -10, 0, 48),
-		Position = UDim2.new(0, 14, 0, 254),
+		Position = UDim2.new(0, 14, 0, 186),
 		OnClick = function()
-			remotes.CreateParty:FireServer(state.createPortalIndex, state.selectedMax, state.privacy)
+			remotes.CreateParty:FireServer(state.createPortalIndex, state.selectedMax)
 			createPanel.Visible = false
 		end,
 	})
@@ -447,7 +388,7 @@ local function buildGui()
 		Parent = createPanel,
 		Text = "Cancel",
 		Size = UDim2.new(0.45, -18, 0, 48),
-		Position = UDim2.new(0.55, 4, 0, 254),
+		Position = UDim2.new(0.55, 4, 0, 186),
 		BackgroundColor3 = Color3.fromRGB(50, 60, 70),
 		TextColor3 = Config.Theme.Foam,
 		OnClick = function()
@@ -458,7 +399,7 @@ local function buildGui()
 		end,
 	})
 
-	createPanel.Size = UDim2.new(0, 360, 0, 318)
+	createPanel.Size = UDim2.new(0, 360, 0, 250)
 
 	-- Compact top-right code panel
 	partyPanel = Instance.new("Frame")
@@ -507,8 +448,8 @@ local function buildGui()
 	textLabel({
 		Name = "Privacy",
 		Parent = partyPanel,
-		Text = "PUBLIC",
-		TextColor3 = Config.Theme.UIAccent,
+		Text = "PRIVATE · CODE ONLY",
+		TextColor3 = Config.Theme.Lantern,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		Size = UDim2.new(1, -14, 0, 14),
 		Position = UDim2.new(0, 7, 0, 64),
@@ -587,7 +528,7 @@ local function buildGui()
 			joinPanel.Position = UDim2.new(0, 12, 1, -148)
 			partyPanel.Size = UDim2.new(0, 180, 0, 188)
 			partyPanel.Position = UDim2.new(1, -192, 0, 8)
-			createPanel.Size = UDim2.new(1, -24, 0, 330)
+			createPanel.Size = UDim2.new(1, -24, 0, 260)
 		else
 			joinPanel.Size = UDim2.new(0, 260, 0, 132)
 			joinPanel.Position = UDim2.new(1, -276, 1, -148)
@@ -668,7 +609,7 @@ end
 
 function LobbyUI.openCreateForPortal(portalIndex: number)
 	openCreate(portalIndex)
-	showToast(`Berth {portalIndex} — pick size & privacy, then spawn on your plank.`, "info")
+	showToast(`Portal {portalIndex} — pick crew size, then spawn. Friends join by code.`, "info")
 end
 
 function LobbyUI.start()
@@ -689,7 +630,7 @@ function LobbyUI.start()
 		end
 	end)
 
-	showToast("Walk into a berth → pick size → spawn on your wooden plank.", "info")
+	showToast("Walk a portal to form a private crew. Friends join with your code.", "info")
 	print(`[SurviveAtSea] Lobby UI ready ({state.device})`)
 end
 

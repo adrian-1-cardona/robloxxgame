@@ -104,7 +104,7 @@ function LobbyBuilder.build(): Folder
 	clearWorkspaceClutter()
 	safeLighting()
 	local root = LobbyWorld.ensure()
-	print("[SurviveAtSea] Lobby geometry built — pier +", Config.PortalCount, "berths")
+	print("[SurviveAtSea] Lobby geometry built — pier +", Config.PortalCount, "boarding portals")
 	return root
 end
 
