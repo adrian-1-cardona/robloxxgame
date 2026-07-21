@@ -26,14 +26,12 @@ function Remotes.waitFor(name: string): Instance
 end
 
 function Remotes.createServerRemotes(): Folder
-	local existing = ReplicatedStorage:FindFirstChild(FOLDER_NAME)
-	if existing and existing:IsA("Folder") then
-		return existing
+	local folder = ReplicatedStorage:FindFirstChild(FOLDER_NAME)
+	if not (folder and folder:IsA("Folder")) then
+		folder = Instance.new("Folder")
+		folder.Name = FOLDER_NAME
+		folder.Parent = ReplicatedStorage
 	end
-
-	local folder = Instance.new("Folder")
-	folder.Name = FOLDER_NAME
-	folder.Parent = ReplicatedStorage
 
 	local names = {
 		"CreateParty",
@@ -44,9 +42,16 @@ function Remotes.createServerRemotes(): Folder
 		"PortalsUpdated",
 		"Toast",
 		"GetLobbyState",
+		-- Helm: client sends camera look while steering; server pushes mount state
+		"HelmLook",
+		"HelmState",
+		"HelmDismount",
 	}
 
 	for _, name in names do
+		if folder:FindFirstChild(name) then
+			continue
+		end
 		local remote: Instance
 		if name == "GetLobbyState" then
 			remote = Instance.new("RemoteFunction")

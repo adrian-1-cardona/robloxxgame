@@ -11,6 +11,7 @@ local Config = require(Shared:WaitForChild("Config"))
 local LobbyWorld = require(Shared:WaitForChild("LobbyWorld"))
 
 local LobbyUI = require(script:WaitForChild("Lobby"):WaitForChild("LobbyUI"))
+local HelmController = require(script:WaitForChild("Lobby"):WaitForChild("HelmController"))
 
 print(`[SurviveAtSea] Client hello — welcome aboard {Config.GameName}`)
 
@@ -27,6 +28,7 @@ else
 end
 
 LobbyUI.start()
+HelmController.start()
 
 local player = Players.LocalPlayer
 

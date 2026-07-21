@@ -132,6 +132,13 @@ local function removePlayerFromCurrentParty(userId: number)
 		return
 	end
 
+	-- Drop the wheel before teleporting home
+	local leavingPlayer = Players:GetPlayerByUserId(userId)
+	if leavingPlayer then
+		local HelmService = require(script.Parent:WaitForChild("HelmService"))
+		HelmService.releaseIfHelming(leavingPlayer)
+	end
+
 	local remaining = {}
 	for _, id in party.memberUserIds do
 		if id ~= userId then
@@ -140,7 +147,6 @@ local function removePlayerFromCurrentParty(userId: number)
 	end
 	party.memberUserIds = remaining
 
-	local leavingPlayer = Players:GetPlayerByUserId(userId)
 	if leavingPlayer then
 		StarterBaseService.teleportPlayerToLobby(leavingPlayer)
 	end
@@ -161,6 +167,18 @@ end
 
 function PartyService.setChangedCallback(callback: (PartySnapshot?, { PublicPortalInfo }) -> ())
 	PartyService._onChanged = callback
+end
+
+function PartyService.getPartyCode(player: Player): string?
+	return PartyService._playerToCode[player.UserId]
+end
+
+function PartyService.getMemberUserIds(code: string): { number }
+	local party = PartyService._partiesByCode[code]
+	if not party then
+		return {}
+	end
+	return party.memberUserIds
 end
 
 function PartyService.getSnapshotForPlayer(player: Player): PartySnapshot?
