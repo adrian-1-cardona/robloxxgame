@@ -1,8 +1,10 @@
 -- Survive at Sea · Client bootstrap
--- Builds the dock locally if Rojo didn't sync Workspace (common with existing places).
+-- If Rojo didn't sync the Workspace map (common on existing places like "dnd"),
+-- this client builds the boarding dock locally so you still see it.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
@@ -12,7 +14,18 @@ local LobbyUI = require(script:WaitForChild("Lobby"):WaitForChild("LobbyUI"))
 
 print(`[SurviveAtSea] Client hello — welcome aboard {Config.GameName}`)
 
-local lobby = LobbyWorld.ensure()
+-- Prefer a server-replicated lobby; otherwise build one here.
+local lobby = Workspace:FindFirstChild("SurviveAtSeaLobby")
+if not lobby then
+	lobby = Workspace:WaitForChild("SurviveAtSeaLobby", 2)
+end
+if not lobby then
+	print("[SurviveAtSea] No lobby in Workspace yet — building on client")
+	lobby = LobbyWorld.ensure()
+else
+	print("[SurviveAtSea] Found Workspace.SurviveAtSeaLobby")
+end
+
 LobbyUI.start()
 
 local player = Players.LocalPlayer
@@ -28,10 +41,9 @@ if player.Character then
 end
 player.CharacterAdded:Connect(seat)
 
--- Wire portal prompts to open the create-crew panel
 task.spawn(function()
-	local openEvent = ReplicatedStorage:WaitForChild("SurviveAtSeaOpenCreate", 5)
-	if not openEvent or not openEvent:IsA("BindableEvent") then
+	local openEvent = ReplicatedStorage:FindFirstChild("SurviveAtSeaOpenCreate")
+	if not (openEvent and openEvent:IsA("BindableEvent")) then
 		openEvent = Instance.new("BindableEvent")
 		openEvent.Name = "SurviveAtSeaOpenCreate"
 		openEvent.Parent = ReplicatedStorage
@@ -39,7 +51,7 @@ task.spawn(function()
 
 	local portals = lobby:WaitForChild("Portals", 5)
 	if not portals then
-		warn("[SurviveAtSea] No Portals folder after LobbyWorld.ensure")
+		warn("[SurviveAtSea] Portals folder missing")
 		return
 	end
 
@@ -60,7 +72,7 @@ task.spawn(function()
 		end)
 	end
 
-	print("[SurviveAtSea] Client dock live —", #portals:GetChildren(), "portals")
+	print("[SurviveAtSea] Portals wired:", #portals:GetChildren())
 end)
 
 pcall(function()
