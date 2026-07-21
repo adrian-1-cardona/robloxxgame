@@ -644,7 +644,7 @@ function LobbyUI.start()
 		end
 	end)
 
-	showToast("Walk to a berth on the pier · press E to board.", "info")
+	showToast("Walk into a berth to board with friends.", "info")
 	print(`[SurviveAtSea] Lobby UI ready ({state.device})`)
 end
 

@@ -60,40 +60,20 @@ task.spawn(function()
 			continue
 		end
 		local indexValue = model:FindFirstChild("PortalIndex")
-		if not (indexValue and indexValue:IsA("IntValue")) then
+		local promptAnchor = model:FindFirstChild("PromptAnchor")
+		local prompt = promptAnchor and promptAnchor:FindFirstChild("BoardPrompt")
+		if not (indexValue and indexValue:IsA("IntValue") and prompt and prompt:IsA("ProximityPrompt")) then
 			continue
 		end
 
 		local portalIndex = indexValue.Value
-		local lastOpen = 0
-
-		local function openCreate()
-			local now = os.clock()
-			if now - lastOpen < 1.5 then
-				return
-			end
-			lastOpen = now
+		-- Press-E fallback for client-built lobbies; walk-in is handled by the server.
+		prompt.Triggered:Connect(function()
 			(openEvent :: BindableEvent):Fire(portalIndex)
-		end
-
-		local promptAnchor = model:FindFirstChild("PromptAnchor")
-		local prompt = promptAnchor and promptAnchor:FindFirstChild("BoardPrompt")
-		if prompt and prompt:IsA("ProximityPrompt") then
-			prompt.Triggered:Connect(openCreate)
-		end
-
-		local walkTrigger = model:FindFirstChild("WalkTrigger")
-		if walkTrigger and walkTrigger:IsA("BasePart") then
-			walkTrigger.Touched:Connect(function(hit)
-				local character = player.Character
-				if character and hit:IsDescendantOf(character) then
-					openCreate()
-				end
-			end)
-		end
+		end)
 	end
 
-	print("[SurviveAtSea] Portals wired (press E or walk in):", #portals:GetChildren())
+	print("[SurviveAtSea] Portals wired:", #portals:GetChildren())
 end)
 
 pcall(function()
