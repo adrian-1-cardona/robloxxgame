@@ -153,17 +153,31 @@ local function refreshPartyPanel()
 	local title = partyPanel:FindFirstChild("Title") :: TextLabel
 	local members = partyPanel:FindFirstChild("Members") :: TextLabel
 	local codeLabel = partyPanel:FindFirstChild("Code") :: TextLabel
+	local privacyLabel = partyPanel:FindFirstChild("Privacy") :: TextLabel
 	local castOff = partyPanel:FindFirstChild("CastOff") :: TextButton
 	local leaveBtn = partyPanel:FindFirstChild("Leave") :: TextButton
 
 	if typeof(party) ~= "table" or party.__openCreate then
 		partyPanel.Visible = false
+		if joinPanel then
+			joinPanel.Visible = true
+		end
 		return
 	end
 
 	partyPanel.Visible = true
-	title.Text = `CREW · Berth {party.portalIndex}`
-	codeLabel.Text = `CODE  {party.code}  ·  {party.privacy}`
+	-- On a crew: hide the join box so the top-right is the live code
+	if joinPanel then
+		joinPanel.Visible = false
+	end
+
+	title.Text = `STARTER BASE · Berth {party.portalIndex}`
+	codeLabel.Text = party.code
+	if privacyLabel then
+		privacyLabel.Text = if party.privacy == "Private"
+			then "PRIVATE · code only"
+			else "PUBLIC · berth or code"
+	end
 
 	local lines = {}
 	for _, member in party.members do
@@ -174,7 +188,7 @@ local function refreshPartyPanel()
 
 	local isHost = party.hostUserId == player.UserId
 	castOff.Visible = isHost and party.status == "Open"
-	leaveBtn.Visible = party.status == "Open"
+	leaveBtn.Visible = party.status == "Open" or party.status == "Departed"
 
 	if party.status == "Launching" and party.countdownEndsAt then
 		countdownLabel.Visible = true
@@ -249,10 +263,10 @@ local function buildGui()
 		Parent = root,
 		Text = `Deck ready · {state.device}`,
 		TextColor3 = Config.Theme.UIAccent,
-		TextXAlignment = Enum.TextXAlignment.Right,
-		Size = UDim2.new(0.38, 0, 0, 24),
-		Position = UDim2.new(0.62, -8, 0, 12),
-		MaxTextSize = 16,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Size = UDim2.new(0.4, 0, 0, 22),
+		Position = UDim2.new(0, 8, 0, 78),
+		MaxTextSize = 14,
 	})
 
 	countdownLabel = textLabel({
@@ -268,7 +282,7 @@ local function buildGui()
 	})
 	countdownLabel.Visible = false
 
-	-- Join by code (always available — Dead Rails style)
+	-- Join by code (bottom-right when not already on a crew)
 	joinPanel = Instance.new("Frame")
 	joinPanel.Name = "JoinPanel"
 	joinPanel.BackgroundColor3 = Config.Theme.UIPanel
@@ -339,11 +353,21 @@ local function buildGui()
 	textLabel({
 		Name = "CreateTitle",
 		Parent = createPanel,
-		Text = "CREATE CREW BERTH",
+		Text = "CREATE CREW BASE",
 		Font = Enum.Font.GothamBlack,
 		Size = UDim2.new(1, -28, 0, 34),
 		Position = UDim2.new(0, 14, 0, 14),
 		MaxTextSize = 24,
+	})
+
+	textLabel({
+		Name = "CreateHint",
+		Parent = createPanel,
+		Text = "You'll spawn on one huge wooden plank — size is for who can join.",
+		TextColor3 = Config.Theme.UIMuted,
+		Size = UDim2.new(1, -28, 0, 36),
+		Position = UDim2.new(0, 14, 0, 46),
+		MaxTextSize = 14,
 	})
 
 	local maxLabel = textLabel({
@@ -351,7 +375,7 @@ local function buildGui()
 		Parent = createPanel,
 		Text = `Crew size: {state.selectedMax}`,
 		Size = UDim2.new(1, -28, 0, 28),
-		Position = UDim2.new(0, 14, 0, 56),
+		Position = UDim2.new(0, 14, 0, 88),
 		MaxTextSize = 20,
 	})
 
@@ -360,7 +384,7 @@ local function buildGui()
 		Parent = createPanel,
 		Text = "−",
 		Size = UDim2.new(0, 56, 0, 48),
-		Position = UDim2.new(0, 14, 0, 96),
+		Position = UDim2.new(0, 14, 0, 122),
 		BackgroundColor3 = Config.Theme.SeaTeal,
 		TextColor3 = Config.Theme.Foam,
 		OnClick = function()
@@ -374,7 +398,7 @@ local function buildGui()
 		Parent = createPanel,
 		Text = "+",
 		Size = UDim2.new(0, 56, 0, 48),
-		Position = UDim2.new(0, 80, 0, 96),
+		Position = UDim2.new(0, 80, 0, 122),
 		BackgroundColor3 = Config.Theme.SeaTeal,
 		TextColor3 = Config.Theme.Foam,
 		OnClick = function()
@@ -388,7 +412,7 @@ local function buildGui()
 		Parent = createPanel,
 		Text = "Privacy: Public",
 		Size = UDim2.new(1, -28, 0, 48),
-		Position = UDim2.new(0, 14, 0, 156),
+		Position = UDim2.new(0, 14, 0, 180),
 		BackgroundColor3 = Color3.fromRGB(20, 70, 90),
 		TextColor3 = Config.Theme.Foam,
 		OnClick = function()
@@ -400,9 +424,9 @@ local function buildGui()
 	button({
 		Name = "ConfirmCreate",
 		Parent = createPanel,
-		Text = "Open Berth",
+		Text = "Spawn Base",
 		Size = UDim2.new(0.55, -10, 0, 48),
-		Position = UDim2.new(0, 14, 0, 216),
+		Position = UDim2.new(0, 14, 0, 240),
 		OnClick = function()
 			remotes.CreateParty:FireServer(state.createPortalIndex, state.selectedMax, state.privacy)
 			createPanel.Visible = false
@@ -414,21 +438,26 @@ local function buildGui()
 		Parent = createPanel,
 		Text = "Cancel",
 		Size = UDim2.new(0.45, -18, 0, 48),
-		Position = UDim2.new(0.55, 4, 0, 216),
+		Position = UDim2.new(0.55, 4, 0, 240),
 		BackgroundColor3 = Color3.fromRGB(50, 60, 70),
 		TextColor3 = Config.Theme.Foam,
 		OnClick = function()
 			createPanel.Visible = false
+			if joinPanel and not state.party then
+				joinPanel.Visible = true
+			end
 		end,
 	})
 
-	-- Active party panel
+	createPanel.Size = UDim2.new(0, 360, 0, 304)
+
+	-- Active party panel — TOP RIGHT shows the live join code
 	partyPanel = Instance.new("Frame")
 	partyPanel.Name = "PartyPanel"
 	partyPanel.BackgroundColor3 = Config.Theme.UIPanel
-	partyPanel.BackgroundTransparency = 0.1
-	partyPanel.Size = UDim2.new(0, 300, 0, 260)
-	partyPanel.Position = UDim2.new(0, 12, 1, -280)
+	partyPanel.BackgroundTransparency = 0.08
+	partyPanel.Size = UDim2.new(0, 300, 0, 292)
+	partyPanel.Position = UDim2.new(1, -316, 0, 12)
 	partyPanel.Visible = false
 	partyPanel.Parent = root
 	corner(partyPanel, 16)
@@ -437,21 +466,44 @@ local function buildGui()
 	textLabel({
 		Name = "Title",
 		Parent = partyPanel,
-		Text = "CREW",
+		Text = "STARTER BASE",
 		Font = Enum.Font.GothamBlack,
-		Size = UDim2.new(1, -20, 0, 30),
+		Size = UDim2.new(1, -20, 0, 26),
 		Position = UDim2.new(0, 10, 0, 10),
-		MaxTextSize = 22,
+		MaxTextSize = 18,
+	})
+
+	textLabel({
+		Name = "CodeCaption",
+		Parent = partyPanel,
+		Text = "CREW CODE",
+		TextColor3 = Config.Theme.UIMuted,
+		Size = UDim2.new(1, -20, 0, 18),
+		Position = UDim2.new(0, 10, 0, 38),
+		MaxTextSize = 12,
 	})
 
 	textLabel({
 		Name = "Code",
 		Parent = partyPanel,
-		Text = "CODE",
+		Text = "----",
+		Font = Enum.Font.GothamBlack,
 		TextColor3 = Config.Theme.UIAccent,
-		Size = UDim2.new(1, -20, 0, 24),
-		Position = UDim2.new(0, 10, 0, 42),
-		MaxTextSize = 18,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Size = UDim2.new(1, -20, 0, 40),
+		Position = UDim2.new(0, 10, 0, 56),
+		MaxTextSize = 32,
+	})
+
+	textLabel({
+		Name = "Privacy",
+		Parent = partyPanel,
+		Text = "PUBLIC",
+		TextColor3 = Config.Theme.Lantern,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Size = UDim2.new(1, -20, 0, 20),
+		Position = UDim2.new(0, 10, 0, 98),
+		MaxTextSize = 14,
 	})
 
 	textLabel({
@@ -459,9 +511,9 @@ local function buildGui()
 		Parent = partyPanel,
 		Text = "",
 		TextYAlignment = Enum.TextYAlignment.Top,
-		Size = UDim2.new(1, -20, 0, 110),
-		Position = UDim2.new(0, 10, 0, 72),
-		MaxTextSize = 16,
+		Size = UDim2.new(1, -20, 0, 96),
+		Position = UDim2.new(0, 10, 0, 122),
+		MaxTextSize = 15,
 	})
 
 	button({
@@ -469,7 +521,7 @@ local function buildGui()
 		Parent = partyPanel,
 		Text = "Cast Off →",
 		Size = UDim2.new(1, -20, 0, 44),
-		Position = UDim2.new(0, 10, 0, 190),
+		Position = UDim2.new(0, 10, 0, 222),
 		BackgroundColor3 = Config.Theme.Lantern,
 		OnClick = function()
 			remotes.StartLaunch:FireServer()
@@ -480,8 +532,8 @@ local function buildGui()
 		Name = "Leave",
 		Parent = partyPanel,
 		Text = "Leave Crew",
-		Size = UDim2.new(1, -20, 0, 40),
-		Position = UDim2.new(0, 10, 0, 238),
+		Size = UDim2.new(1, -20, 0, 36),
+		Position = UDim2.new(0, 10, 0, 270),
 		BackgroundColor3 = Color3.fromRGB(70, 40, 45),
 		TextColor3 = Config.Theme.Foam,
 		OnClick = function()
@@ -536,18 +588,20 @@ local function buildGui()
 		if width < 700 then
 			joinPanel.Size = UDim2.new(1, -24, 0, 150)
 			joinPanel.Position = UDim2.new(0, 12, 1, -166)
-			partyPanel.Size = UDim2.new(1, -24, 0, 250)
-			partyPanel.Position = UDim2.new(0, 12, 1, -420)
-			createPanel.Size = UDim2.new(1, -24, 0, 300)
+			partyPanel.Size = UDim2.new(1, -24, 0, 292)
+			partyPanel.Position = UDim2.new(0, 12, 0, 108)
+			createPanel.Size = UDim2.new(1, -24, 0, 320)
 			brandLabel.Size = UDim2.new(1, -16, 0, 44)
 		elseif width < 1100 then
 			joinPanel.Size = UDim2.new(0, 320, 0, 150)
 			joinPanel.Position = UDim2.new(1, -336, 1, -170)
-			partyPanel.Position = UDim2.new(0, 12, 1, -280)
+			partyPanel.Size = UDim2.new(0, 300, 0, 292)
+			partyPanel.Position = UDim2.new(1, -316, 0, 12)
 		else
 			joinPanel.Size = UDim2.new(0, 320, 0, 150)
 			joinPanel.Position = UDim2.new(1, -336, 1, -170)
-			partyPanel.Position = UDim2.new(0, 12, 1, -280)
+			partyPanel.Size = UDim2.new(0, 300, 0, 292)
+			partyPanel.Position = UDim2.new(1, -316, 0, 12)
 		end
 	end
 
@@ -623,7 +677,7 @@ end
 
 function LobbyUI.openCreateForPortal(portalIndex: number)
 	openCreate(portalIndex)
-	showToast(`Berth {portalIndex} — pick crew size and cast your berth.`, "info")
+	showToast(`Berth {portalIndex} — pick size & privacy, then spawn on your plank.`, "info")
 end
 
 function LobbyUI.start()
@@ -644,7 +698,7 @@ function LobbyUI.start()
 		end
 	end)
 
-	showToast("Walk into a berth to board with friends.", "info")
+	showToast("Walk into a berth → pick size → spawn on your wooden plank.", "info")
 	print(`[SurviveAtSea] Lobby UI ready ({state.device})`)
 end
 

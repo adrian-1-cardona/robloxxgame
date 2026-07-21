@@ -12,7 +12,7 @@ local Config = {
 	LaunchCountdownSeconds = 10,
 
 	-- Set this to your voyage PlaceId when the sea run place exists.
-	-- Until then, parties launch into the in-place VoyageStaging zone.
+	-- Until then, Cast Off locks joins and keeps the crew on their wooden plank starter base.
 	GamePlaceId = nil :: number?,
 
 	-- Lobby layout (portals close to spawn so they're obvious)
@@ -20,6 +20,19 @@ local Config = {
 	PortalCount = 4,
 	-- Keep berths inside the pier rails (≈±38) so frames don't clip the bulwark
 	PortalSpacing = 18,
+
+	-- Starter base: one huge square wooden plank per crew (not scaled by party size).
+	-- Spawned after create/join so the berth flow lands you on your base immediately.
+	StarterBase = {
+		-- Fixed footprint — same for solo or full (10) crews
+		SizeStuds = 72,
+		Thickness = 3,
+		-- Far past the boarding pier so bases sit out on the open water
+		Origin = Vector3.new(0, 3.5, 260),
+		-- Spread concurrent crews along X so planks never overlap
+		SpacingX = 110,
+		DeckClearance = 4,
+	},
 
 	-- Ocean theme palette
 	Theme = {

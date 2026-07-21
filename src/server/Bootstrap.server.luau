@@ -18,6 +18,7 @@ local LobbyWorld = require(Shared:WaitForChild("LobbyWorld"))
 local LobbyBuilder = require(script.Parent:WaitForChild("LobbyBuilder"))
 local PartyService = require(script.Parent:WaitForChild("PartyService"))
 local PortalService = require(script.Parent:WaitForChild("PortalService"))
+local StarterBaseService = require(script.Parent:WaitForChild("StarterBaseService"))
 
 print(`[SurviveAtSea] Booting {Config.GameName} lobby…`)
 
@@ -82,21 +83,34 @@ StartLaunch.OnServerEvent:Connect(function(player)
 	end
 end)
 
+local function seatPlayer(player: Player)
+	local character = player.Character
+	if not character then
+		return
+	end
+	local seat = PartyService.getBaseSeatInfo(player)
+	if seat then
+		StarterBaseService.teleportPlayerToBase(player, seat.portalIndex, seat.slotIndex)
+	else
+		LobbyWorld.seatCharacter(character)
+	end
+end
+
 local function onPlayerReady(player)
-	player.CharacterAdded:Connect(function(character)
+	player.CharacterAdded:Connect(function(_character)
 		task.defer(function()
-			LobbyWorld.seatCharacter(character)
+			seatPlayer(player)
 		end)
 	end)
 	if player.Character then
 		task.defer(function()
-			LobbyWorld.seatCharacter(player.Character :: Model)
+			seatPlayer(player)
 		end)
 	end
 
 	task.defer(function()
 		PortalsUpdated:FireClient(player, PartyService.getPortalInfos())
-		Toast:FireClient(player, "Walk into a berth to create or join a crew.", "info")
+		Toast:FireClient(player, "Walk into a berth, pick crew size, then spawn on your wooden plank base.", "info")
 	end)
 end
 

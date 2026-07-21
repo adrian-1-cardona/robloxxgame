@@ -1,5 +1,14 @@
 -- Ephemeral party / game-state service.
 -- No DataStore or MemoryStore caching — parties live only while this lobby server does.
+--
+-- Flow:
+--   1. Walk a berth → pick crew size + Public/Private
+--   2. Spawn onto ONE huge square wooden plank (starter base)
+--   3. Top-right HUD shows the join code; others may join while capacity remains
+--
+-- Privacy (enforced server-side):
+--   Public  — walk into the berth OR enter the code
+--   Private — code only (berth prompt disabled / walk-in rejected)
 
 local Players = game:GetService("Players")
 local TeleportService = game:GetService("TeleportService")
@@ -9,6 +18,8 @@ local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
 local PartyCode = require(Shared:WaitForChild("PartyCode"))
 local Types = require(Shared:WaitForChild("Types"))
+
+local StarterBaseService = require(script.Parent:WaitForChild("StarterBaseService"))
 
 type PartyPrivacy = Types.PartyPrivacy
 type PartySnapshot = Types.PartySnapshot
@@ -39,6 +50,15 @@ local function displayNameFor(userId: number): string
 		return player.DisplayName
 	end
 	return `Crew_{userId}`
+end
+
+local function memberSlot(party: PartyRecord, userId: number): number
+	for index, id in party.memberUserIds do
+		if id == userId then
+			return index
+		end
+	end
+	return #party.memberUserIds
 end
 
 local function toSnapshot(party: PartyRecord): PartySnapshot
@@ -76,6 +96,7 @@ local function buildPortalInfos(): { PublicPortalInfo }
 				memberCount = 0,
 				maxPlayers = Config.MaxPartySize,
 				status = "Empty",
+				privacy = nil,
 			})
 		else
 			local status: "Empty" | "Open" | "Launching" | "Full" = "Open"
@@ -86,11 +107,13 @@ local function buildPortalInfos(): { PublicPortalInfo }
 			end
 			table.insert(infos, {
 				portalIndex = i,
+				-- Public crews advertise their code on the berth; private never do.
 				code = if party.privacy == "Public" then party.code else nil,
 				hostName = displayNameFor(party.hostUserId),
 				memberCount = #party.memberUserIds,
 				maxPlayers = party.maxPlayers,
 				status = status,
+				privacy = party.privacy,
 			})
 		end
 	end
@@ -101,6 +124,11 @@ local function notify(party: PartyRecord?)
 	if PartyService._onChanged then
 		PartyService._onChanged(if party then toSnapshot(party) else nil, buildPortalInfos())
 	end
+end
+
+local function seatOnBase(player: Player, party: PartyRecord)
+	StarterBaseService.ensureBase(party.code, party.portalIndex, party.privacy)
+	StarterBaseService.teleportPlayerToBase(player, party.portalIndex, memberSlot(party, player.UserId))
 end
 
 local function removePlayerFromCurrentParty(userId: number)
@@ -123,7 +151,13 @@ local function removePlayerFromCurrentParty(userId: number)
 	end
 	party.memberUserIds = remaining
 
+	local leavingPlayer = Players:GetPlayerByUserId(userId)
+	if leavingPlayer then
+		StarterBaseService.teleportPlayerToLobby(leavingPlayer)
+	end
+
 	if #remaining == 0 then
+		StarterBaseService.destroyBase(code)
 		PartyService._partiesByCode[code] = nil
 		PartyService._portalToCode[party.portalIndex] = nil
 		notify(nil)
@@ -161,6 +195,21 @@ function PartyService.getLobbyState(player: Player): { party: PartySnapshot?, po
 	return {
 		party = PartyService.getSnapshotForPlayer(player),
 		portals = buildPortalInfos(),
+	}
+end
+
+function PartyService.getBaseSeatInfo(player: Player): { portalIndex: number, slotIndex: number }?
+	local code = PartyService._playerToCode[player.UserId]
+	if not code then
+		return nil
+	end
+	local party = PartyService._partiesByCode[code]
+	if not party then
+		return nil
+	end
+	return {
+		portalIndex = party.portalIndex,
+		slotIndex = memberSlot(party, player.UserId),
 	}
 end
 
@@ -204,9 +253,14 @@ function PartyService.createParty(
 	PartyService._playerToCode[player.UserId] = code
 	PartyService._portalToCode[portalIndex] = code
 
+	-- Starter base: one huge square plank for the whole crew
+	StarterBaseService.ensureBase(code, portalIndex, privacy)
+	seatOnBase(player, party)
+
+	local privacyLine = if privacy == "Private" then "Private — share your code." else "Public — friends can walk in or use your code."
 	local snapshot = toSnapshot(party)
 	notify(party)
-	return true, "Crew assembled. Share your code with friends!", snapshot
+	return true, `Crew base ready. {privacyLine}`, snapshot
 end
 
 function PartyService.joinParty(player: Player, rawCode: string): (boolean, string, PartySnapshot?)
@@ -229,15 +283,18 @@ function PartyService.joinParty(player: Player, rawCode: string): (boolean, stri
 	end
 
 	if #party.memberUserIds >= party.maxPlayers then
-		return false, "That crew is full (max 10).", nil
+		return false, `That crew is full ({party.maxPlayers}/{party.maxPlayers}).`, nil
 	end
 
 	table.insert(party.memberUserIds, player.UserId)
 	PartyService._playerToCode[player.UserId] = code
 
+	StarterBaseService.ensureBase(party.code, party.portalIndex, party.privacy)
+	seatOnBase(player, party)
+
 	local snapshot = toSnapshot(party)
 	notify(party)
-	return true, "You joined the crew!", snapshot
+	return true, "You joined the crew base!", snapshot
 end
 
 function PartyService.joinPortal(player: Player, portalIndex: number): (boolean, string, PartySnapshot?)
@@ -251,8 +308,17 @@ function PartyService.joinPortal(player: Player, portalIndex: number): (boolean,
 		return false, "Empty", nil
 	end
 
+	-- Private parties are code-only — walking the berth never works.
 	if party.privacy == "Private" then
 		return false, "Private crew — ask the host for their code.", nil
+	end
+
+	if party.status ~= "Open" then
+		return false, "That voyage is already launching.", nil
+	end
+
+	if #party.memberUserIds >= party.maxPlayers then
+		return false, `That crew is full ({party.maxPlayers}/{party.maxPlayers}).`, nil
 	end
 
 	return PartyService.joinParty(player, code)
@@ -263,7 +329,7 @@ function PartyService.leaveParty(player: Player): (boolean, string)
 		return false, "You're not on a crew."
 	end
 	removePlayerFromCurrentParty(player.UserId)
-	return true, "Left the crew."
+	return true, "Left the crew — back on the pier."
 end
 
 function PartyService.startLaunch(player: Player): (boolean, string, PartySnapshot?)
@@ -319,11 +385,14 @@ function PartyService._finalizeLaunch(code: string)
 	end
 
 	if #playersToTeleport == 0 then
+		StarterBaseService.destroyBase(code)
 		PartyService._partiesByCode[code] = nil
 		PartyService._portalToCode[party.portalIndex] = nil
 		notify(nil)
 		return
 	end
+
+	local leftForVoyage = false
 
 	-- Prefer reserved-server teleport when a voyage place is configured.
 	if typeof(Config.GamePlaceId) == "number" and Config.GamePlaceId > 0 then
@@ -339,38 +408,37 @@ function PartyService._finalizeLaunch(code: string)
 					playersToTeleport
 				)
 			end)
-			if not teleportOk then
+			if teleportOk then
+				leftForVoyage = true
+			else
 				warn("[SurviveAtSea] Teleport failed:", err)
 			end
 		else
-			warn("[SurviveAtSea] ReserveServer failed; falling back to staging zone.")
-			PartyService._sendToStaging(playersToTeleport)
+			warn("[SurviveAtSea] ReserveServer failed; staying on starter base.")
 		end
-	else
-		PartyService._sendToStaging(playersToTeleport)
 	end
 
-	-- Clear ephemeral party after launch (no save / no rejoin cache)
+	if not leftForVoyage then
+		-- No voyage place yet — lock joins, keep the plank + crew HUD alive.
+		party.status = "Open"
+		party.countdownEndsAt = nil
+		for index, plr in playersToTeleport do
+			StarterBaseService.teleportPlayerToBase(plr, party.portalIndex, index)
+		end
+		-- Soft-lock: mark full-ish by flipping to a locked status without destroying
+		party.status = "Departed"
+		notify(party)
+		return
+	end
+
+	-- Free the berth and destroy the plank only when the crew left this place.
+	StarterBaseService.destroyBase(code)
 	for _, userId in party.memberUserIds do
 		PartyService._playerToCode[userId] = nil
 	end
 	PartyService._partiesByCode[code] = nil
 	PartyService._portalToCode[party.portalIndex] = nil
 	notify(nil)
-end
-
-function PartyService._sendToStaging(playersToTeleport: { Player })
-	local LobbyBuilder = require(script.Parent.LobbyBuilder)
-	local destination = LobbyBuilder.getVoyageSpawnCFrame()
-
-	for index, player in playersToTeleport do
-		local character = player.Character
-		local root = character and character:FindFirstChild("HumanoidRootPart")
-		if root and root:IsA("BasePart") then
-			local offset = Vector3.new(((index - 1) % 5) * 4 - 8, 0, math.floor((index - 1) / 5) * 4)
-			root.CFrame = destination + offset
-		end
-	end
 end
 
 function PartyService.onPlayerRemoving(player: Player)
