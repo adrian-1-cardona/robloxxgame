@@ -736,14 +736,14 @@ local function buildScenery(root: Folder)
 		buildPalm(scenery, spot[1] :: Vector3, spot[2] :: number)
 	end
 
-	-- Deck cannons aimed OUTWARD away from the pier
+	-- Deck cannons aimed OUTWARD, inset from rails so they don't clip
 	local cannons = {
-		{ Vector3.new(-34, PIER.DeckY, 8), -90 }, -- west
-		{ Vector3.new(-34, PIER.DeckY, 42), -90 },
-		{ Vector3.new(34, PIER.DeckY, 8), 90 }, -- east
-		{ Vector3.new(34, PIER.DeckY, 42), 90 },
-		{ Vector3.new(-18, PIER.DeckY, -38), 0 }, -- south (away = -Z)
-		{ Vector3.new(18, PIER.DeckY, -38), 0 },
+		{ Vector3.new(-32, PIER.DeckY, 8), -90 },
+		{ Vector3.new(-32, PIER.DeckY, 42), -90 },
+		{ Vector3.new(32, PIER.DeckY, 8), 90 },
+		{ Vector3.new(32, PIER.DeckY, 42), 90 },
+		{ Vector3.new(-16, PIER.DeckY, -36), 0 },
+		{ Vector3.new(16, PIER.DeckY, -36), 0 },
 	}
 	for _, c in cannons do
 		buildCannon(scenery, c[1] :: Vector3, c[2] :: number)
@@ -916,13 +916,12 @@ local function buildDock(root: Folder)
 		CanCollide = false,
 	})
 
-	-- Supply crates near spawn only (not scattered through the berths)
-	for i = 1, 4 do
+	for i = 1, 6 do
 		part({
 			Name = "Crate" .. i,
 			Parent = dock,
-			Size = Vector3.new(4, 4, 4),
-			CFrame = CFrame.new(-16 + i * 5, 5.8, -30 + (i % 2) * 3) * CFrame.Angles(0, math.rad(i * 18), 0),
+			Size = Vector3.new(4.5, 4.5, 4.5),
+			CFrame = CFrame.new(-20 + i * 5.5, 6.2, -32 + (i % 3) * 4) * CFrame.Angles(0, math.rad(i * 15), 0),
 			Color = Color3.fromRGB(130, 90, 50),
 			Material = Enum.Material.Wood,
 		})
