@@ -482,6 +482,66 @@ local function setupSpawn(folder: Folder)
 	spawn.CFrame = CFrame.new(0, 4.2, 0) * CFrame.Angles(0, 0, 0)
 end
 
+function LobbyBuilder.enhanceExisting(root: Folder)
+	safeLighting()
+
+	local spawn = root:FindFirstChild("LobbySpawn")
+	if not (spawn and spawn:IsA("SpawnLocation")) then
+		setupSpawn(root)
+	else
+		local spawnLocation = spawn :: SpawnLocation
+		spawnLocation.Enabled = true
+		spawnLocation.Neutral = true
+	end
+
+	-- World-space title
+	local dock = root:FindFirstChild("Dock")
+	if dock and not dock:FindFirstChild("TitleBanner") then
+		local titleAnchor = part({
+			Name = "TitleBanner",
+			Parent = dock,
+			Size = Vector3.new(2, 2, 2),
+			CFrame = CFrame.new(0, 22, -35),
+			Transparency = 1,
+			CanCollide = false,
+			CastShadow = false,
+		})
+		billboard(titleAnchor, "SURVIVE AT SEA\nBOARDING DOCK", Config.Theme.Foam, UDim2.fromOffset(520, 140), 0)
+	end
+
+	local portals = root:FindFirstChild("Portals")
+	if portals then
+		for _, model in portals:GetChildren() do
+			if not model:IsA("Model") then
+				continue
+			end
+			local pad = model:FindFirstChild("Pad")
+			local indexValue = model:FindFirstChild("PortalIndex")
+			local index = if indexValue and indexValue:IsA("IntValue") then indexValue.Value else 0
+			if pad and pad:IsA("BasePart") and not pad:FindFirstChild("LobbyBillboard") then
+				billboard(pad, `PORTAL {index}\nWalk up · press E`, Config.Theme.Foam, UDim2.fromOffset(260, 90), 10)
+			end
+
+			local gate = model:FindFirstChild("Gate")
+			if gate and gate:IsA("BasePart") then
+				if not gate:FindFirstChildOfClass("PointLight") then
+					local light = Instance.new("PointLight")
+					light.Color = Config.Theme.PortalGlow
+					light.Brightness = 3
+					light.Range = 28
+					light.Parent = gate
+				end
+				task.spawn(function()
+					local info = TweenInfo.new(1.4, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
+					TweenService:Create(gate, info, { Transparency = 0.55 }):Play()
+				end)
+			end
+		end
+	end
+
+	print("[SurviveAtSea] Enhanced existing lobby map")
+end
+
 function LobbyBuilder.build(): Folder
 	local existing = Workspace:FindFirstChild("SurviveAtSeaLobby")
 	if existing then
@@ -504,14 +564,12 @@ function LobbyBuilder.build(): Folder
 	portalsFolder.Name = "Portals"
 	portalsFolder.Parent = root
 
-	-- Portals close enough to see from spawn (look forward)
 	local startX = -((Config.PortalCount - 1) * Config.PortalSpacing) / 2
 	for i = 1, Config.PortalCount do
 		local pos = Vector3.new(startX + (i - 1) * Config.PortalSpacing, 3.5, 70)
 		buildPortal(portalsFolder, i, pos)
 	end
 
-	-- Direction chevrons toward portals
 	for z = 20, 55, 12 do
 		part({
 			Name = "Arrow",
