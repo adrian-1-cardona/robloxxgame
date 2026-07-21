@@ -103,14 +103,11 @@ local function styleLighting()
 		sky = Instance.new("Sky")
 		sky.Parent = Lighting
 	end
-	sky.SkyboxBk = "rbxassetid://591058823"
-	sky.SkyboxDn = "rbxassetid://591059876"
-	sky.SkyboxFt = "rbxassetid://591058104"
-	sky.SkyboxLf = "rbxassetid://591057843"
-	sky.SkyboxRt = "rbxassetid://591057851"
-	sky.SkyboxUp = "rbxassetid://591059769"
 	sky.CelestialBodiesShown = true
 	sky.StarCount = 1800
+	sky.SkyboxGlare = 0.2
+	sky.SunAngularSize = 18
+	sky.MoonAngularSize = 11
 
 	local bloom = Lighting:FindFirstChildOfClass("BloomEffect")
 	if not bloom then
