@@ -15,10 +15,10 @@ local Config = {
 	-- Until then, parties launch into the in-place VoyageStaging zone.
 	GamePlaceId = nil :: number?,
 
-	-- Lobby layout
+	-- Lobby layout (portals close to spawn so they're obvious)
 	LobbyCenter = Vector3.new(0, 4, 0),
 	PortalCount = 4,
-	PortalSpacing = 28,
+	PortalSpacing = 24,
 
 	-- Ocean theme palette
 	Theme = {

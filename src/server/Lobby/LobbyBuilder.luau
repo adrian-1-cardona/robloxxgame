@@ -15,7 +15,7 @@ local LobbyBuilder = {}
 local function part(props: { [string]: any }): Part
 	local p = Instance.new("Part")
 	p.Anchored = true
-	p.CanCollide = props.CanCollide ~= false
+	p.CanCollide = if props.CanCollide == nil then true else props.CanCollide
 	p.Material = props.Material or Enum.Material.Wood
 	p.Color = props.Color or Config.Theme.Driftwood
 	p.Size = props.Size or Vector3.new(4, 1, 4)
@@ -23,9 +23,12 @@ local function part(props: { [string]: any }): Part
 	p.Name = props.Name or "LobbyPart"
 	p.TopSurface = Enum.SurfaceType.Smooth
 	p.BottomSurface = Enum.SurfaceType.Smooth
-	p.CastShadow = props.CastShadow ~= false
-	if props.Transparency then
+	p.CastShadow = if props.CastShadow == nil then true else props.CastShadow
+	if props.Transparency ~= nil then
 		p.Transparency = props.Transparency
+	end
+	if props.Reflectance ~= nil then
+		p.Reflectance = props.Reflectance
 	end
 	if props.Parent then
 		p.Parent = props.Parent
@@ -33,140 +36,165 @@ local function part(props: { [string]: any }): Part
 	return p
 end
 
-local function weldBillboard(adornee: BasePart, text: string, color: Color3, size: UDim2?): BillboardGui
-	local billboard = Instance.new("BillboardGui")
-	billboard.Name = "PortalSign"
-	billboard.Adornee = adornee
-	billboard.Size = size or UDim2.fromOffset(220, 70)
-	billboard.StudsOffsetWorldSpace = Vector3.new(0, 7, 0)
-	billboard.AlwaysOnTop = true
-	billboard.MaxDistance = 120
-	billboard.Parent = adornee
+local function billboard(adornee: BasePart, text: string, color: Color3, size: UDim2?, offsetY: number?): BillboardGui
+	local gui = Instance.new("BillboardGui")
+	gui.Name = "LobbyBillboard"
+	gui.Adornee = adornee
+	gui.Size = size or UDim2.fromOffset(280, 90)
+	gui.StudsOffsetWorldSpace = Vector3.new(0, offsetY or 8, 0)
+	gui.AlwaysOnTop = true
+	gui.MaxDistance = 250
+	gui.Parent = adornee
 
 	local label = Instance.new("TextLabel")
-	label.BackgroundTransparency = 0.25
+	label.BackgroundTransparency = 0.15
 	label.BackgroundColor3 = Config.Theme.UIPanel
 	label.BorderSizePixel = 0
 	label.Size = UDim2.fromScale(1, 1)
-	label.Font = Config.UI.Font
+	label.Font = Enum.Font.GothamBlack
 	label.TextScaled = true
 	label.TextColor3 = color
 	label.Text = text
-	label.Parent = billboard
+	label.Parent = gui
 
 	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 10)
+	corner.CornerRadius = UDim.new(0, 12)
 	corner.Parent = label
 
 	local pad = Instance.new("UIPadding")
 	pad.PaddingTop = UDim.new(0, 8)
 	pad.PaddingBottom = UDim.new(0, 8)
-	pad.PaddingLeft = UDim.new(0, 10)
-	pad.PaddingRight = UDim.new(0, 10)
+	pad.PaddingLeft = UDim.new(0, 12)
+	pad.PaddingRight = UDim.new(0, 12)
 	pad.Parent = label
 
 	local stroke = Instance.new("UIStroke")
 	stroke.Color = Config.Theme.UIAccent
-	stroke.Thickness = 1.5
-	stroke.Transparency = 0.35
+	stroke.Thickness = 2
 	stroke.Parent = label
 
-	return billboard
+	return gui
 end
 
-local function styleLighting()
-	Lighting.ClockTime = 17.2
-	Lighting.Brightness = 2.4
-	Lighting.Ambient = Color3.fromRGB(40, 70, 90)
-	Lighting.OutdoorAmbient = Color3.fromRGB(70, 110, 130)
-	Lighting.FogColor = Color3.fromRGB(90, 150, 170)
-	Lighting.FogStart = 80
-	Lighting.FogEnd = 420
-	Lighting.EnvironmentDiffuseScale = 0.6
-	Lighting.EnvironmentSpecularScale = 0.35
-	Lighting.GlobalShadows = true
+local function safeLighting()
+	-- Never let lighting tweaks prevent the dock from spawning.
+	local ok, err = pcall(function()
+		Lighting.ClockTime = 16.5
+		Lighting.Brightness = 3
+		Lighting.Ambient = Color3.fromRGB(50, 90, 110)
+		Lighting.OutdoorAmbient = Color3.fromRGB(90, 140, 160)
+		Lighting.FogColor = Color3.fromRGB(70, 140, 170)
+		Lighting.FogStart = 200
+		Lighting.FogEnd = 800
+		Lighting.GlobalShadows = true
 
-	local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
-	if not atmosphere then
-		atmosphere = Instance.new("Atmosphere")
+		for _, child in Lighting:GetChildren() do
+			if child:IsA("Atmosphere") or child:IsA("BloomEffect") or child:IsA("ColorCorrectionEffect") then
+				child:Destroy()
+			end
+		end
+
+		local atmosphere = Instance.new("Atmosphere")
+		atmosphere.Density = 0.18
+		atmosphere.Offset = 0.1
+		atmosphere.Color = Color3.fromRGB(140, 185, 205)
+		atmosphere.Decay = Color3.fromRGB(50, 90, 120)
+		atmosphere.Glare = 0.08
+		atmosphere.Haze = 0.6
 		atmosphere.Parent = Lighting
-	end
-	atmosphere.Density = 0.32
-	atmosphere.Offset = 0.15
-	atmosphere.Color = Color3.fromRGB(120, 170, 190)
-	atmosphere.Decay = Color3.fromRGB(40, 80, 110)
-	atmosphere.Glare = 0.15
-	atmosphere.Haze = 1.4
 
-	local sky = Lighting:FindFirstChildOfClass("Sky")
-	if not sky then
-		sky = Instance.new("Sky")
-		sky.Parent = Lighting
-	end
-	sky.CelestialBodiesShown = true
-	sky.StarCount = 1800
-	sky.SkyboxGlare = 0.2
-	sky.SunAngularSize = 18
-	sky.MoonAngularSize = 11
+		local sky = Lighting:FindFirstChildOfClass("Sky")
+		if not sky then
+			sky = Instance.new("Sky")
+			sky.Parent = Lighting
+		end
+		sky.CelestialBodiesShown = true
+		sky.StarCount = 1200
+		sky.SunAngularSize = 21
+		sky.MoonAngularSize = 11
 
-	local bloom = Lighting:FindFirstChildOfClass("BloomEffect")
-	if not bloom then
-		bloom = Instance.new("BloomEffect")
+		local bloom = Instance.new("BloomEffect")
+		bloom.Intensity = 0.25
+		bloom.Size = 14
+		bloom.Threshold = 1.2
 		bloom.Parent = Lighting
-	end
-	bloom.Intensity = 0.35
-	bloom.Size = 18
-	bloom.Threshold = 1.1
 
-	local colorCorrection = Lighting:FindFirstChildOfClass("ColorCorrectionEffect")
-	if not colorCorrection then
-		colorCorrection = Instance.new("ColorCorrectionEffect")
-		colorCorrection.Parent = Lighting
+		local cc = Instance.new("ColorCorrectionEffect")
+		cc.TintColor = Color3.fromRGB(225, 242, 255)
+		cc.Contrast = 0.05
+		cc.Saturation = 0.15
+		cc.Parent = Lighting
+	end)
+	if not ok then
+		warn("[SurviveAtSea] Lighting setup failed (lobby still builds):", err)
 	end
-	colorCorrection.TintColor = Color3.fromRGB(220, 240, 255)
-	colorCorrection.Contrast = 0.08
-	colorCorrection.Saturation = 0.12
 end
 
-local function clearDefaultBaseplate()
-	local baseplate = Workspace:FindFirstChild("Baseplate")
-	if baseplate then
-		baseplate:Destroy()
+local function clearWorkspaceClutter()
+	-- Remove default / leftover place geometry so the dock is obvious.
+	for _, name in { "Baseplate", "SpawnLocation", "Terrain" } do
+		local inst = Workspace:FindFirstChild(name)
+		if inst and not inst:IsA("Terrain") then
+			inst:Destroy()
+		end
+	end
+
+	-- Clear common starter-place leftovers (keeps cameras/characters)
+	for _, child in Workspace:GetChildren() do
+		if child:IsA("BasePart") or child:IsA("Model") or child:IsA("Folder") then
+			if child.Name ~= "SurviveAtSeaLobby" and child.Name ~= "Camera" and child.Name ~= "Terrain" then
+				-- Keep player characters
+				local isCharacter = false
+				for _, plr in Players:GetPlayers() do
+					if plr.Character == child then
+						isCharacter = true
+						break
+					end
+				end
+				if not isCharacter then
+					child:Destroy()
+				end
+			end
+		end
 	end
 end
 
 local function buildOcean(folder: Folder)
-	local ocean = part({
-		Name = "Ocean",
+	-- Solid water plane players can stand near / see clearly
+	part({
+		Name = "OceanDeep",
 		Parent = folder,
-		Size = Vector3.new(900, 4, 900),
-		CFrame = CFrame.new(0, -1, 0),
-		Color = Config.Theme.DeepOcean,
-		Material = Enum.Material.Glass,
-		Transparency = 0.35,
+		Size = Vector3.new(1200, 30, 1200),
+		CFrame = CFrame.new(0, -16, 0),
+		Color = Color3.fromRGB(6, 40, 70),
+		Material = Enum.Material.SmoothPlastic,
+		Transparency = 0.15,
 		CanCollide = true,
 	})
 
-	local foam = part({
-		Name = "FoamRing",
+	part({
+		Name = "OceanSurface",
 		Parent = folder,
-		Size = Vector3.new(220, 0.4, 220),
-		CFrame = CFrame.new(0, 1.1, 0),
-		Color = Config.Theme.Foam,
-		Material = Enum.Material.SmoothPlastic,
-		Transparency = 0.72,
+		Size = Vector3.new(1200, 2, 1200),
+		CFrame = CFrame.new(0, 0, 0),
+		Color = Color3.fromRGB(20, 120, 150),
+		Material = Enum.Material.Glass,
+		Transparency = 0.45,
+		Reflectance = 0.15,
 		CanCollide = false,
 	})
 
-	task.spawn(function()
-		local bob = 0
-		while foam.Parent do
-			bob += 0.03
-			foam.CFrame = CFrame.new(0, 1.1 + math.sin(bob) * 0.25, 0)
-			ocean.Transparency = 0.32 + math.sin(bob * 0.7) * 0.04
-			task.wait(0.05)
-		end
-	end)
+	-- Shore foam ring around dock
+	part({
+		Name = "Foam",
+		Parent = folder,
+		Size = Vector3.new(160, 0.6, 160),
+		CFrame = CFrame.new(0, 1.2, 20),
+		Color = Config.Theme.Foam,
+		Material = Enum.Material.SmoothPlastic,
+		Transparency = 0.55,
+		CanCollide = false,
+	})
 end
 
 local function buildDock(folder: Folder)
@@ -174,150 +202,132 @@ local function buildDock(folder: Folder)
 	dock.Name = "Dock"
 	dock.Parent = folder
 
-	-- Main pier deck
+	-- Huge visible pier under spawn
 	part({
 		Name = "PierDeck",
 		Parent = dock,
-		Size = Vector3.new(72, 2, 120),
-		CFrame = CFrame.new(0, 3, -10),
-		Color = Config.Theme.Driftwood,
+		Size = Vector3.new(80, 3, 140),
+		CFrame = CFrame.new(0, 2, 20),
+		Color = Color3.fromRGB(120, 82, 48),
 		Material = Enum.Material.WoodPlanks,
 	})
 
-	-- Boardwalk toward portals
+	-- Bright center stripe so you know you landed
 	part({
-		Name = "Boardwalk",
+		Name = "CenterPlank",
 		Parent = dock,
-		Size = Vector3.new(28, 2, 48),
-		CFrame = CFrame.new(0, 3, 70),
-		Color = Color3.fromRGB(110, 78, 48),
+		Size = Vector3.new(8, 3.2, 140),
+		CFrame = CFrame.new(0, 2, 20),
+		Color = Color3.fromRGB(170, 120, 70),
 		Material = Enum.Material.WoodPlanks,
 	})
 
-	-- Side rails
-	for _, x in { -35, 35 } do
+	-- Rails
+	for _, x in { -38, 38 } do
 		part({
 			Name = "Rail",
 			Parent = dock,
-			Size = Vector3.new(1.2, 3, 120),
-			CFrame = CFrame.new(x, 5, -10),
-			Color = Config.Theme.Rope,
+			Size = Vector3.new(1.5, 4, 140),
+			CFrame = CFrame.new(x, 5, 20),
+			Color = Color3.fromRGB(90, 60, 35),
 			Material = Enum.Material.Wood,
 		})
 	end
 
-	-- Support pillars
-	for z = -50, 40, 18 do
-		for _, x in { -28, 28 } do
+	-- Pillars into the water
+	for z = -40, 80, 20 do
+		for _, x in { -30, 30 } do
 			part({
 				Name = "Pillar",
 				Parent = dock,
-				Size = Vector3.new(3, 14, 3),
-				CFrame = CFrame.new(x, -2, z),
-				Color = Color3.fromRGB(70, 48, 30),
+				Size = Vector3.new(4, 18, 4),
+				CFrame = CFrame.new(x, -5, z),
+				Color = Color3.fromRGB(70, 48, 28),
 				Material = Enum.Material.Wood,
 			})
 		end
 	end
 
-	-- Lighthouse silhouette
-	local lighthouse = part({
+	-- Lighthouse (very visible landmark)
+	local tower = part({
 		Name = "Lighthouse",
 		Parent = dock,
-		Size = Vector3.new(10, 42, 10),
-		CFrame = CFrame.new(-48, 22, -40),
-		Color = Color3.fromRGB(230, 230, 220),
+		Size = Vector3.new(12, 48, 12),
+		CFrame = CFrame.new(-55, 25, -20),
+		Color = Color3.fromRGB(240, 240, 235),
 		Material = Enum.Material.SmoothPlastic,
 	})
 	part({
+		Name = "LighthouseStripe",
+		Parent = dock,
+		Size = Vector3.new(12.4, 8, 12.4),
+		CFrame = CFrame.new(-55, 18, -20),
+		Color = Color3.fromRGB(200, 60, 55),
+		Material = Enum.Material.SmoothPlastic,
+	})
+	local lamp = part({
 		Name = "LighthouseLamp",
 		Parent = dock,
-		Size = Vector3.new(8, 6, 8),
-		CFrame = lighthouse.CFrame * CFrame.new(0, 24, 0),
+		Size = Vector3.new(10, 8, 10),
+		CFrame = CFrame.new(-55, 52, -20),
 		Color = Config.Theme.Lantern,
 		Material = Enum.Material.Neon,
 		CanCollide = false,
 	})
-
 	local light = Instance.new("PointLight")
-	light.Brightness = 2.5
-	light.Range = 60
+	light.Brightness = 4
+	light.Range = 90
 	light.Color = Config.Theme.Lantern
-	light.Parent = lighthouse
+	light.Parent = lamp
 
-	-- Crates / atmosphere props
-	for i = 1, 6 do
+	-- Crates
+	for i = 1, 8 do
 		part({
 			Name = "Crate" .. i,
 			Parent = dock,
-			Size = Vector3.new(4, 4, 4),
-			CFrame = CFrame.new(-18 + i * 5.5, 6, -35 + (i % 2) * 6) * CFrame.Angles(0, math.rad(i * 17), 0),
-			Color = Color3.fromRGB(120, 85, 50),
+			Size = Vector3.new(5, 5, 5),
+			CFrame = CFrame.new(-22 + i * 5, 6.5, -30 + (i % 3) * 5) * CFrame.Angles(0, math.rad(i * 12), 0),
+			Color = Color3.fromRGB(130, 90, 50),
 			Material = Enum.Material.Wood,
 		})
 	end
 
-	-- Buoys in the water
-	for i = 1, 5 do
+	-- Bobbing buoys
+	for i = 1, 6 do
 		local buoy = part({
 			Name = "Buoy" .. i,
 			Parent = dock,
-			Size = Vector3.new(3, 5, 3),
-			CFrame = CFrame.new(-60 + i * 28, 2, 40 + (i % 2) * 12),
-			Color = if i % 2 == 0 then Color3.fromRGB(220, 70, 60) else Color3.fromRGB(240, 240, 240),
+			Size = Vector3.new(4, 7, 4),
+			CFrame = CFrame.new(-70 + i * 26, 3, 55 + (i % 2) * 14),
+			Color = if i % 2 == 0 then Color3.fromRGB(230, 55, 50) else Color3.fromRGB(245, 245, 245),
 			Material = Enum.Material.SmoothPlastic,
 			CanCollide = false,
 		})
 		task.spawn(function()
-			local t = i
+			local t = i * 1.7
 			while buoy.Parent do
-				t += 0.04
-				buoy.CFrame = CFrame.new(buoy.Position.X, 2 + math.sin(t) * 0.6, buoy.Position.Z)
-					* CFrame.Angles(0, t * 0.2, math.rad(math.sin(t) * 6))
+				t += 0.05
+				local pos = buoy.Position
+				buoy.CFrame = CFrame.new(pos.X, 3 + math.sin(t) * 0.8, pos.Z)
+					* CFrame.Angles(0, t * 0.25, math.rad(math.sin(t) * 8))
 				task.wait(0.05)
 			end
 		end)
 	end
-end
 
-local function buildTitleSign(folder: Folder)
-	local sign = part({
+	-- Title banner above dock
+	local titleAnchor = part({
 		Name = "TitleAnchor",
-		Parent = folder,
+		Parent = dock,
 		Size = Vector3.new(2, 2, 2),
-		CFrame = CFrame.new(0, 18, -55),
+		CFrame = CFrame.new(0, 22, -35),
 		Transparency = 1,
 		CanCollide = false,
 		CastShadow = false,
 	})
+	billboard(titleAnchor, "SURVIVE AT SEA\nBOARDING DOCK", Config.Theme.Foam, UDim2.fromOffset(520, 140), 0)
 
-	local gui = Instance.new("BillboardGui")
-	gui.Name = "GameTitle"
-	gui.Adornee = sign
-	gui.Size = UDim2.fromOffset(520, 140)
-	gui.StudsOffsetWorldSpace = Vector3.new(0, 0, 0)
-	gui.AlwaysOnTop = false
-	gui.MaxDistance = 250
-	gui.Parent = sign
-
-	local title = Instance.new("TextLabel")
-	title.BackgroundTransparency = 1
-	title.Size = UDim2.fromScale(1, 0.65)
-	title.Font = Enum.Font.GothamBlack
-	title.TextScaled = true
-	title.TextColor3 = Config.Theme.Foam
-	title.Text = Config.GameName
-	title.Parent = gui
-
-	local subtitle = Instance.new("TextLabel")
-	subtitle.BackgroundTransparency = 1
-	subtitle.Position = UDim2.fromScale(0, 0.65)
-	subtitle.Size = UDim2.fromScale(1, 0.35)
-	subtitle.Font = Config.UI.BodyFont
-	subtitle.TextScaled = true
-	subtitle.TextColor3 = Config.Theme.UIAccent
-	subtitle.Text = "BOARDING DOCK · CREW UP TO 10"
-	subtitle.Parent = gui
+	return tower
 end
 
 local function buildPortal(folder: Folder, index: number, position: Vector3): Model
@@ -328,20 +338,30 @@ local function buildPortal(folder: Folder, index: number, position: Vector3): Mo
 	local pad = part({
 		Name = "Pad",
 		Parent = model,
-		Size = Vector3.new(16, 1.2, 16),
+		Size = Vector3.new(18, 1.5, 18),
 		CFrame = CFrame.new(position),
-		Color = Color3.fromRGB(70, 55, 40),
+		Color = Color3.fromRGB(80, 58, 36),
 		Material = Enum.Material.WoodPlanks,
 	})
 
-	-- Arch legs
-	for _, offsetX in { -6, 6 } do
+	-- Neon ring so portals pop from spawn
+	part({
+		Name = "NeonRing",
+		Parent = model,
+		Size = Vector3.new(18.5, 0.6, 18.5),
+		CFrame = CFrame.new(position + Vector3.new(0, 0.9, 0)),
+		Color = Config.Theme.PortalGlow,
+		Material = Enum.Material.Neon,
+		CanCollide = false,
+	})
+
+	for _, offsetX in { -7, 7 } do
 		part({
 			Name = "ArchLeg",
 			Parent = model,
-			Size = Vector3.new(2, 16, 2),
-			CFrame = CFrame.new(position + Vector3.new(offsetX, 8.5, 0)),
-			Color = Config.Theme.Driftwood,
+			Size = Vector3.new(2.5, 18, 2.5),
+			CFrame = CFrame.new(position + Vector3.new(offsetX, 10, 0)),
+			Color = Color3.fromRGB(95, 65, 40),
 			Material = Enum.Material.Wood,
 		})
 	end
@@ -349,40 +369,39 @@ local function buildPortal(folder: Folder, index: number, position: Vector3): Mo
 	part({
 		Name = "ArchTop",
 		Parent = model,
-		Size = Vector3.new(16, 2, 2),
-		CFrame = CFrame.new(position + Vector3.new(0, 17, 0)),
-		Color = Config.Theme.Driftwood,
+		Size = Vector3.new(18, 2.5, 2.5),
+		CFrame = CFrame.new(position + Vector3.new(0, 20, 0)),
+		Color = Color3.fromRGB(95, 65, 40),
 		Material = Enum.Material.Wood,
 	})
 
 	local gate = part({
 		Name = "Gate",
 		Parent = model,
-		Size = Vector3.new(10, 14, 1.2),
-		CFrame = CFrame.new(position + Vector3.new(0, 8, 0)),
+		Size = Vector3.new(11, 15, 1.4),
+		CFrame = CFrame.new(position + Vector3.new(0, 9, 0)),
 		Color = Config.Theme.PortalGlow,
 		Material = Enum.Material.ForceField,
-		Transparency = 0.35,
+		Transparency = 0.25,
 		CanCollide = false,
 	})
 
 	local gateLight = Instance.new("PointLight")
 	gateLight.Color = Config.Theme.PortalGlow
-	gateLight.Brightness = 2
-	gateLight.Range = 24
+	gateLight.Brightness = 3
+	gateLight.Range = 28
 	gateLight.Parent = gate
 
-	-- Soft pulse for presence
 	task.spawn(function()
-		local info = TweenInfo.new(1.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
-		TweenService:Create(gate, info, { Transparency = 0.62 }):Play()
+		local info = TweenInfo.new(1.4, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
+		TweenService:Create(gate, info, { Transparency = 0.55 }):Play()
 	end)
 
 	local promptPart = part({
 		Name = "PromptAnchor",
 		Parent = model,
-		Size = Vector3.new(4, 4, 4),
-		CFrame = CFrame.new(position + Vector3.new(0, 3, 4)),
+		Size = Vector3.new(6, 6, 6),
+		CFrame = CFrame.new(position + Vector3.new(0, 3, 6)),
 		Transparency = 1,
 		CanCollide = false,
 		CastShadow = false,
@@ -391,27 +410,21 @@ local function buildPortal(folder: Folder, index: number, position: Vector3): Mo
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "BoardPrompt"
 	prompt.ObjectText = "Voyage Portal " .. index
-	prompt.ActionText = "Open Boarding"
-	prompt.HoldDuration = 0.35
-	prompt.MaxActivationDistance = 14
+	prompt.ActionText = "Create Crew"
+	prompt.HoldDuration = 0.25
+	prompt.MaxActivationDistance = 16
 	prompt.RequiresLineOfSight = false
 	prompt.GamepadKeyCode = Enum.KeyCode.ButtonX
 	prompt.KeyboardKeyCode = Enum.KeyCode.E
-	-- Works for touch, gamepad, keyboard, VR laser
 	prompt.Style = Enum.ProximityPromptStyle.Default
-	prompt.UIOffset = Vector2.new(0, -20)
 	prompt.Parent = promptPart
-
-	local attrs = Instance.new("Folder")
-	attrs.Name = "PortalData"
-	attrs.Parent = model
 
 	local indexValue = Instance.new("IntValue")
 	indexValue.Name = "PortalIndex"
 	indexValue.Value = index
 	indexValue.Parent = model
 
-	weldBillboard(pad, `PORTAL {index}\nEmpty berth`, Config.Theme.Foam)
+	billboard(pad, `PORTAL {index}\nWalk up · press E`, Config.Theme.Foam, UDim2.fromOffset(240, 80), 10)
 
 	model.PrimaryPart = pad
 	return model
@@ -425,73 +438,58 @@ local function buildVoyageStaging(folder: Folder)
 	part({
 		Name = "Deck",
 		Parent = staging,
-		Size = Vector3.new(60, 2, 40),
-		CFrame = CFrame.new(0, 3, 220),
-		Color = Color3.fromRGB(80, 60, 40),
+		Size = Vector3.new(70, 3, 46),
+		CFrame = CFrame.new(0, 2, 220),
+		Color = Color3.fromRGB(90, 65, 40),
 		Material = Enum.Material.WoodPlanks,
 	})
 
 	part({
-		Name = "ShipHullHint",
+		Name = "Hull",
 		Parent = staging,
-		Size = Vector3.new(50, 10, 6),
-		CFrame = CFrame.new(0, 6, 238),
-		Color = Color3.fromRGB(55, 40, 28),
+		Size = Vector3.new(56, 12, 8),
+		CFrame = CFrame.new(0, 7, 240),
+		Color = Color3.fromRGB(60, 42, 28),
 		Material = Enum.Material.Wood,
 	})
 
-	local spawn = Instance.new("SpawnLocation")
-	spawn.Name = "VoyageSpawn"
-	spawn.Size = Vector3.new(10, 1, 10)
-	spawn.Position = Vector3.new(0, 5, 220)
-	spawn.Anchored = true
-	spawn.Transparency = 1
-	spawn.CanCollide = false
-	spawn.Duration = 0
-	spawn.Neutral = true
-	spawn.Enabled = false
-	spawn.Parent = staging
-
 	local sign = part({
-		Name = "VoyageSignAnchor",
+		Name = "VoyageSign",
 		Parent = staging,
 		Size = Vector3.new(1, 1, 1),
-		CFrame = CFrame.new(0, 14, 220),
+		CFrame = CFrame.new(0, 16, 220),
 		Transparency = 1,
 		CanCollide = false,
 	})
-	weldBillboard(sign, "VOYAGE UNDERWAY\n(No save — session only)", Config.Theme.Lantern, UDim2.fromOffset(360, 90))
+	billboard(sign, "VOYAGE UNDERWAY\n(No save — session only)", Config.Theme.Lantern, UDim2.fromOffset(400, 100), 0)
 end
 
-local function setupLobbySpawn(folder: Folder)
+local function setupSpawn(folder: Folder)
 	local spawn = Instance.new("SpawnLocation")
 	spawn.Name = "LobbySpawn"
-	spawn.Size = Vector3.new(12, 1, 12)
-	spawn.Position = Vector3.new(0, 5, -20)
+	spawn.Size = Vector3.new(14, 1, 14)
+	spawn.CFrame = CFrame.new(0, 4.2, 0)
 	spawn.Anchored = true
 	spawn.Duration = 0
 	spawn.Neutral = true
-	spawn.Transparency = 0.4
+	spawn.Enabled = true
+	spawn.Transparency = 0.3
 	spawn.BrickColor = BrickColor.new("Cyan")
 	spawn.Material = Enum.Material.Neon
 	spawn.Parent = folder
 
-	-- Disable any other default spawns
-	for _, child in Workspace:GetDescendants() do
-		if child:IsA("SpawnLocation") and child ~= spawn and child.Name ~= "VoyageSpawn" then
-			child.Enabled = false
-		end
-	end
+	-- Face the portals (positive Z)
+	spawn.CFrame = CFrame.new(0, 4.2, 0) * CFrame.Angles(0, 0, 0)
 end
 
 function LobbyBuilder.build(): Folder
-	clearDefaultBaseplate()
-	styleLighting()
-
 	local existing = Workspace:FindFirstChild("SurviveAtSeaLobby")
 	if existing then
 		existing:Destroy()
 	end
+
+	clearWorkspaceClutter()
+	safeLighting()
 
 	local root = Instance.new("Folder")
 	root.Name = "SurviveAtSeaLobby"
@@ -499,24 +497,34 @@ function LobbyBuilder.build(): Folder
 
 	buildOcean(root)
 	buildDock(root)
-	buildTitleSign(root)
 	buildVoyageStaging(root)
-	setupLobbySpawn(root)
+	setupSpawn(root)
 
 	local portalsFolder = Instance.new("Folder")
 	portalsFolder.Name = "Portals"
 	portalsFolder.Parent = root
 
-	local portals = {}
+	-- Portals close enough to see from spawn (look forward)
 	local startX = -((Config.PortalCount - 1) * Config.PortalSpacing) / 2
 	for i = 1, Config.PortalCount do
-		local pos = Vector3.new(startX + (i - 1) * Config.PortalSpacing, 4, 95)
-		local model = buildPortal(portalsFolder, i, pos)
-		portals[i] = model
+		local pos = Vector3.new(startX + (i - 1) * Config.PortalSpacing, 3.5, 70)
+		buildPortal(portalsFolder, i, pos)
 	end
 
-	Players.CharacterAutoLoads = true
+	-- Direction chevrons toward portals
+	for z = 20, 55, 12 do
+		part({
+			Name = "Arrow",
+			Parent = root,
+			Size = Vector3.new(6, 0.5, 8),
+			CFrame = CFrame.new(0, 4, z),
+			Color = Config.Theme.PortalGlow,
+			Material = Enum.Material.Neon,
+			CanCollide = false,
+		})
+	end
 
+	print("[SurviveAtSea] Lobby geometry built — dock +", Config.PortalCount, "portals")
 	return root
 end
 
@@ -525,12 +533,11 @@ function LobbyBuilder.updatePortalSign(portalModel: Model, title: string, subtit
 	if not (pad and pad:IsA("BasePart")) then
 		return
 	end
-
-	local billboard = pad:FindFirstChild("PortalSign")
-	if billboard then
-		billboard:Destroy()
+	local old = pad:FindFirstChild("LobbyBillboard")
+	if old then
+		old:Destroy()
 	end
-	weldBillboard(pad, `{title}\n{subtitle}`, color or Config.Theme.Foam)
+	billboard(pad, `{title}\n{subtitle}`, color or Config.Theme.Foam, UDim2.fromOffset(260, 90), 10)
 end
 
 function LobbyBuilder.getPortalModel(index: number): Model?
@@ -554,7 +561,18 @@ function LobbyBuilder.getVoyageSpawnCFrame(): CFrame
 end
 
 function LobbyBuilder.getLobbySpawnCFrame(): CFrame
-	return CFrame.new(0, 6, -20)
+	return CFrame.new(0, 6, 0)
+end
+
+function LobbyBuilder.teleportPlayerToLobby(player: Player)
+	local character = player.Character
+	if not character then
+		return
+	end
+	local root = character:FindFirstChild("HumanoidRootPart")
+	if root and root:IsA("BasePart") then
+		root.CFrame = LobbyBuilder.getLobbySpawnCFrame()
+	end
 end
 
 return LobbyBuilder

@@ -8,13 +8,19 @@ local Config = require(Shared:WaitForChild("Config"))
 local Remotes = require(Shared:WaitForChild("Remotes"))
 local PartyCode = require(Shared:WaitForChild("PartyCode"))
 
-local LobbyBuilder = require(script.Lobby.LobbyBuilder)
-local PartyService = require(script.Lobby.PartyService)
-local PortalService = require(script.Lobby.PortalService)
+local LobbyBuilder = require(script:WaitForChild("Lobby"):WaitForChild("LobbyBuilder"))
+local PartyService = require(script:WaitForChild("Lobby"):WaitForChild("PartyService"))
+local PortalService = require(script:WaitForChild("Lobby"):WaitForChild("PortalService"))
 
 print(`[SurviveAtSea] Booting {Config.GameName} lobby…`)
 
-LobbyBuilder.build()
+local okBuild, buildErr = pcall(function()
+	LobbyBuilder.build()
+end)
+if not okBuild then
+	warn("[SurviveAtSea] Lobby build FAILED:", buildErr)
+	error(buildErr)
+end
 
 local remoteFolder = Remotes.createServerRemotes()
 local CreateParty = remoteFolder:WaitForChild("CreateParty") :: RemoteEvent
@@ -26,7 +32,12 @@ local PortalsUpdated = remoteFolder:WaitForChild("PortalsUpdated") :: RemoteEven
 local Toast = remoteFolder:WaitForChild("Toast") :: RemoteEvent
 local GetLobbyState = remoteFolder:WaitForChild("GetLobbyState") :: RemoteFunction
 
-PortalService.start(Toast, PartyUpdated, PortalsUpdated)
+local okPortals, portalErr = pcall(function()
+	PortalService.start(Toast, PartyUpdated, PortalsUpdated)
+end)
+if not okPortals then
+	warn("[SurviveAtSea] PortalService failed:", portalErr)
+end
 
 GetLobbyState.OnServerInvoke = function(player: Player)
 	return PartyService.getLobbyState(player)
@@ -73,18 +84,35 @@ StartLaunch.OnServerEvent:Connect(function(player: Player)
 	end
 end)
 
-Players.PlayerRemoving:Connect(function(player)
-	PartyService.onPlayerRemoving(player)
-end)
+local function onPlayerReady(player: Player)
+	local function seatOnDock(character: Model)
+		task.defer(function()
+			LobbyBuilder.teleportPlayerToLobby(player)
+		end)
+	end
 
-Players.PlayerAdded:Connect(function(player)
+	if player.Character then
+		seatOnDock(player.Character)
+	end
+	player.CharacterAdded:Connect(seatOnDock)
+
 	task.defer(function()
 		PortalsUpdated:FireClient(player, PartyService.getPortalInfos())
 		local snapshot = PartyService.getSnapshotForPlayer(player)
 		if snapshot then
 			PartyUpdated:FireClient(player, snapshot)
 		end
+		Toast:FireClient(player, "Walk forward to the glowing portals to board!", "info")
 	end)
+end
+
+Players.PlayerRemoving:Connect(function(player)
+	PartyService.onPlayerRemoving(player)
 end)
+
+for _, player in Players:GetPlayers() do
+	onPlayerReady(player)
+end
+Players.PlayerAdded:Connect(onPlayerReady)
 
 print(`[SurviveAtSea] Lobby ready — portals online, max crew {Config.MaxPartySize}, no session saves.`)
