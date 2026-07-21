@@ -162,7 +162,7 @@ local function refreshPartyPanel()
 	end
 
 	partyPanel.Visible = true
-	title.Text = `CREW · Portal {party.portalIndex}`
+	title.Text = `CREW · Berth {party.portalIndex}`
 	codeLabel.Text = `CODE  {party.code}  ·  {party.privacy}`
 
 	local lines = {}
@@ -334,7 +334,7 @@ local function buildGui()
 	createPanel.Visible = false
 	createPanel.Parent = root
 	corner(createPanel, 18)
-	stroke(createPanel, Config.Theme.PortalGlow, 2)
+	stroke(createPanel, Config.Theme.SeaTeal, 2)
 
 	textLabel({
 		Name = "CreateTitle",
@@ -623,7 +623,7 @@ end
 
 function LobbyUI.openCreateForPortal(portalIndex: number)
 	openCreate(portalIndex)
-	showToast(`Portal {portalIndex} — pick crew size and cast your berth.`, "info")
+	showToast(`Berth {portalIndex} — pick crew size and cast your berth.`, "info")
 end
 
 function LobbyUI.start()
@@ -644,7 +644,7 @@ function LobbyUI.start()
 		end
 	end)
 
-	showToast("Walk to a portal to board with friends.", "info")
+	showToast("Walk to a berth on the pier · press E to board.", "info")
 	print(`[SurviveAtSea] Lobby UI ready ({state.device})`)
 end
 

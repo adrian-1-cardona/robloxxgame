@@ -19,16 +19,16 @@ local function refreshPortalVisuals(portals)
 		local prompt = promptAnchor and promptAnchor:FindFirstChild("BoardPrompt")
 
 		if info.status == "Empty" then
-			LobbyBuilder.updatePortalSign(model, `PORTAL {info.portalIndex}`, "Empty berth — create a crew", Config.Theme.Foam)
+			LobbyBuilder.updatePortalSign(model, `BERTH {info.portalIndex}`, "Empty — create a crew", Config.Theme.Foam)
 			if prompt and prompt:IsA("ProximityPrompt") then
 				prompt.ActionText = "Create Crew"
-				prompt.ObjectText = `Voyage Portal {info.portalIndex}`
+				prompt.ObjectText = `Boarding Berth {info.portalIndex}`
 				prompt.Enabled = true
 			end
 		elseif info.status == "Launching" then
 			LobbyBuilder.updatePortalSign(
 				model,
-				`PORTAL {info.portalIndex}`,
+				`BERTH {info.portalIndex}`,
 				`Casting off — {info.memberCount}/{info.maxPlayers}`,
 				Config.Theme.Lantern
 			)
@@ -38,7 +38,7 @@ local function refreshPortalVisuals(portals)
 		elseif info.status == "Full" then
 			LobbyBuilder.updatePortalSign(
 				model,
-				`PORTAL {info.portalIndex}`,
+				`BERTH {info.portalIndex}`,
 				`Full crew · {info.hostName}`,
 				Config.Theme.DangerRed
 			)
@@ -50,13 +50,13 @@ local function refreshPortalVisuals(portals)
 			local codeLine = if info.code then `Code {info.code}` else "Private berth"
 			LobbyBuilder.updatePortalSign(
 				model,
-				`PORTAL {info.portalIndex}`,
+				`BERTH {info.portalIndex}`,
 				`{info.hostName} · {info.memberCount}/{info.maxPlayers}\n{codeLine}`,
 				Config.Theme.UIAccent
 			)
 			if prompt and prompt:IsA("ProximityPrompt") then
 				prompt.ActionText = if info.code then "Join Public Crew" else "Private — use code"
-				prompt.ObjectText = `Voyage Portal {info.portalIndex}`
+				prompt.ObjectText = `Boarding Berth {info.portalIndex}`
 				prompt.Enabled = info.code ~= nil
 			end
 		end

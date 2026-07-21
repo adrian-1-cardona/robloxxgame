@@ -1,12 +1,21 @@
--- Builds the Survive at Sea boarding dock in Workspace.
+-- Builds and polishes the Survive at Sea boarding dock.
 -- Safe to call from server (replicates) or client (local fallback).
+-- Theme: sunny pier with palm trees & boats. No neon portal glows.
+-- Players stay on the initial pier (invisible barriers).
 
-local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
 
 local Config = require(script.Parent:WaitForChild("Config"))
 
 local LobbyWorld = {}
+
+-- Pier playable bounds (matches PierDeck at CFrame 0,2,20 size 80×140)
+local PIER = {
+	Center = Vector3.new(0, 2, 20),
+	HalfX = 38,
+	HalfZ = 68,
+	DeckY = 3.5,
+}
 
 local function part(props: { [string]: any }): Part
 	local p = Instance.new("Part")
@@ -26,6 +35,9 @@ local function part(props: { [string]: any }): Part
 	if props.Reflectance ~= nil then
 		p.Reflectance = props.Reflectance
 	end
+	if props.Shape then
+		p.Shape = props.Shape
+	end
 	p.Parent = props.Parent
 	return p
 end
@@ -41,7 +53,7 @@ local function billboard(adornee: BasePart, text: string, color: Color3, size: U
 	gui.Parent = adornee
 
 	local label = Instance.new("TextLabel")
-	label.BackgroundTransparency = 0.15
+	label.BackgroundTransparency = 0.18
 	label.BackgroundColor3 = Config.Theme.UIPanel
 	label.BorderSizePixel = 0
 	label.Size = UDim2.fromScale(1, 1)
@@ -52,7 +64,7 @@ local function billboard(adornee: BasePart, text: string, color: Color3, size: U
 	label.Parent = gui
 
 	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 12)
+	corner.CornerRadius = UDim.new(0, 10)
 	corner.Parent = label
 
 	local pad = Instance.new("UIPadding")
@@ -63,9 +75,191 @@ local function billboard(adornee: BasePart, text: string, color: Color3, size: U
 	pad.Parent = label
 
 	local stroke = Instance.new("UIStroke")
-	stroke.Color = Config.Theme.UIAccent
+	stroke.Color = Config.Theme.Rope
 	stroke.Thickness = 2
 	stroke.Parent = label
+end
+
+local function buildPalm(parent: Instance, position: Vector3, scale: number?)
+	local s = scale or 1
+	local model = Instance.new("Model")
+	model.Name = "Palm"
+	model.Parent = parent
+
+	part({
+		Name = "Trunk",
+		Parent = model,
+		Size = Vector3.new(1.6 * s, 14 * s, 1.6 * s),
+		CFrame = CFrame.new(position + Vector3.new(0, 7 * s, 0)) * CFrame.Angles(0, 0, math.rad(6)),
+		Color = Color3.fromRGB(110, 78, 42),
+		Material = Enum.Material.Wood,
+	})
+
+	-- Fronds fan out from the crown (no glow — just leafy green)
+	local crown = position + Vector3.new(0.6 * s, 14 * s, 0)
+	for i = 0, 5 do
+		local yaw = math.rad(i * 60)
+		part({
+			Name = "Frond" .. i,
+			Parent = model,
+			Size = Vector3.new(1.2 * s, 0.4 * s, 9 * s),
+			CFrame = CFrame.new(crown)
+				* CFrame.Angles(0, yaw, 0)
+				* CFrame.Angles(math.rad(-28), 0, 0)
+				* CFrame.new(0, 0, -3.5 * s),
+			Color = if i % 2 == 0 then Color3.fromRGB(46, 120, 58) else Color3.fromRGB(34, 100, 48),
+			Material = Enum.Material.Grass,
+			CanCollide = false,
+		})
+	end
+
+	part({
+		Name = "Coconuts",
+		Parent = model,
+		Size = Vector3.new(2.2 * s, 1.6 * s, 2.2 * s),
+		CFrame = CFrame.new(crown + Vector3.new(0, -0.8 * s, 0)),
+		Color = Color3.fromRGB(90, 60, 30),
+		Material = Enum.Material.Wood,
+		CanCollide = false,
+	})
+
+	return model
+end
+
+local function buildBoat(parent: Instance, position: Vector3, yawDegrees: number, hullColor: Color3?)
+	local model = Instance.new("Model")
+	model.Name = "Boat"
+	model.Parent = parent
+
+	local yaw = math.rad(yawDegrees)
+	local hull = hullColor or Color3.fromRGB(150, 95, 55)
+
+	-- Local offsets from hull center (reapplied each bob frame)
+	local pieces: { { name: string, size: Vector3, offset: CFrame, color: Color3, material: Enum.Material } } = {
+		{
+			name = "Hull",
+			size = Vector3.new(8, 3, 18),
+			offset = CFrame.new(),
+			color = hull,
+			material = Enum.Material.Wood,
+		},
+		{
+			name = "Bow",
+			size = Vector3.new(6, 2.5, 6),
+			offset = CFrame.new(0, 0.2, -10),
+			color = hull,
+			material = Enum.Material.Wood,
+		},
+		{
+			name = "Deck",
+			size = Vector3.new(6.5, 0.6, 14),
+			offset = CFrame.new(0, 1.6, -1),
+			color = Color3.fromRGB(170, 125, 75),
+			material = Enum.Material.WoodPlanks,
+		},
+		{
+			name = "Mast",
+			size = Vector3.new(0.8, 16, 0.8),
+			offset = CFrame.new(0, 9, 1),
+			color = Color3.fromRGB(95, 68, 40),
+			material = Enum.Material.Wood,
+		},
+		{
+			name = "Sail",
+			size = Vector3.new(0.4, 10, 8),
+			offset = CFrame.new(0, 9, -1.5),
+			color = Color3.fromRGB(235, 228, 210),
+			material = Enum.Material.Fabric,
+		},
+		{
+			name = "Cabin",
+			size = Vector3.new(5, 3.5, 5),
+			offset = CFrame.new(0, 3.5, 4),
+			color = Color3.fromRGB(120, 80, 48),
+			material = Enum.Material.Wood,
+		},
+	}
+
+	local built: { { part: BasePart, offset: CFrame } } = {}
+	for _, piece in pieces do
+		local p = part({
+			Name = piece.name,
+			Parent = model,
+			Size = piece.size,
+			CFrame = CFrame.new(position) * CFrame.Angles(0, yaw, 0) * piece.offset,
+			Color = piece.color,
+			Material = piece.material,
+			CanCollide = false,
+		})
+		table.insert(built, { part = p, offset = piece.offset })
+	end
+
+	task.spawn(function()
+		local t = yawDegrees * 0.1
+		while model.Parent do
+			t += 0.04
+			local bob = math.sin(t) * 0.55
+			local roll = math.rad(math.sin(t * 0.7) * 3)
+			local boatCf = CFrame.new(position + Vector3.new(0, bob, 0)) * CFrame.Angles(roll, yaw, 0)
+			for _, item in built do
+				if item.part.Parent then
+					item.part.CFrame = boatCf * item.offset
+				end
+			end
+			task.wait(0.06)
+		end
+	end)
+
+	return model
+end
+
+local function buildBarriers(root: Folder)
+	local existing = root:FindFirstChild("Barriers")
+	if existing then
+		existing:Destroy()
+	end
+
+	local folder = Instance.new("Folder")
+	folder.Name = "Barriers"
+	folder.Parent = root
+
+	-- Invisible walls keep sailors on the pier (easy lobby — no swimming off)
+	local wallH = 18
+	local wallY = PIER.DeckY + wallH / 2
+	local cx, cz = PIER.Center.X, PIER.Center.Z
+	local hx, hz = PIER.HalfX, PIER.HalfZ
+
+	local walls = {
+		{ Name = "WallWest", Size = Vector3.new(2, wallH, hz * 2 + 2), Pos = Vector3.new(cx - hx, wallY, cz) },
+		{ Name = "WallEast", Size = Vector3.new(2, wallH, hz * 2 + 2), Pos = Vector3.new(cx + hx, wallY, cz) },
+		{ Name = "WallSouth", Size = Vector3.new(hx * 2, wallH, 2), Pos = Vector3.new(cx, wallY, cz - hz) },
+		{ Name = "WallNorth", Size = Vector3.new(hx * 2, wallH, 2), Pos = Vector3.new(cx, wallY, cz + hz) },
+	}
+
+	for _, w in walls do
+		part({
+			Name = w.Name,
+			Parent = folder,
+			Size = w.Size,
+			CFrame = CFrame.new(w.Pos),
+			Transparency = 1,
+			CanCollide = true,
+			CastShadow = false,
+			Material = Enum.Material.SmoothPlastic,
+			Color = Color3.fromRGB(255, 255, 255),
+		})
+	end
+
+	-- Soft floor lip so players don't slip under rails
+	part({
+		Name = "DeckLip",
+		Parent = folder,
+		Size = Vector3.new(hx * 2 - 2, 1, hz * 2 - 2),
+		CFrame = CFrame.new(cx, 1.2, cz),
+		Transparency = 1,
+		CanCollide = true,
+		CastShadow = false,
+	})
 end
 
 local function buildPortal(folder: Instance, index: number, position: Vector3): Model
@@ -73,32 +267,49 @@ local function buildPortal(folder: Instance, index: number, position: Vector3): 
 	model.Name = "Portal_" .. index
 	model.Parent = folder
 
+	-- Boarding berth pad (wood only — no neon rings)
 	local pad = part({
 		Name = "Pad",
 		Parent = model,
-		Size = Vector3.new(18, 1.5, 18),
+		Size = Vector3.new(16, 1.4, 16),
 		CFrame = CFrame.new(position),
-		Color = Color3.fromRGB(80, 58, 36),
+		Color = Color3.fromRGB(98, 68, 42),
 		Material = Enum.Material.WoodPlanks,
 	})
 
+	-- Painted berth rim (readable, not glowing)
 	part({
-		Name = "NeonRing",
+		Name = "BerthRim",
 		Parent = model,
-		Size = Vector3.new(18.5, 0.6, 18.5),
-		CFrame = CFrame.new(position + Vector3.new(0, 0.9, 0)),
-		Color = Config.Theme.PortalGlow,
-		Material = Enum.Material.Neon,
+		Size = Vector3.new(16.6, 0.45, 16.6),
+		CFrame = CFrame.new(position + Vector3.new(0, 0.85, 0)),
+		Color = Color3.fromRGB(42, 92, 88),
+		Material = Enum.Material.SmoothPlastic,
 		CanCollide = false,
 	})
 
-	for _, offsetX in { -7, 7 } do
+	-- Rope posts at corners
+	for _, ox in { -6.5, 6.5 } do
+		for _, oz in { -6.5, 6.5 } do
+			part({
+				Name = "RopePost",
+				Parent = model,
+				Size = Vector3.new(1.2, 4, 1.2),
+				CFrame = CFrame.new(position + Vector3.new(ox, 2.5, oz)),
+				Color = Color3.fromRGB(85, 58, 34),
+				Material = Enum.Material.Wood,
+			})
+		end
+	end
+
+	-- Wooden arch (gangway frame)
+	for _, offsetX in { -6.5, 6.5 } do
 		part({
 			Name = "ArchLeg",
 			Parent = model,
-			Size = Vector3.new(2.5, 18, 2.5),
-			CFrame = CFrame.new(position + Vector3.new(offsetX, 10, 0)),
-			Color = Color3.fromRGB(95, 65, 40),
+			Size = Vector3.new(2.2, 16, 2.2),
+			CFrame = CFrame.new(position + Vector3.new(offsetX, 9, -1)),
+			Color = Color3.fromRGB(88, 60, 36),
 			Material = Enum.Material.Wood,
 		})
 	end
@@ -106,39 +317,52 @@ local function buildPortal(folder: Instance, index: number, position: Vector3): 
 	part({
 		Name = "ArchTop",
 		Parent = model,
-		Size = Vector3.new(18, 2.5, 2.5),
-		CFrame = CFrame.new(position + Vector3.new(0, 20, 0)),
-		Color = Color3.fromRGB(95, 65, 40),
+		Size = Vector3.new(15.5, 2.2, 2.2),
+		CFrame = CFrame.new(position + Vector3.new(0, 17.5, -1)),
+		Color = Color3.fromRGB(88, 60, 36),
 		Material = Enum.Material.Wood,
 	})
 
+	-- Canvas sail gate (fabric, not ForceField / neon)
 	local gate = part({
 		Name = "Gate",
 		Parent = model,
-		Size = Vector3.new(11, 15, 1.4),
-		CFrame = CFrame.new(position + Vector3.new(0, 9, 0)),
-		Color = Config.Theme.PortalGlow,
-		Material = Enum.Material.ForceField,
-		Transparency = 0.25,
+		Size = Vector3.new(10, 13, 0.6),
+		CFrame = CFrame.new(position + Vector3.new(0, 9, -1)),
+		Color = Color3.fromRGB(220, 210, 185),
+		Material = Enum.Material.Fabric,
+		Transparency = 0.08,
 		CanCollide = false,
 	})
 
-	local gateLight = Instance.new("PointLight")
-	gateLight.Color = Config.Theme.PortalGlow
-	gateLight.Brightness = 3
-	gateLight.Range = 28
-	gateLight.Parent = gate
-
+	-- Soft sway on the canvas (motion, not glow)
 	task.spawn(function()
-		local info = TweenInfo.new(1.4, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
-		TweenService:Create(gate, info, { Transparency = 0.55 }):Play()
+		local base = gate.CFrame
+		local t = index * 1.3
+		while gate.Parent do
+			t += 0.05
+			gate.CFrame = base * CFrame.Angles(0, math.rad(math.sin(t) * 2.5), 0)
+			task.wait(0.05)
+		end
 	end)
+
+	-- Number plank hanging from the arch
+	local numberPlank = part({
+		Name = "NumberPlank",
+		Parent = model,
+		Size = Vector3.new(5, 3, 0.5),
+		CFrame = CFrame.new(position + Vector3.new(0, 15.2, 0.4)),
+		Color = Color3.fromRGB(55, 110, 105),
+		Material = Enum.Material.Wood,
+		CanCollide = false,
+	})
+	billboard(numberPlank, tostring(index), Config.Theme.Foam, UDim2.fromOffset(70, 70), 0)
 
 	local promptPart = part({
 		Name = "PromptAnchor",
 		Parent = model,
 		Size = Vector3.new(6, 6, 6),
-		CFrame = CFrame.new(position + Vector3.new(0, 3, 6)),
+		CFrame = CFrame.new(position + Vector3.new(0, 3, 5)),
 		Transparency = 1,
 		CanCollide = false,
 		CastShadow = false,
@@ -146,10 +370,10 @@ local function buildPortal(folder: Instance, index: number, position: Vector3): 
 
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "BoardPrompt"
-	prompt.ObjectText = "Voyage Portal " .. index
+	prompt.ObjectText = "Boarding Berth " .. index
 	prompt.ActionText = "Create Crew"
-	prompt.HoldDuration = 0.25
-	prompt.MaxActivationDistance = 16
+	prompt.HoldDuration = 0.2
+	prompt.MaxActivationDistance = 14
 	prompt.RequiresLineOfSight = false
 	prompt.GamepadKeyCode = Enum.KeyCode.ButtonX
 	prompt.KeyboardKeyCode = Enum.KeyCode.E
@@ -160,62 +384,119 @@ local function buildPortal(folder: Instance, index: number, position: Vector3): 
 	indexValue.Value = index
 	indexValue.Parent = model
 
-	billboard(pad, `PORTAL {index}\nWalk up · press E`, Config.Theme.Foam, UDim2.fromOffset(260, 90), 10)
+	billboard(pad, `BERTH {index}\nWalk up · press E`, Config.Theme.Foam, UDim2.fromOffset(240, 80), 9)
 	model.PrimaryPart = pad
 	return model
 end
 
-function LobbyWorld.getLobbySpawnCFrame(): CFrame
-	return CFrame.new(0, 6, 0)
-end
-
-function LobbyWorld.ensure(): Folder
-	local existing = Workspace:FindFirstChild("SurviveAtSeaLobby")
-	if existing and existing:IsA("Folder") then
-		return existing
-	end
-
-	-- Hide leftover starter pads so the pier is obvious
-	for _, child in Workspace:GetChildren() do
-		if child:IsA("SpawnLocation") or (child:IsA("BasePart") and child.Name ~= "Terrain") then
-			if child.Name ~= "SurviveAtSeaLobby" then
-				child.Transparency = 1
-				if child:IsA("BasePart") then
-					child.CanCollide = false
-				end
-				if child:IsA("SpawnLocation") then
-					child.Enabled = false
+local function stripGlowParts(root: Folder)
+	for _, desc in root:GetDescendants() do
+		if desc:IsA("BasePart") then
+			local name = desc.Name
+			if name == "NeonRing" or name == "Arrow" or name:find("Neon") then
+				desc:Destroy()
+				continue
+			end
+			-- Soften leftover neon materials on lobby props (keep lighthouse lamp lit via PointLight)
+			if desc.Material == Enum.Material.Neon and name ~= "LighthouseLamp" then
+				desc.Material = Enum.Material.SmoothPlastic
+			end
+			if name == "Gate" then
+				-- Restyle old ForceField gates if still present
+				desc.Material = Enum.Material.Fabric
+				desc.Color = Color3.fromRGB(220, 210, 185)
+				desc.Transparency = 0.08
+				for _, child in desc:GetChildren() do
+					if child:IsA("PointLight") then
+						child:Destroy()
+					end
 				end
 			end
 		end
 	end
+end
 
-	local root = Instance.new("Folder")
-	root.Name = "SurviveAtSeaLobby"
-	root.Parent = Workspace
+local function buildScenery(root: Folder)
+	local existing = root:FindFirstChild("Scenery")
+	if existing then
+		existing:Destroy()
+	end
 
-	part({
-		Name = "OceanDeep",
-		Parent = root,
-		Size = Vector3.new(1200, 30, 1200),
-		CFrame = CFrame.new(0, -16, 0),
-		Color = Color3.fromRGB(6, 40, 70),
-		Material = Enum.Material.SmoothPlastic,
-		Transparency = 0.1,
-	})
+	local scenery = Instance.new("Folder")
+	scenery.Name = "Scenery"
+	scenery.Parent = root
 
-	part({
-		Name = "OceanSurface",
-		Parent = root,
-		Size = Vector3.new(1200, 2, 1200),
-		CFrame = CFrame.new(0, 0, 0),
-		Color = Color3.fromRGB(20, 120, 150),
-		Material = Enum.Material.Glass,
-		Transparency = 0.45,
-		Reflectance = 0.15,
-		CanCollide = false,
-	})
+	-- Palms on the pier corners (inside barriers — decorative, walkable around)
+	local palmSpots = {
+		{ Vector3.new(-28, PIER.DeckY, -28), 1.1 },
+		{ Vector3.new(28, PIER.DeckY, -28), 1.0 },
+		{ Vector3.new(-30, PIER.DeckY, 55), 0.95 },
+		{ Vector3.new(30, PIER.DeckY, 55), 1.05 },
+		{ Vector3.new(-22, PIER.DeckY, 10), 0.85 },
+		{ Vector3.new(24, PIER.DeckY, 18), 0.9 },
+	}
+	for _, spot in palmSpots do
+		buildPalm(scenery, spot[1] :: Vector3, spot[2] :: number)
+	end
 
+	-- Boats moored beside the pier (outside barriers — look, don't board)
+	local boats = {
+		{ Vector3.new(-52, 1.5, 10), 20, Color3.fromRGB(160, 90, 50) },
+		{ Vector3.new(-55, 1.2, 45), -10, Color3.fromRGB(70, 95, 120) },
+		{ Vector3.new(52, 1.4, 5), -160, Color3.fromRGB(145, 75, 55) },
+		{ Vector3.new(54, 1.3, 50), 170, Color3.fromRGB(180, 140, 70) },
+		{ Vector3.new(-48, 1.1, 75), 5, Color3.fromRGB(95, 70, 45) },
+		{ Vector3.new(50, 1.2, 78), -175, Color3.fromRGB(55, 85, 100) },
+	}
+	for _, b in boats do
+		buildBoat(scenery, b[1] :: Vector3, b[2] :: number, b[3] :: Color3)
+	end
+
+	-- Small sand islets with extra palms (atmosphere beyond the pier)
+	for i, pos in {
+		Vector3.new(-85, -0.5, 0),
+		Vector3.new(90, -0.5, 30),
+		Vector3.new(-70, -0.5, -40),
+	} do
+		part({
+			Name = "Islet" .. i,
+			Parent = scenery,
+			Size = Vector3.new(22, 4, 16),
+			CFrame = CFrame.new(pos),
+			Color = Color3.fromRGB(210, 185, 130),
+			Material = Enum.Material.Sand,
+			CanCollide = false,
+		})
+		buildPalm(scenery, pos + Vector3.new(0, 2, 0), 1.2)
+		buildPalm(scenery, pos + Vector3.new(5, 2, 3), 0.8)
+	end
+end
+
+local function buildGuideMarks(root: Folder)
+	-- Wooden chevrons on the deck pointing to berths (no neon)
+	for z = 18, 52, 14 do
+		part({
+			Name = "GuidePlank",
+			Parent = root,
+			Size = Vector3.new(5, 0.35, 6),
+			CFrame = CFrame.new(0, 4.05, z),
+			Color = Color3.fromRGB(55, 110, 100),
+			Material = Enum.Material.Wood,
+			CanCollide = false,
+		})
+		part({
+			Name = "GuideTip",
+			Parent = root,
+			Size = Vector3.new(3.5, 0.35, 3.5),
+			CFrame = CFrame.new(0, 4.1, z + 4) * CFrame.Angles(0, math.rad(45), 0),
+			Color = Color3.fromRGB(210, 175, 90),
+			Material = Enum.Material.Wood,
+			CanCollide = false,
+		})
+	end
+end
+
+local function buildDock(root: Folder)
 	local dock = Instance.new("Folder")
 	dock.Name = "Dock"
 	dock.Parent = root
@@ -284,48 +565,241 @@ function LobbyWorld.ensure(): Folder
 		Size = Vector3.new(10, 8, 10),
 		CFrame = CFrame.new(-55, 52, -20),
 		Color = Config.Theme.Lantern,
-		Material = Enum.Material.Neon,
+		Material = Enum.Material.SmoothPlastic,
 		CanCollide = false,
 	})
 	local light = Instance.new("PointLight")
-	light.Brightness = 4
-	light.Range = 90
+	light.Brightness = 2.5
+	light.Range = 70
 	light.Color = Config.Theme.Lantern
 	light.Parent = lamp
 
-	for i = 1, 8 do
+	for i = 1, 6 do
 		part({
 			Name = "Crate" .. i,
 			Parent = dock,
-			Size = Vector3.new(5, 5, 5),
-			CFrame = CFrame.new(-22 + i * 5, 6.5, -30 + (i % 3) * 5),
+			Size = Vector3.new(4.5, 4.5, 4.5),
+			CFrame = CFrame.new(-20 + i * 5.5, 6.2, -32 + (i % 3) * 4) * CFrame.Angles(0, math.rad(i * 15), 0),
 			Color = Color3.fromRGB(130, 90, 50),
 			Material = Enum.Material.Wood,
 		})
 	end
 
-	for i = 1, 6 do
+	-- Barrel stacks for boaty flavor (cylinder default axis is +X, so tip upright)
+	for i = 1, 4 do
 		part({
+			Name = "Barrel" .. i,
+			Parent = dock,
+			Size = Vector3.new(4, 3.2, 3.2),
+			CFrame = CFrame.new(18 + (i % 2) * 4, 5.8, -25 + i * 4) * CFrame.Angles(0, 0, math.rad(90)),
+			Color = Color3.fromRGB(100, 70, 40),
+			Material = Enum.Material.Wood,
+			Shape = Enum.PartType.Cylinder,
+		})
+	end
+
+	for i = 1, 5 do
+		local buoy = part({
 			Name = "Buoy" .. i,
 			Parent = dock,
-			Size = Vector3.new(4, 7, 4),
-			CFrame = CFrame.new(-70 + i * 26, 3, 55 + (i % 2) * 14),
-			Color = if i % 2 == 0 then Color3.fromRGB(230, 55, 50) else Color3.fromRGB(245, 245, 245),
+			Size = Vector3.new(3.5, 6, 3.5),
+			CFrame = CFrame.new(-65 + i * 28, 2.5, 95 + (i % 2) * 10),
+			Color = if i % 2 == 0 then Color3.fromRGB(220, 70, 55) else Color3.fromRGB(245, 245, 245),
 			Material = Enum.Material.SmoothPlastic,
 			CanCollide = false,
 		})
+		task.spawn(function()
+			local t = i * 1.4
+			local x, z = buoy.Position.X, buoy.Position.Z
+			while buoy.Parent do
+				t += 0.05
+				buoy.CFrame = CFrame.new(x, 2.5 + math.sin(t) * 0.7, z)
+					* CFrame.Angles(0, t * 0.2, math.rad(math.sin(t) * 6))
+				task.wait(0.05)
+			end
+		end)
 	end
 
 	local title = part({
 		Name = "TitleBanner",
 		Parent = dock,
 		Size = Vector3.new(2, 2, 2),
-		CFrame = CFrame.new(0, 22, -35),
+		CFrame = CFrame.new(0, 20, -35),
 		Transparency = 1,
 		CanCollide = false,
 		CastShadow = false,
 	})
-	billboard(title, "SURVIVE AT SEA\nBOARDING DOCK", Config.Theme.Foam, UDim2.fromOffset(520, 140), 0)
+	billboard(title, "SURVIVE AT SEA\nBOARDING PIER", Config.Theme.Foam, UDim2.fromOffset(480, 120), 0)
+end
+
+function LobbyWorld.getLobbySpawnCFrame(): CFrame
+	return CFrame.new(0, 6, 0)
+end
+
+function LobbyWorld.updatePortalSign(portalModel: Model, title: string, subtitle: string, color: Color3?)
+	local pad = portalModel:FindFirstChild("Pad")
+	if not (pad and pad:IsA("BasePart")) then
+		return
+	end
+	local old = pad:FindFirstChild("LobbyBillboard")
+	if old then
+		old:Destroy()
+	end
+	billboard(pad, `{title}\n{subtitle}`, color or Config.Theme.Foam, UDim2.fromOffset(260, 90), 9)
+end
+
+-- Polish any lobby (fresh or Rojo-synced): no glows, barriers, palms, boats.
+function LobbyWorld.polish(root: Folder)
+	stripGlowParts(root)
+
+	-- Ocean should not be a walkable escape route
+	local oceanDeep = root:FindFirstChild("OceanDeep")
+	if oceanDeep and oceanDeep:IsA("BasePart") then
+		oceanDeep.CanCollide = false
+	end
+	local oceanSurface = root:FindFirstChild("OceanSurface")
+	if oceanSurface and oceanSurface:IsA("BasePart") then
+		oceanSurface.CanCollide = false
+	end
+
+	buildBarriers(root)
+
+	if not root:FindFirstChild("Scenery") then
+		buildScenery(root)
+	else
+		-- Refresh scenery so palms/boats always match latest layout
+		buildScenery(root)
+	end
+
+	-- Soften spawn pad (wood, not neon)
+	local spawn = root:FindFirstChild("LobbySpawn")
+	if spawn and spawn:IsA("SpawnLocation") then
+		spawn.Material = Enum.Material.WoodPlanks
+		spawn.BrickColor = BrickColor.new("Brown")
+		spawn.Transparency = 0.15
+		spawn.Enabled = true
+		spawn.Neutral = true
+	end
+
+	-- Restyle portals that still look like neon gates
+	local portals = root:FindFirstChild("Portals")
+	if portals then
+		local stale: { Model } = {}
+		for _, model in portals:GetChildren() do
+			if model:IsA("Model") and not model:FindFirstChild("BerthRim") then
+				table.insert(stale, model)
+			else
+				local neon = model:FindFirstChild("NeonRing")
+				if neon then
+					neon:Destroy()
+				end
+			end
+		end
+		for _, model in stale do
+			local pad = model:FindFirstChild("Pad")
+			local indexValue = model:FindFirstChild("PortalIndex")
+			local index = if indexValue and indexValue:IsA("IntValue") then indexValue.Value else 1
+			local position = if pad and pad:IsA("BasePart") then pad.Position else Vector3.new(0, 3.5, 70)
+			model:Destroy()
+			buildPortal(portals, index, position)
+		end
+	end
+
+	-- Replace neon arrows with wooden guides if still present
+	local hadNeonArrow = false
+	for _, child in root:GetChildren() do
+		if child.Name == "Arrow" then
+			hadNeonArrow = true
+			child:Destroy()
+		end
+	end
+	if hadNeonArrow or not root:FindFirstChild("GuidePlank") then
+		-- Clear old guides then rebuild
+		for _, child in root:GetChildren() do
+			if child.Name == "GuidePlank" or child.Name == "GuideTip" then
+				child:Destroy()
+			end
+		end
+		buildGuideMarks(root)
+	end
+
+	local dock = root:FindFirstChild("Dock")
+	if dock and not dock:FindFirstChild("TitleBanner") and not dock:FindFirstChild("TitleAnchor") then
+		local titleAnchor = part({
+			Name = "TitleBanner",
+			Parent = dock,
+			Size = Vector3.new(2, 2, 2),
+			CFrame = CFrame.new(0, 20, -35),
+			Transparency = 1,
+			CanCollide = false,
+			CastShadow = false,
+		})
+		billboard(titleAnchor, "SURVIVE AT SEA\nBOARDING PIER", Config.Theme.Foam, UDim2.fromOffset(480, 120), 0)
+	end
+
+	print("[SurviveAtSea] Lobby polished — pier barriers, palms, boats, glow-free berths")
+end
+
+function LobbyWorld.ensure(): Folder
+	local existing = Workspace:FindFirstChild("SurviveAtSeaLobby")
+	if existing and existing:IsA("Folder") then
+		LobbyWorld.polish(existing)
+		return existing
+	end
+
+	for _, child in Workspace:GetChildren() do
+		if child:IsA("SpawnLocation") or (child:IsA("BasePart") and child.Name ~= "Terrain") then
+			if child.Name ~= "SurviveAtSeaLobby" then
+				child.Transparency = 1
+				if child:IsA("BasePart") then
+					child.CanCollide = false
+				end
+				if child:IsA("SpawnLocation") then
+					child.Enabled = false
+				end
+			end
+		end
+	end
+
+	local root = Instance.new("Folder")
+	root.Name = "SurviveAtSeaLobby"
+	root.Parent = Workspace
+
+	part({
+		Name = "OceanDeep",
+		Parent = root,
+		Size = Vector3.new(1200, 30, 1200),
+		CFrame = CFrame.new(0, -16, 0),
+		Color = Color3.fromRGB(6, 40, 70),
+		Material = Enum.Material.SmoothPlastic,
+		Transparency = 0.12,
+		CanCollide = false,
+	})
+
+	part({
+		Name = "OceanSurface",
+		Parent = root,
+		Size = Vector3.new(1200, 2, 1200),
+		CFrame = CFrame.new(0, 0, 0),
+		Color = Color3.fromRGB(20, 120, 150),
+		Material = Enum.Material.Glass,
+		Transparency = 0.45,
+		Reflectance = 0.12,
+		CanCollide = false,
+	})
+
+	part({
+		Name = "Foam",
+		Parent = root,
+		Size = Vector3.new(160, 0.6, 160),
+		CFrame = CFrame.new(0, 1.2, 20),
+		Color = Config.Theme.Foam,
+		Material = Enum.Material.SmoothPlastic,
+		Transparency = 0.55,
+		CanCollide = false,
+	})
+
+	buildDock(root)
 
 	local portalsFolder = Instance.new("Folder")
 	portalsFolder.Name = "Portals"
@@ -337,17 +811,7 @@ function LobbyWorld.ensure(): Folder
 		buildPortal(portalsFolder, i, pos)
 	end
 
-	for z = 20, 55, 12 do
-		part({
-			Name = "Arrow",
-			Parent = root,
-			Size = Vector3.new(6, 0.5, 8),
-			CFrame = CFrame.new(0, 4, z),
-			Color = Config.Theme.PortalGlow,
-			Material = Enum.Material.Neon,
-			CanCollide = false,
-		})
-	end
+	buildGuideMarks(root)
 
 	local staging = Instance.new("Folder")
 	staging.Name = "VoyageStaging"
@@ -360,6 +824,14 @@ function LobbyWorld.ensure(): Folder
 		Color = Color3.fromRGB(90, 65, 40),
 		Material = Enum.Material.WoodPlanks,
 	})
+	part({
+		Name = "Hull",
+		Parent = staging,
+		Size = Vector3.new(56, 12, 8),
+		CFrame = CFrame.new(0, 7, 240),
+		Color = Color3.fromRGB(60, 42, 28),
+		Material = Enum.Material.Wood,
+	})
 
 	local spawn = Instance.new("SpawnLocation")
 	spawn.Name = "LobbySpawn"
@@ -369,20 +841,21 @@ function LobbyWorld.ensure(): Folder
 	spawn.Duration = 0
 	spawn.Neutral = true
 	spawn.Enabled = true
-	spawn.Transparency = 0.3
-	spawn.BrickColor = BrickColor.new("Cyan")
-	spawn.Material = Enum.Material.Neon
+	spawn.Transparency = 0.15
+	spawn.BrickColor = BrickColor.new("Brown")
+	spawn.Material = Enum.Material.WoodPlanks
 	spawn.Parent = root
 
-	print("[SurviveAtSea] LobbyWorld.ensure built dock + portals")
+	LobbyWorld.polish(root)
+
+	print("[SurviveAtSea] LobbyWorld.ensure built boarding pier + berths")
 	return root
 end
 
 function LobbyWorld.seatCharacter(character: Model)
 	local root = character:FindFirstChild("HumanoidRootPart")
 	if root and root:IsA("BasePart") then
-		root.CFrame = LobbyWorld.getLobbySpawnCFrame() * CFrame.Angles(0, 0, 0)
-		-- Face portals (+Z)
+		root.CFrame = LobbyWorld.getLobbySpawnCFrame()
 		root.CFrame = CFrame.new(root.Position, root.Position + Vector3.new(0, 0, 40))
 	end
 end

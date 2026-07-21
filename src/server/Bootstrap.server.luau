@@ -96,7 +96,7 @@ local function onPlayerReady(player)
 
 	task.defer(function()
 		PortalsUpdated:FireClient(player, PartyService.getPortalInfos())
-		Toast:FireClient(player, "Walk forward to the glowing portals!", "info")
+		Toast:FireClient(player, "Walk forward to a boarding berth and press E!", "info")
 	end)
 end
 
