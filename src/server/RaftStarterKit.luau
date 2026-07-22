@@ -200,6 +200,10 @@ function RaftStarterKit.attach(model: Model, deck: BasePart, center: Vector3)
 
 	local stand, prompt = buildHelmWheel(kit, deck, center)
 
+	-- Flaming torch welded on the raft at spawn (light + fire; can unweld / drag)
+	local LootPropService = require(script.Parent:WaitForChild("LootPropService"))
+	LootPropService.attachStarterTorch(model, deck)
+
 	return {
 		kit = kit,
 		stand = stand,

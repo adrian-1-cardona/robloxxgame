@@ -27,6 +27,7 @@ local DayNightService = require(script.Parent:WaitForChild("DayNightService"))
 local WeatherService = require(script.Parent:WaitForChild("WeatherService"))
 local StarterGearService = require(script.Parent:WaitForChild("StarterGearService"))
 local MeleeService = require(script.Parent:WaitForChild("Combat"):WaitForChild("MeleeService"))
+local LootPropService = require(script.Parent:WaitForChild("LootPropService"))
 
 print(`[SurviveAtSea] Booting {Config.GameName} lobby…`)
 
@@ -61,6 +62,12 @@ local HelmDismount = remoteFolder:WaitForChild("HelmDismount")
 local ShootGun = remoteFolder:WaitForChild("ShootGun")
 local MeleeAttack = remoteFolder:WaitForChild("MeleeAttack")
 local MeleeSwingFx = remoteFolder:WaitForChild("MeleeSwingFx")
+local LootDragStart = remoteFolder:WaitForChild("LootDragStart")
+local LootDragUpdate = remoteFolder:WaitForChild("LootDragUpdate")
+local LootDragEnd = remoteFolder:WaitForChild("LootDragEnd")
+local LootWeld = remoteFolder:WaitForChild("LootWeld")
+local LootUnweld = remoteFolder:WaitForChild("LootUnweld")
+local LootPlace = remoteFolder:WaitForChild("LootPlace")
 
 GunService.start(Toast :: RemoteEvent)
 
@@ -73,6 +80,17 @@ IslandService.start(
 		return PartyService.getMemberUserIds(code)
 	end
 )
+
+LootPropService.start(Toast :: RemoteEvent, function(player: Player): string?
+	return PartyService.getPartyCode(player)
+end, {
+	DragStart = LootDragStart :: RemoteEvent,
+	DragUpdate = LootDragUpdate :: RemoteEvent,
+	DragEnd = LootDragEnd :: RemoteEvent,
+	WeldProp = LootWeld :: RemoteEvent,
+	UnweldProp = LootUnweld :: RemoteEvent,
+	PlaceLoot = LootPlace :: RemoteEvent,
+})
 
 -- Helm: look-steer + throttle drive, jump to unlock
 StarterBaseService._onBaseBuilt = function(code, model)

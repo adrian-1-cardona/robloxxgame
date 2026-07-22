@@ -43,7 +43,7 @@
         "Brightness": 3,
         "ClockTime": 16.5,
         "FogColor": [0.27, 0.55, 0.66],
-        "FogEnd": 1400,
+        "FogEnd": 2200,
         "FogStart": 280,
         "GlobalShadows": true,
         "Outlines": false,

@@ -10,6 +10,25 @@ local Remotes = require(Shared:WaitForChild("Remotes"))
 
 local PlatformInput = require(script.Parent.Parent:WaitForChild("Lobby"):WaitForChild("PlatformInput"))
 
+-- Optional: DragController may load after us; lazy-require when swinging
+local function isDragBusy(): boolean
+	local drag = script.Parent:FindFirstChild("DragController")
+	if not drag then
+		return false
+	end
+	local ok, mod = pcall(require, drag)
+	if not ok or typeof(mod) ~= "table" then
+		return false
+	end
+	if mod.isBusy then
+		return true
+	end
+	if typeof(mod.isLookingAtLoot) == "function" and mod.isLookingAtLoot() then
+		return true
+	end
+	return false
+end
+
 local MeleeController = {}
 
 local player = Players.LocalPlayer
@@ -133,6 +152,9 @@ function MeleeController.requestSwing()
 	if not equippedTool or not MeleeAttack then
 		return
 	end
+	if isDragBusy() then
+		return
+	end
 	local now = os.clock()
 	if now - lastClientSwing < Config.Club.SwingCooldown * 0.85 then
 		return
@@ -237,6 +259,10 @@ function MeleeController.start()
 			return
 		end
 		if not equippedTool then
+			return
+		end
+		-- Don't swing when dragging loot or aiming at a draggable prop (hold RT / RMB)
+		if isDragBusy() then
 			return
 		end
 

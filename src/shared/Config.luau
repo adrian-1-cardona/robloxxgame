@@ -56,8 +56,8 @@ local Config = {
 	-- Take the helm → locked standing at the wheel; look steers; W / stick / arrows drive;
 	-- jump / gamepad B to unlock and step away.
 	Helm = {
-		-- Fast enough that a short sail to the nearby isle clearly reads as motion
-		SpeedStudsPerSecond = 56,
+		-- Fast enough that sails between the big spread-out isles still feel snappy
+		SpeedStudsPerSecond = 72,
 		TurnLerp = 6,
 		-- Stand offset from deck center (aft). Y is ignored — stand sits on deck top.
 		StandLocalOffset = Vector3.new(0, 0, 22),
@@ -74,92 +74,111 @@ local Config = {
 	},
 
 	-- Stationary open-sea isles. Visit → leave on the raft → sail ~100 studs away → locked forever for that crew.
+	-- Huge beach-vibe flats: sand ring → grass → jungle heart, palms everywhere, widely spaced.
 	Islands = {
-		Thickness = 5,
-		TopY = 2.8,
+		Thickness = 8,
+		TopY = 3.4,
 		-- Game "meters" ≈ studs here — once this far after a visit, the isle won't take you back
-		LockoutStuds = 100,
+		LockoutStuds = 140,
 		-- Extra pad outside the sand when a locked crew tries to sail back in
-		ApproachPadStuds = 30,
+		ApproachPadStuds = 48,
 		Pirate = {
 			Health = 40,
 			Damage = 5,
 			AttackCooldown = 1.15,
 			ChaseSpeed = 11,
-			AggroRange = 52,
+			AggroRange = 72,
 		},
 		Gun = {
 			Damage = 28,
 			Range = 180,
 			Cooldown = 0.9,
 		},
-		-- Spread well apart so sailing between them is a real trip
+		-- Very large islands, far apart — sailing between them is a real voyage
 		Catalog = {
 			{
 				Id = "tide_flat",
 				Name = "Tide Flat",
-				Offset = Vector3.new(200, 0, -240),
-				SizeStuds = 40,
+				Offset = Vector3.new(520, 0, -680),
+				SizeStuds = 160,
 				HasHouse = false,
 				Pirates = 0,
+				Biome = "beach",
 			},
 			{
 				Id = "drift_shack",
 				Name = "Drift Shack",
-				Offset = Vector3.new(-420, 0, -380),
-				SizeStuds = 46,
+				Offset = Vector3.new(-920, 0, -780),
+				SizeStuds = 180,
 				HasHouse = true,
 				Pirates = 0,
+				Biome = "palm",
 			},
 			{
 				Id = "crow_cay",
 				Name = "Crow Cay",
-				Offset = Vector3.new(520, 0, -520),
-				SizeStuds = 44,
+				Offset = Vector3.new(1180, 0, -1100),
+				SizeStuds = 170,
 				HasHouse = false,
-				Pirates = 3,
+				Pirates = 4,
+				Biome = "jungle",
 			},
 			{
 				Id = "raid_cove",
 				Name = "Raid Cove",
-				Offset = Vector3.new(-180, 0, -720),
-				SizeStuds = 48,
+				Offset = Vector3.new(-420, 0, -1480),
+				SizeStuds = 200,
 				HasHouse = true,
-				Pirates = 2,
+				Pirates = 3,
+				Biome = "jungle",
 			},
 			{
 				Id = "quiet_sand",
 				Name = "Quiet Sand",
-				Offset = Vector3.new(680, 0, -160),
-				SizeStuds = 38,
+				Offset = Vector3.new(1560, 0, -420),
+				SizeStuds = 150,
 				HasHouse = false,
 				Pirates = 0,
+				Biome = "beach",
 			},
 			{
 				Id = "smuggler_hut",
 				Name = "Smuggler Hut",
-				Offset = Vector3.new(90, 0, -980),
-				SizeStuds = 44,
+				Offset = Vector3.new(180, 0, -1980),
+				SizeStuds = 175,
 				HasHouse = true,
 				Pirates = 0,
+				Biome = "palm",
 			},
 			{
 				Id = "buccaneer_flat",
 				Name = "Buccaneer Flat",
-				Offset = Vector3.new(-620, 0, -280),
-				SizeStuds = 46,
+				Offset = Vector3.new(-1380, 0, -620),
+				SizeStuds = 190,
 				HasHouse = false,
-				Pirates = 4,
+				Pirates = 5,
+				Biome = "jungle",
 			},
 			{
 				Id = "wreck_spit",
 				Name = "Wreck Spit",
-				Offset = Vector3.new(380, 0, -860),
-				SizeStuds = 42,
+				Offset = Vector3.new(820, 0, -1760),
+				SizeStuds = 165,
 				HasHouse = true,
-				Pirates = 1,
+				Pirates = 2,
+				Biome = "palm",
 			},
 		},
+	},
+
+	-- World loot: drag (hold RMB / RT / touch) or pick up into backpack; weld to raft for shelters / light.
+	Loot = {
+		DragRange = 18,
+		DragHoldSeconds = 0.18,
+		WeldDeckRange = 22,
+		MaxHeldProps = 1,
+		-- Inventory pickup via ProximityPrompt (optional alongside drag)
+		PickupPromptDistance = 10,
 	},
 
 	-- Portal / berth accent (solid purple — no half-and-half overlays)
