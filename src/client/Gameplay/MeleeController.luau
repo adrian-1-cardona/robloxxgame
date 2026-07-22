@@ -224,7 +224,7 @@ function MeleeController.start()
 				;(child :: Tool).Grip = gripWas * CFrame.Angles(math.rad(-50), 0, math.rad(-20))
 				task.delay(Config.Club.SwingDuration, function()
 					if child.Parent then
-						;(child :: Tool).Grip = gripWas
+						(child :: Tool).Grip = gripWas
 					end
 				end)
 				break
