@@ -985,10 +985,10 @@
                   "Name": "BoardPrompt",
                   "ClassName": "ProximityPrompt",
                   "Properties": {
-                    "ObjectText": "Voyage Portal 1",
+                    "ObjectText": "Portal 1",
                     "ActionText": "Create Crew",
-                    "HoldDuration": 0.25,
-                    "MaxActivationDistance": 16,
+                    "HoldDuration": 0.2,
+                    "MaxActivationDistance": 14,
                     "RequiresLineOfSight": false
                   }
                 }
@@ -999,6 +999,31 @@
               "ClassName": "IntValue",
               "Properties": {
                 "Value": 1
+              }
+            },
+            {
+              "Name": "WalkTrigger",
+              "ClassName": "Part",
+              "Properties": {
+                "Anchored": true,
+                "Size": [
+                  10,
+                  13,
+                  9
+                ],
+                "Position": [
+                  -24.0,
+                  11.0,
+                  68.5
+                ],
+                "Transparency": 1,
+                "CanCollide": false,
+                "CanTouch": true,
+                "CanQuery": false,
+                "CastShadow": false,
+                "Material": "SmoothPlastic",
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth"
               }
             }
           ]
@@ -1166,10 +1191,10 @@
                   "Name": "BoardPrompt",
                   "ClassName": "ProximityPrompt",
                   "Properties": {
-                    "ObjectText": "Voyage Portal 2",
+                    "ObjectText": "Portal 2",
                     "ActionText": "Create Crew",
-                    "HoldDuration": 0.25,
-                    "MaxActivationDistance": 16,
+                    "HoldDuration": 0.2,
+                    "MaxActivationDistance": 14,
                     "RequiresLineOfSight": false
                   }
                 }
@@ -1180,6 +1205,31 @@
               "ClassName": "IntValue",
               "Properties": {
                 "Value": 2
+              }
+            },
+            {
+              "Name": "WalkTrigger",
+              "ClassName": "Part",
+              "Properties": {
+                "Anchored": true,
+                "Size": [
+                  10,
+                  13,
+                  9
+                ],
+                "Position": [
+                  0.0,
+                  11.0,
+                  68.5
+                ],
+                "Transparency": 1,
+                "CanCollide": false,
+                "CanTouch": true,
+                "CanQuery": false,
+                "CastShadow": false,
+                "Material": "SmoothPlastic",
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth"
               }
             }
           ]
@@ -1347,10 +1397,10 @@
                   "Name": "BoardPrompt",
                   "ClassName": "ProximityPrompt",
                   "Properties": {
-                    "ObjectText": "Voyage Portal 3",
+                    "ObjectText": "Portal 3",
                     "ActionText": "Create Crew",
-                    "HoldDuration": 0.25,
-                    "MaxActivationDistance": 16,
+                    "HoldDuration": 0.2,
+                    "MaxActivationDistance": 14,
                     "RequiresLineOfSight": false
                   }
                 }
@@ -1361,6 +1411,31 @@
               "ClassName": "IntValue",
               "Properties": {
                 "Value": 3
+              }
+            },
+            {
+              "Name": "WalkTrigger",
+              "ClassName": "Part",
+              "Properties": {
+                "Anchored": true,
+                "Size": [
+                  10,
+                  13,
+                  9
+                ],
+                "Position": [
+                  24.0,
+                  11.0,
+                  68.5
+                ],
+                "Transparency": 1,
+                "CanCollide": false,
+                "CanTouch": true,
+                "CanQuery": false,
+                "CastShadow": false,
+                "Material": "SmoothPlastic",
+                "TopSurface": "Smooth",
+                "BottomSurface": "Smooth"
               }
             }
           ]
