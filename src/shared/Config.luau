@@ -10,11 +10,6 @@ local Config = {
 	MinPartySize = 1,
 	MaxPartySize = 10,
 	DefaultPartySize = 4,
-	LaunchCountdownSeconds = 10,
-
-	-- Set this to your voyage PlaceId when the sea run place exists.
-	-- Until then, Cast Off locks joins and keeps the crew on their wooden plank starter base.
-	GamePlaceId = nil :: number?,
 
 	-- Pier boarding portals: walk-in gates that open the create flow.
 	-- Exactly three atmosphere portals — reusable, not exclusive party slots / player caps.

@@ -9,6 +9,7 @@ local Workspace = game:GetService("Workspace")
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local OceanConfig = require(Shared:WaitForChild("OceanConfig"))
+local DayNight = require(Shared:WaitForChild("DayNight"))
 
 local OceanController = {}
 
@@ -16,14 +17,20 @@ local SURFACE_Y = OceanConfig.SurfaceY
 local TAG_FOAM = "SurviveAtSeaOceanFoam"
 
 local underwaterCc: ColorCorrectionEffect? = nil
-local savedFog = {
-	FogColor = Lighting.FogColor,
-	FogStart = Lighting.FogStart,
-	FogEnd = Lighting.FogEnd,
-}
+local underwaterActive = false
 local foamByDeck: { [BasePart]: Folder } = {}
 local lastDeckPos: { [BasePart]: Vector3 } = {}
 local started = false
+
+local function surfaceFogFromCycle()
+	local state = DayNight.getState(Workspace:GetServerTimeNow())
+	local look = DayNight.lightingFor(state.dayAmount)
+	return {
+		FogColor = look.FogColor,
+		FogStart = look.FogStart,
+		FogEnd = look.FogEnd,
+	}
+end
 
 local function ensureUnderwaterFx()
 	if underwaterCc and underwaterCc.Parent then
@@ -43,18 +50,21 @@ end
 
 local function setUnderwater(active: boolean)
 	local cc = ensureUnderwaterFx()
-	if cc.Enabled == active then
+	if underwaterActive == active and cc.Enabled == active then
 		return
 	end
+	underwaterActive = active
 	cc.Enabled = active
 	if active then
 		Lighting.FogColor = OceanConfig.Underwater.FogColor
 		Lighting.FogStart = OceanConfig.Underwater.FogStart
 		Lighting.FogEnd = OceanConfig.Underwater.FogEnd
 	else
-		Lighting.FogColor = savedFog.FogColor
-		Lighting.FogStart = savedFog.FogStart
-		Lighting.FogEnd = savedFog.FogEnd
+		-- Restore fog from the live day/night cycle, not a stale boot snapshot.
+		local fog = surfaceFogFromCycle()
+		Lighting.FogColor = fog.FogColor
+		Lighting.FogStart = fog.FogStart
+		Lighting.FogEnd = fog.FogEnd
 	end
 end
 
@@ -290,15 +300,19 @@ function OceanController.start()
 	end
 	started = true
 
-	savedFog.FogColor = Lighting.FogColor
-	savedFog.FogStart = Lighting.FogStart
-	savedFog.FogEnd = Lighting.FogEnd
 	ensureUnderwaterFx()
 
 	RunService.RenderStepped:Connect(function()
 		local cam = Workspace.CurrentCamera
 		if cam then
-			setUnderwater(cam.CFrame.Position.Y < SURFACE_Y - 0.15)
+			local under = cam.CFrame.Position.Y < SURFACE_Y - 0.15
+			setUnderwater(under)
+			-- Re-assert underwater fog each frame so server day/night fog updates don't punch through.
+			if under then
+				Lighting.FogColor = OceanConfig.Underwater.FogColor
+				Lighting.FogStart = OceanConfig.Underwater.FogStart
+				Lighting.FogEnd = OceanConfig.Underwater.FogEnd
+			end
 		end
 	end)
 

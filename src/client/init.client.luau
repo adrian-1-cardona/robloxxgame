@@ -13,6 +13,7 @@ local LobbyWorld = require(Shared:WaitForChild("LobbyWorld"))
 local LobbyUI = require(script:WaitForChild("Lobby"):WaitForChild("LobbyUI"))
 local HelmController = require(script:WaitForChild("Lobby"):WaitForChild("HelmController"))
 local OceanController = require(script:WaitForChild("Lobby"):WaitForChild("OceanController"))
+local ClockHUD = require(script:WaitForChild("Lobby"):WaitForChild("ClockHUD"))
 
 print(`[SurviveAtSea] Client hello — welcome aboard {Config.GameName}`)
 
@@ -30,6 +31,7 @@ end
 
 LobbyUI.start()
 HelmController.start()
+ClockHUD.start()
 
 local player = Players.LocalPlayer
 
@@ -81,12 +83,7 @@ end)
 
 pcall(function()
 	local Lighting = game:GetService("Lighting")
-	Lighting.Brightness = 3
-	-- Softer far fog so the open ocean (and upright helm) stay readable while sailing
-	Lighting.FogStart = 280
-	Lighting.FogEnd = 1400
-	Lighting.ClockTime = 16.5
-	-- Keep SunRays from LobbyBuilder — they glitter on Terrain water.
+	-- DayNightService owns ClockTime / brightness / fog — only strip neon bloom here.
 	for _, child in Lighting:GetChildren() do
 		if child:IsA("BloomEffect") then
 			child:Destroy()

@@ -37,7 +37,6 @@ function Remotes.createServerRemotes(): Folder
 		"CreateParty",
 		"JoinParty",
 		"LeaveParty",
-		"StartLaunch",
 		"PartyUpdated",
 		"PortalsUpdated",
 		"Toast",

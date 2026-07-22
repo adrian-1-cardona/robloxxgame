@@ -13,8 +13,6 @@
 --   • Concurrent crews use independent baseSlot raft placement (not capped by PortalCount)
 
 local Players = game:GetService("Players")
-local TeleportService = game:GetService("TeleportService")
-local Workspace = game:GetService("Workspace")
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
@@ -36,9 +34,7 @@ export type PartyRecord = {
 	portalIndex: number,
 	baseSlot: number,
 	memberUserIds: { number },
-	countdownEndsAt: number?,
-	status: "Open" | "Launching" | "Departed",
-	reservedCode: string?,
+	status: "Open",
 }
 
 local PartyService = {}
@@ -93,7 +89,6 @@ local function toSnapshot(party: PartyRecord): PartySnapshot
 		members = members,
 		portalIndex = party.portalIndex,
 		baseSlot = party.baseSlot,
-		countdownEndsAt = party.countdownEndsAt,
 		status = party.status,
 	}
 end
@@ -248,9 +243,7 @@ function PartyService.createParty(
 		portalIndex = portalIndex,
 		baseSlot = baseSlot,
 		memberUserIds = { player.UserId },
-		countdownEndsAt = nil,
 		status = "Open",
-		reservedCode = nil,
 	}
 
 	PartyService._partiesByCode[code] = party
@@ -280,7 +273,7 @@ function PartyService.joinParty(player: Player, rawCode: string): (boolean, stri
 	end
 
 	if party.status ~= "Open" then
-		return false, "That voyage is already launching.", nil
+		return false, "That crew isn't accepting joins right now.", nil
 	end
 
 	if #party.memberUserIds >= party.maxPlayers then
@@ -304,112 +297,6 @@ function PartyService.leaveParty(player: Player): (boolean, string)
 	end
 	removePlayerFromCurrentParty(player.UserId)
 	return true, "Left the crew — back on the pier."
-end
-
-function PartyService.startLaunch(player: Player): (boolean, string, PartySnapshot?)
-	local code = PartyService._playerToCode[player.UserId]
-	if not code then
-		return false, "Create or join a crew first.", nil
-	end
-
-	local party = PartyService._partiesByCode[code]
-	if not party then
-		return false, "Crew not found.", nil
-	end
-
-	if party.hostUserId ~= player.UserId then
-		return false, "Only the host can cast off.", nil
-	end
-
-	if party.status ~= "Open" then
-		return false, "Launch already in progress.", nil
-	end
-
-	if #party.memberUserIds < 1 then
-		return false, "Need at least one sailor.", nil
-	end
-
-	party.status = "Launching"
-	-- Use server time so clients can render a synced countdown.
-	party.countdownEndsAt = Workspace:GetServerTimeNow() + Config.LaunchCountdownSeconds
-	notify(party)
-
-	task.delay(Config.LaunchCountdownSeconds, function()
-		PartyService._finalizeLaunch(party.code)
-	end)
-
-	return true, "Casting off!", toSnapshot(party)
-end
-
-function PartyService._finalizeLaunch(code: string)
-	local party = PartyService._partiesByCode[code]
-	if not party or party.status ~= "Launching" then
-		return
-	end
-
-	party.status = "Departed"
-	notify(party)
-
-	local playersToTeleport: { Player } = {}
-	for _, userId in party.memberUserIds do
-		local plr = Players:GetPlayerByUserId(userId)
-		if plr then
-			table.insert(playersToTeleport, plr)
-		end
-	end
-
-	if #playersToTeleport == 0 then
-		StarterBaseService.destroyBase(code)
-		PartyService._partiesByCode[code] = nil
-		notify(nil)
-		return
-	end
-
-	local leftForVoyage = false
-
-	-- Prefer reserved-server teleport when a voyage place is configured.
-	if typeof(Config.GamePlaceId) == "number" and Config.GamePlaceId > 0 then
-		local ok, reservedCode = pcall(function()
-			return TeleportService:ReserveServer(Config.GamePlaceId :: number)
-		end)
-		if ok and typeof(reservedCode) == "string" then
-			party.reservedCode = reservedCode
-			local teleportOk, err = pcall(function()
-				TeleportService:TeleportToPrivateServer(
-					Config.GamePlaceId :: number,
-					reservedCode,
-					playersToTeleport
-				)
-			end)
-			if teleportOk then
-				leftForVoyage = true
-			else
-				warn("[SurviveAtSea] Teleport failed:", err)
-			end
-		else
-			warn("[SurviveAtSea] ReserveServer failed; staying on starter base.")
-		end
-	end
-
-	if not leftForVoyage then
-		-- No voyage place yet — lock joins, keep the plank + crew HUD alive.
-		party.status = "Open"
-		party.countdownEndsAt = nil
-		for index, plr in playersToTeleport do
-			StarterBaseService.teleportPlayerToBase(plr, party.baseSlot, index)
-		end
-		party.status = "Departed"
-		notify(party)
-		return
-	end
-
-	-- Destroy the plank only when the crew left this place.
-	StarterBaseService.destroyBase(code)
-	for _, userId in party.memberUserIds do
-		PartyService._playerToCode[userId] = nil
-	end
-	PartyService._partiesByCode[code] = nil
-	notify(nil)
 end
 
 function PartyService.onPlayerRemoving(player: Player)
