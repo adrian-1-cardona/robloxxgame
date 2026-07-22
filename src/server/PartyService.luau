@@ -259,8 +259,17 @@ function PartyService.createParty(
 	PartyService._partiesByCode[code] = party
 	PartyService._playerToCode[player.UserId] = code
 
-	StarterBaseService.ensureBase(code, baseSlot)
-	seatOnBase(player, party)
+	local okBuild, buildErr = pcall(function()
+		StarterBaseService.ensureBase(code, baseSlot)
+		seatOnBase(player, party)
+	end)
+	if not okBuild then
+		-- Roll back so the player isn't stuck "on a crew" with dead portals.
+		PartyService._playerToCode[player.UserId] = nil
+		PartyService._partiesByCode[code] = nil
+		warn("[SurviveAtSea] createParty base failed:", buildErr)
+		return false, "Couldn't spawn your plank — try another portal.", nil
+	end
 
 	local snapshot = toSnapshot(party)
 	notify(party)
