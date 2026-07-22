@@ -1254,6 +1254,7 @@ local function buildDock(root: Folder)
 				Color = hullWood,
 				Material = Enum.Material.Wood,
 				CanCollide = false,
+				CastShadow = false,
 			})
 			-- lower strake / turn of the bilge (rolls in toward the keel)
 			part({
@@ -1264,6 +1265,7 @@ local function buildDock(root: Folder)
 				Color = hullDark,
 				Material = Enum.Material.Wood,
 				CanCollide = false,
+				CastShadow = false,
 			})
 			-- upper + lower wales (horizontal rub rails)
 			part({
@@ -1274,6 +1276,7 @@ local function buildDock(root: Folder)
 				Color = trimWood,
 				Material = Enum.Material.Wood,
 				CanCollide = false,
+				CastShadow = false,
 			})
 			part({
 				Name = "Wale",
@@ -1283,6 +1286,7 @@ local function buildDock(root: Folder)
 				Color = trimWood,
 				Material = Enum.Material.Wood,
 				CanCollide = false,
+				CastShadow = false,
 			})
 		end
 	end
@@ -1531,12 +1535,13 @@ local function buildDock(root: Folder)
 		part({ Name = "LanternCap", Parent = dock, Size = Vector3.new(2.4, 0.8, 2.4), CFrame = CFrame.new(s * 21, 16.6, 88), Color = ironCol, Material = Enum.Material.Metal, CanCollide = false })
 	end
 
-	-- Raised quarterdeck (poop) behind the portals, with the ship's wheel.
+	-- Raised quarterdeck (poop) set well behind the boarding portals (z=68,
+	-- pads reach ~z=75), with the ship's wheel. Kept clear of the portal row.
 	part({
 		Name = "PoopDeck",
 		Parent = dock,
-		Size = Vector3.new(50, 1.4, 16),
-		CFrame = CFrame.new(0, 5.5, 80),
+		Size = Vector3.new(50, 1.4, 12),
+		CFrame = CFrame.new(0, 5.5, 84),
 		Color = plankWood,
 		Material = Enum.Material.WoodPlanks,
 		CanCollide = true,
@@ -1545,7 +1550,7 @@ local function buildDock(root: Folder)
 		Name = "PoopStep",
 		Parent = dock,
 		Size = Vector3.new(16, 1.2, 3),
-		CFrame = CFrame.new(0, 4.5, 71.5),
+		CFrame = CFrame.new(0, 4.5, 77.5),
 		Color = plankDark,
 		Material = Enum.Material.WoodPlanks,
 		CanCollide = true,
@@ -1572,7 +1577,7 @@ local function buildDock(root: Folder)
 			part({ Name = "WheelHandle", Parent = dock, Size = Vector3.new(0.35, 0.35, 1.4), CFrame = CFrame.new(handle) * CFrame.Angles(0, 0, a), Color = goldCol, Material = Enum.Material.Wood, CanCollide = false })
 		end
 	end
-	buildWheel(Vector3.new(0, 8.4, 76))
+	buildWheel(Vector3.new(0, 8.4, 82))
 
 	-- Working deck dressing (replaces the old floating crate cubes).
 	cylV("Capstan", Vector3.new(0, 4.6, 50), 2.6, 3, trimWood, Enum.Material.Wood, true)
