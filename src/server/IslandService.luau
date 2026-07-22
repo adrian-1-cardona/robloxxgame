@@ -368,11 +368,13 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 	local half = size * 0.5
 	local beachBand = half * 0.78 -- outer ring stays sandier; vegetation denser inward
 
-	local palmCount = math.floor(size / 9)
+	-- Density divisors are tuned so these HUGE isles stay lush and explorable without the
+	-- per-isle part count exploding (island area grows with the square of the radius).
+	local palmCount = math.floor(size / 13)
 	if biome == "beach" then
-		palmCount = math.floor(size / 11)
+		palmCount = math.floor(size / 16)
 	elseif biome == "jungle" then
-		palmCount = math.floor(size / 10)
+		palmCount = math.floor(size / 14)
 	end
 
 	for _ = 1, palmCount do
@@ -387,7 +389,7 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 		buildPalm(model, topY, x, z)
 	end
 
-	local bushCount = math.floor(size / 7)
+	local bushCount = math.floor(size / 10)
 	for _ = 1, bushCount do
 		local angle = math.random() * math.pi * 2
 		local r = half * (0.12 + math.random() * 0.7)
@@ -397,7 +399,7 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 		buildBush(model, topY, center.X + math.cos(angle) * r, center.Z + math.sin(angle) * r, biome == "jungle")
 	end
 
-	local tuftCount = math.floor(size / 4)
+	local tuftCount = math.floor(size / 6)
 	for _ = 1, tuftCount do
 		local angle = math.random() * math.pi * 2
 		local r = half * (0.2 + math.random() * 0.65)
@@ -405,17 +407,18 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 	end
 
 	if biome == "jungle" or biome == "palm" then
-		local treeCount = if biome == "jungle" then math.floor(size / 16) else math.floor(size / 28)
+		local treeCount = if biome == "jungle" then math.floor(size / 20) else math.floor(size / 36)
 		for _ = 1, treeCount do
 			local angle = math.random() * math.pi * 2
-			-- Keep the very center clear for the hill; ring the trees around it
-			local r = half * (0.24 + math.random() * 0.4)
+			-- Keep the very center clear for the hill/village heart, then spread trees
+			-- across most of the interior so a huge jungle isle is dense to explore.
+			local r = half * (0.22 + math.random() * 0.6)
 			buildJungleTree(model, topY, center.X + math.cos(angle) * r, center.Z + math.sin(angle) * r)
 		end
 	end
 
 	-- Rolling dunes across the interior — breaks up the flat with gentle rises
-	local duneCount = math.floor(size / 26)
+	local duneCount = math.floor(size / 34)
 	for _ = 1, duneCount do
 		local angle = math.random() * math.pi * 2
 		local r = half * (0.2 + math.random() * 0.62)
@@ -429,7 +432,7 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 	end
 
 	-- Rock outcrops — a few inland, more clustered near the shoreline
-	local rockCount = math.floor(size / 40)
+	local rockCount = math.floor(size / 50)
 	for _ = 1, rockCount do
 		local angle = math.random() * math.pi * 2
 		local r = half * (0.35 + math.random() * 0.55)
