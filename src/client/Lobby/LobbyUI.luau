@@ -6,11 +6,9 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
-local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
-local DayNight = require(Shared:WaitForChild("DayNight"))
 local Remotes = require(Shared:WaitForChild("Remotes"))
 
 local ClockHUD = require(script.Parent.ClockHUD)
@@ -150,7 +148,7 @@ local function refreshClockLabel()
 		return
 	end
 
-	local dayState = DayNight.getState(Workspace:GetServerTimeNow())
+	local dayState = ClockHUD.getGameplayState()
 	clockLabel.Text = dayState.displayTime
 	if dayState.phase == "Night" then
 		clockLabel.TextColor3 = Color3.fromRGB(190, 210, 235)
@@ -165,8 +163,8 @@ local function refreshClockLabel()
 	end
 end
 
-local function setGameplayMode(active: boolean)
-	ClockHUD.setGameplayActive(active)
+local function setGameplayMode(active: boolean, cycleOrigin: number?)
+	ClockHUD.setGameplayActive(active, cycleOrigin)
 	if active then
 		refreshClockLabel()
 	end
@@ -186,7 +184,7 @@ local function refreshPartyPanel()
 
 	if typeof(party) ~= "table" or party.__openCreate then
 		partyPanel.Visible = false
-		setGameplayMode(false)
+		setGameplayMode(false, nil)
 		if joinPanel then
 			joinPanel.Visible = true
 		end
@@ -194,7 +192,8 @@ local function refreshPartyPanel()
 	end
 
 	partyPanel.Visible = true
-	setGameplayMode(true)
+	local origin = if typeof(party.cycleOrigin) == "number" then party.cycleOrigin else nil
+	setGameplayMode(true, origin)
 	-- On a crew: hide the join box so the top-right is the live code
 	if joinPanel then
 		joinPanel.Visible = false

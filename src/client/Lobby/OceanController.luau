@@ -27,7 +27,7 @@ local started = false
 local function surfaceFogFromCycle()
 	-- Lobby is always midday; only follow the cycle while on a crew.
 	local dayAmount = if ClockHUD.isGameplayActive()
-		then DayNight.getState(Workspace:GetServerTimeNow()).dayAmount
+		then ClockHUD.getGameplayState().dayAmount
 		else 1
 	local look = DayNight.lightingFor(dayAmount)
 	return {

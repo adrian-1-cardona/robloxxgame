@@ -1,7 +1,8 @@
 -- Day / night cycle math shared by server lighting and client clock HUD.
 -- Real time: 10 minutes day + 10 minutes night = 20-minute full cycle.
 -- Game clock: day runs 6:00 AM → 6:00 PM, night runs 6:00 PM → 6:00 AM.
--- Players only see a normal clock (e.g. 2:00 PM); lighting shifts behind the scenes.
+-- Crews always begin at 6:00 AM (pass cycleOrigin = create server time).
+-- Players see a whole-hour clock (e.g. 2:00 PM); lighting still blends smoothly.
 
 local DayNight = {}
 
@@ -21,24 +22,23 @@ export type CycleState = {
 	cycleSeconds: number,
 	-- Progress within the current phase [0, 1]
 	phaseAlpha: number,
-	-- Roblox ClockTime hours [0, 24)
+	-- Roblox ClockTime hours [0, 24) — smooth for lighting
 	clockTime: number,
-	-- Display string like "2:00 PM"
+	-- Display string like "2:00 PM" (whole hours only)
 	displayTime: string,
 	-- 1 = full daylight, 0 = deep night (smooth across dawn/dusk)
 	dayAmount: number,
 }
 
+-- Timer advances one game hour at a time (minutes always show :00).
 local function formatClock(clockTime: number): string
-	local totalMinutes = math.floor((clockTime % 24) * 60 + 1e-6)
-	local hour24 = math.floor(totalMinutes / 60) % 24
-	local minute = totalMinutes % 60
+	local hour24 = math.floor(clockTime % 24 + 1e-6) % 24
 	local suffix = if hour24 >= 12 then "PM" else "AM"
 	local hour12 = hour24 % 12
 	if hour12 == 0 then
 		hour12 = 12
 	end
-	return string.format("%d:%02d %s", hour12, minute, suffix)
+	return string.format("%d:00 %s", hour12, suffix)
 end
 
 -- Soft dayAmount for lighting blends: 1 at midday, 0 at midnight, smooth at dusk/dawn.
@@ -51,8 +51,16 @@ local function dayAmountFromClock(clockTime: number): number
 	return math.clamp(solar, 0, 1)
 end
 
-function DayNight.getState(serverTime: number): CycleState
-	local cycleSeconds = serverTime % DayNight.CycleSeconds
+-- cycleOrigin: server time when the crew was created. Elapsed from origin maps
+-- to cycle position so every voyage starts at 6:00 AM daytime.
+-- Without origin, uses absolute server time (global fallback / lobby sync).
+function DayNight.getState(serverTime: number, cycleOrigin: number?): CycleState
+	local elapsed = serverTime
+	if cycleOrigin ~= nil then
+		elapsed = serverTime - cycleOrigin
+	end
+
+	local cycleSeconds = elapsed % DayNight.CycleSeconds
 	if cycleSeconds < 0 then
 		cycleSeconds += DayNight.CycleSeconds
 	end
