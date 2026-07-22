@@ -81,8 +81,9 @@ end)
 pcall(function()
 	local Lighting = game:GetService("Lighting")
 	Lighting.Brightness = 3
-	Lighting.FogStart = 200
-	Lighting.FogEnd = 800
+	-- Softer far fog so the open ocean (and upright helm) stay readable while sailing
+	Lighting.FogStart = 280
+	Lighting.FogEnd = 1400
 	Lighting.ClockTime = 16.5
 	for _, child in Lighting:GetChildren() do
 		if child:IsA("BloomEffect") or child:IsA("SunRaysEffect") then

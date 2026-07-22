@@ -267,7 +267,7 @@ function StarterBaseService.ensureBase(code: string, baseSlot: number): Model
 	spawn.Enabled = true
 	spawn.Parent = model
 
-	-- Starter kit: mast + white flag + pirate steering wheel
+	-- Starter kit: vertical steering column + upright pirate wheel
 	RaftStarterKit.attach(model, deck, center)
 
 	StarterBaseService._basesByCode[code] = model

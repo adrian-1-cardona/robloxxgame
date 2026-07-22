@@ -22,7 +22,8 @@
         }
       },
       "$properties": {
-        "CameraMaxZoomDistance": 40
+        "CameraMaxZoomDistance": 120,
+        "CameraMinZoomDistance": 0.5
       }
     },
 
@@ -42,8 +43,8 @@
         "Brightness": 3,
         "ClockTime": 16.5,
         "FogColor": [0.27, 0.55, 0.66],
-        "FogEnd": 800,
-        "FogStart": 200,
+        "FogEnd": 1400,
+        "FogStart": 280,
         "GlobalShadows": true,
         "Outlines": false,
         "OutdoorAmbient": [0.35, 0.55, 0.63],

@@ -214,7 +214,7 @@ function HelmService.mount(player: Player, code: string): boolean
 	)
 
 	fireState(player, true)
-	toast(player, "At the helm — look to steer, jump to leave.", "success")
+	toast(player, "At the helm — look to steer, jump / B to leave.", "success")
 	return true
 end
 

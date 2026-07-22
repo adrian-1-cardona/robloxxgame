@@ -20,8 +20,8 @@ local function safeLighting()
 		Lighting.Ambient = Color3.fromRGB(78, 92, 98)
 		Lighting.OutdoorAmbient = Color3.fromRGB(118, 128, 132)
 		Lighting.FogColor = Color3.fromRGB(130, 170, 190)
-		Lighting.FogStart = 160
-		Lighting.FogEnd = 900
+		Lighting.FogStart = 280
+		Lighting.FogEnd = 1400
 		Lighting.GlobalShadows = true
 		Lighting.EnvironmentDiffuseScale = 0.55
 		Lighting.EnvironmentSpecularScale = 0.35
