@@ -13,6 +13,7 @@ export type HelmSession = {
 	userId: number,
 	code: string,
 	lookFlat: Vector3,
+	wheelSpin: number,
 	savedWalkSpeed: number,
 	savedJumpHeight: number,
 	savedAutoRotate: boolean,
@@ -55,12 +56,48 @@ local function getHelmPrompt(code: string): ProximityPrompt?
 	return nil
 end
 
+local function getHelmWheel(code: string): (Model?, BasePart?, CFrameValue?)
+	local model = StarterBaseService.getBaseModel(code)
+	if not model then
+		return nil, nil, nil
+	end
+	local kit = model:FindFirstChild("StarterKit")
+	local wheel = kit and kit:FindFirstChild("HelmWheel")
+	local column = kit and kit:FindFirstChild("HelmPedestal")
+	local restLocal = wheel and wheel:FindFirstChild("WheelRestLocal")
+	if
+		wheel
+		and wheel:IsA("Model")
+		and column
+		and column:IsA("BasePart")
+		and restLocal
+		and restLocal:IsA("CFrameValue")
+	then
+		return wheel, column, restLocal
+	end
+	return nil, nil, nil
+end
+
 local function flattenLook(look: Vector3): Vector3?
 	local flat = Vector3.new(look.X, 0, look.Z)
 	if flat.Magnitude < 0.05 then
 		return nil
 	end
 	return flat.Unit
+end
+
+-- Signed yaw from raft heading → look (matches the helmsman face turn)
+local function lookYawError(deckForward: Vector3, look: Vector3): number
+	return math.atan2(deckForward:Cross(look).Y, deckForward:Dot(look))
+end
+
+local function applyWheelSpin(code: string, spinRadians: number)
+	local wheel, column, restLocal = getHelmWheel(code)
+	if not (wheel and column and restLocal) then
+		return
+	end
+	-- Cylinder axle is local X of the rest pose — spin around that axis
+	wheel:PivotTo(column.CFrame * restLocal.Value * CFrame.Angles(spinRadians, 0, 0))
 end
 
 local function fireState(player: Player, active: boolean)
@@ -116,6 +153,10 @@ function HelmService.release(player: Player, reason: string?)
 		root.AssemblyAngularVelocity = Vector3.zero
 	end
 
+	-- Ease the wooden wheel back to rest when leaving the helm
+	session.wheelSpin = 0
+	applyWheelSpin(session.code, 0)
+
 	fireState(player, false)
 	if reason then
 		toast(player, reason, "info")
@@ -164,6 +205,7 @@ function HelmService.mount(player: Player, code: string): boolean
 		userId = player.UserId,
 		code = code,
 		lookFlat = flattenLook(stand.CFrame.LookVector) or Vector3.new(0, 0, -1),
+		wheelSpin = 0,
 		savedWalkSpeed = humanoid.WalkSpeed,
 		savedJumpHeight = humanoid.JumpHeight,
 		savedAutoRotate = humanoid.AutoRotate,
@@ -331,6 +373,18 @@ function HelmService.start(
 			end
 
 			snapHelmsmanToStand(session)
+
+			-- Spin the wooden wheel with look yaw (same cue as the helmsman facing turn)
+			local deckForward = flattenLook(newCf.LookVector) or look
+			local yawErr = lookYawError(deckForward, look)
+			local targetSpin = math.clamp(
+				yawErr * Config.Helm.WheelLookGain,
+				-Config.Helm.WheelMaxRadians,
+				Config.Helm.WheelMaxRadians
+			)
+			local spinAlpha = math.clamp(Config.Helm.WheelSpinLerp * dt, 0, 1)
+			session.wheelSpin += (targetSpin - session.wheelSpin) * spinAlpha
+			applyWheelSpin(code, session.wheelSpin)
 		end
 	end)
 end
