@@ -22,6 +22,7 @@ local StarterBaseService = require(script.Parent:WaitForChild("StarterBaseServic
 local HelmService = require(script.Parent:WaitForChild("HelmService"))
 local OceanTerrainService = require(script.Parent:WaitForChild("OceanTerrainService"))
 local DayNightService = require(script.Parent:WaitForChild("DayNightService"))
+local WeatherService = require(script.Parent:WaitForChild("WeatherService"))
 
 print(`[SurviveAtSea] Booting {Config.GameName} lobby…`)
 
@@ -31,6 +32,9 @@ LobbyBuilder.enhanceExisting(lobby)
 
 -- Day / night cycle owns Lighting.ClockTime after the lobby shell is ready
 DayNightService.start()
+
+-- Cosmetic open-sea weather schedule (clients apply FX only while in a crew)
+WeatherService.start()
 
 -- Realistic Terrain water streams around the pier and every sailing raft
 OceanTerrainService.start()

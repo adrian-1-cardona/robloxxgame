@@ -37,7 +37,12 @@ local function ensureEffects()
 
 	colorCorrection = nil
 	for _, child in Lighting:GetChildren() do
-		if child:IsA("ColorCorrectionEffect") and child.Name ~= "SurviveAtSeaUnderwater" then
+		if
+			child:IsA("ColorCorrectionEffect")
+			and child.Name ~= "SurviveAtSeaUnderwater"
+			and child.Name ~= "SurviveAtSeaWeather"
+			and child.Name ~= "SurviveAtSeaLightningFlash"
+		then
 			colorCorrection = child
 			break
 		end

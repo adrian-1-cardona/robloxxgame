@@ -14,6 +14,7 @@ local LobbyUI = require(script:WaitForChild("Lobby"):WaitForChild("LobbyUI"))
 local HelmController = require(script:WaitForChild("Lobby"):WaitForChild("HelmController"))
 local OceanController = require(script:WaitForChild("Lobby"):WaitForChild("OceanController"))
 local ClockHUD = require(script:WaitForChild("Lobby"):WaitForChild("ClockHUD"))
+local WeatherController = require(script:WaitForChild("Gameplay"):WaitForChild("WeatherController"))
 
 print(`[SurviveAtSea] Client hello — welcome aboard {Config.GameName}`)
 
@@ -93,3 +94,6 @@ end)
 
 -- After lighting baseline so underwater fog restore matches the open-sea look.
 OceanController.start()
+
+-- Open-sea weather only (rain / thunder / overcast). Lobby pier stays clear.
+WeatherController.start()
