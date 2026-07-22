@@ -17,12 +17,12 @@ local Config = {
 	GamePlaceId = nil :: number?,
 
 	-- Pier boarding portals: walk-in gates that open the create flow.
-	-- They are reusable atmosphere portals — not exclusive party slots and not a player cap.
+	-- Exactly three atmosphere portals — reusable, not exclusive party slots / player caps.
 	-- Concurrent crews scale with lobby players; each crew gets its own raft via baseSlot.
 	LobbyCenter = Vector3.new(0, 4, 0),
-	PortalCount = 6,
-	-- Keep portals inside the pier rails (≈±38) so frames don't clip the bulwark
-	PortalSpacing = 14,
+	PortalCount = 3,
+	-- Spread three portals across the pier without clipping the rails (≈±38)
+	PortalSpacing = 24,
 
 	-- Starter base: one huge square wooden plank per crew (not scaled by party size).
 	-- Spawned after create/join so the portal flow lands you on your base immediately.
