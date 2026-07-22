@@ -35,6 +35,8 @@ local joinPanel
 local toastFrame
 local clockLabel: TextLabel? = nil
 local clockStroke: UIStroke? = nil
+-- Top-of-panel heading, repurposed as the live voyage day counter ("Day 3").
+local dayLabel: TextLabel? = nil
 
 local function corner(parent: Instance, radius: number?)
 	local c = Instance.new("UICorner")
@@ -150,6 +152,9 @@ local function refreshClockLabel()
 
 	local dayState = ClockHUD.getGameplayState()
 	clockLabel.Text = dayState.displayTime
+	if dayLabel then
+		dayLabel.Text = `Day {dayState.dayNumber}`
+	end
 	if dayState.phase == "Night" then
 		clockLabel.TextColor3 = Color3.fromRGB(190, 210, 235)
 		if clockStroke then
@@ -199,7 +204,9 @@ local function refreshPartyPanel()
 		joinPanel.Visible = false
 	end
 
-	title.Text = "CREW"
+	-- Title slot now shows the voyage day; refreshClockLabel keeps it ticking.
+	-- setGameplayMode(true, origin) above already primed ClockHUD with this crew's origin.
+	title.Text = `Day {ClockHUD.getGameplayState().dayNumber}`
 	codeLabel.Text = party.code
 	if privacyLabel then
 		privacyLabel.Text = "PRIVATE · CODE ONLY"
@@ -425,10 +432,11 @@ local function buildGui()
 	corner(partyPanel, 8)
 	stroke(partyPanel, Config.Theme.Lantern, 1.1)
 
-	textLabel({
+	-- Was the "CREW" heading; now the live in-game day counter (same font/size).
+	dayLabel = textLabel({
 		Name = "Title",
 		Parent = partyPanel,
-		Text = "CREW",
+		Text = "Day 1",
 		Font = Enum.Font.GothamBlack,
 		Size = UDim2.new(1, -12, 0, 14),
 		Position = UDim2.new(0, 6, 0, 4),
