@@ -1,5 +1,5 @@
--- Helm: lock a sailor standing at the wheel, steer the raft by look direction,
--- unlock by jumping up. Infinite open ocean — the plank just keeps sailing.
+-- Helm: lock a sailor standing at the wheel, steer by look, drive with throttle
+-- (W/S · stick · mobile arrows). Jump / B unlocks. Idle throttle = drift stop.
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -13,6 +13,8 @@ export type HelmSession = {
 	userId: number,
 	code: string,
 	lookFlat: Vector3,
+	-- -1..1 — forward along look, reverse opposite; 0 = hold still
+	throttle: number,
 	wheelSpin: number,
 	savedWalkSpeed: number,
 	savedJumpHeight: number,
@@ -205,6 +207,7 @@ function HelmService.mount(player: Player, code: string): boolean
 		userId = player.UserId,
 		code = code,
 		lookFlat = flattenLook(stand.CFrame.LookVector) or Vector3.new(0, 0, -1),
+		throttle = 0,
 		wheelSpin = 0,
 		savedWalkSpeed = humanoid.WalkSpeed,
 		savedJumpHeight = humanoid.JumpHeight,
@@ -256,7 +259,7 @@ function HelmService.mount(player: Player, code: string): boolean
 	)
 
 	fireState(player, true)
-	toast(player, "At the helm — look to steer, jump / B to leave.", "success")
+	toast(player, "At the helm — look to steer, drive to sail, jump / B to leave.", "success")
 	return true
 end
 
@@ -269,6 +272,17 @@ function HelmService.setLook(player: Player, look: Vector3)
 	if flat then
 		session.lookFlat = flat
 	end
+end
+
+function HelmService.setThrottle(player: Player, throttle: number)
+	local session = HelmService._sessionsByUserId[player.UserId]
+	if not session then
+		return
+	end
+	if typeof(throttle) ~= "number" or throttle ~= throttle then
+		return
+	end
+	session.throttle = math.clamp(throttle, -1, 1)
 end
 
 function HelmService.isHelming(player: Player): boolean
@@ -348,8 +362,10 @@ function HelmService.start(
 			end
 
 			local look = session.lookFlat
+			local throttle = session.throttle
 			local speed = Config.Helm.SpeedStudsPerSecond
-			local move = look * (speed * dt)
+			-- Positive throttle sails along look; negative reverses while still facing look
+			local move = look * (speed * throttle * dt)
 
 			local oldCf = deck.CFrame
 			local newPos = Vector3.new(
@@ -357,7 +373,7 @@ function HelmService.start(
 				oldCf.Position.Y,
 				oldCf.Position.Z + move.Z
 			)
-			-- Keep deck level; yaw toward sail direction
+			-- Keep deck level; yaw toward look (steer), not velocity (so reverse faces forward)
 			local targetCf = CFrame.lookAt(newPos, newPos + look)
 			local alpha = math.clamp(Config.Helm.TurnLerp * dt, 0, 1)
 			local lerped = oldCf:Lerp(targetCf, alpha)
