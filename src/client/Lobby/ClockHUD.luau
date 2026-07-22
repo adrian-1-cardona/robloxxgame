@@ -1,20 +1,95 @@
--- Persistent clock HUD. Shows a normal wall-clock time (e.g. 2:00 PM) while
--- the day/night cycle advances lighting behind the scenes.
+-- Gameplay clock lives in the crew menu (old Cast Off slot).
+-- Lobby stays daytime with no clock — this module only applies lighting.
 
-local Players = game:GetService("Players")
+local Lighting = game:GetService("Lighting")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
-local Config = require(Shared:WaitForChild("Config"))
 local DayNight = require(Shared:WaitForChild("DayNight"))
-
-local PlatformInput = require(script.Parent.PlatformInput)
 
 local ClockHUD = {}
 
 local started = false
+local inGameplay = false
+
+local atmosphere: Atmosphere? = nil
+local sunRays: SunRaysEffect? = nil
+local colorCorrection: ColorCorrectionEffect? = nil
+local sky: Sky? = nil
+
+local function ensureEffects()
+	atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
+	sunRays = Lighting:FindFirstChildOfClass("SunRaysEffect")
+	sky = Lighting:FindFirstChildOfClass("Sky")
+
+	colorCorrection = nil
+	for _, child in Lighting:GetChildren() do
+		if child:IsA("ColorCorrectionEffect") and child.Name ~= "SurviveAtSeaUnderwater" then
+			colorCorrection = child
+			break
+		end
+	end
+end
+
+local function applyLook(clockTime: number, dayAmount: number)
+	ensureEffects()
+	local look = DayNight.lightingFor(dayAmount)
+
+	Lighting.ClockTime = clockTime
+	Lighting.Brightness = look.Brightness
+	Lighting.Ambient = look.Ambient
+	Lighting.OutdoorAmbient = look.OutdoorAmbient
+	Lighting.FogColor = look.FogColor
+	Lighting.FogStart = look.FogStart
+	Lighting.FogEnd = look.FogEnd
+
+	if atmosphere then
+		atmosphere.Density = look.AtmosphereDensity
+		atmosphere.Color = look.AtmosphereColor
+		atmosphere.Decay = look.AtmosphereDecay
+		atmosphere.Haze = look.AtmosphereHaze
+		atmosphere.Glare = look.AtmosphereGlare
+	end
+
+	if sunRays then
+		sunRays.Intensity = look.SunRaysIntensity
+	end
+
+	if colorCorrection then
+		colorCorrection.TintColor = look.ColorCorrectionTint
+		colorCorrection.Brightness = look.ColorCorrectionBrightness
+		colorCorrection.Contrast = look.ColorCorrectionContrast
+		colorCorrection.Saturation = look.ColorCorrectionSaturation
+	end
+
+	if sky then
+		sky.StarCount = look.StarCount
+	end
+end
+
+-- Midday lobby look — pier is always bright daytime.
+local function applyLobbyDay()
+	applyLook(12, 1)
+end
+
+local function applyGameplayCycle()
+	local state = DayNight.getState(Workspace:GetServerTimeNow())
+	applyLook(state.clockTime, state.dayAmount)
+end
+
+function ClockHUD.setGameplayActive(active: boolean)
+	inGameplay = active
+	if active then
+		applyGameplayCycle()
+	else
+		applyLobbyDay()
+	end
+end
+
+function ClockHUD.isGameplayActive(): boolean
+	return inGameplay
+end
 
 function ClockHUD.start()
 	if started then
@@ -22,86 +97,24 @@ function ClockHUD.start()
 	end
 	started = true
 
-	local player = Players.LocalPlayer
-	local playerGui = player:WaitForChild("PlayerGui")
+	-- Default: lobby daytime until the crew menu says otherwise.
+	applyLobbyDay()
 
-	local screenGui = Instance.new("ScreenGui")
-	screenGui.Name = "SurviveAtSeaClockHUD"
-	screenGui.ResetOnSpawn = false
-	screenGui.IgnoreGuiInset = false
-	screenGui.DisplayOrder = 15
-	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-	screenGui.Parent = playerGui
-
-	local root = Instance.new("Frame")
-	root.Name = "Root"
-	root.BackgroundTransparency = 1
-	root.Size = UDim2.fromScale(1, 1)
-	root.Parent = screenGui
-	PlatformInput.applySafeArea(root)
-
-	local scaler = Instance.new("UIScale")
-	scaler.Scale = PlatformInput.scaleForDevice()
-	scaler.Parent = root
-
-	local panel = Instance.new("Frame")
-	panel.Name = "ClockPanel"
-	panel.BackgroundColor3 = Config.Theme.UIPanel
-	panel.BackgroundTransparency = 0.18
-	panel.Size = UDim2.new(0, 128, 0, 44)
-	panel.Position = UDim2.new(0.5, 0, 0, 10)
-	panel.AnchorPoint = Vector2.new(0.5, 0)
-	panel.Parent = root
-
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 10)
-	corner.Parent = panel
-
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = Config.Theme.SeaTeal
-	stroke.Thickness = 1.2
-	stroke.Transparency = 0.35
-	stroke.Parent = panel
-
-	local timeLabel = Instance.new("TextLabel")
-	timeLabel.Name = "Time"
-	timeLabel.BackgroundTransparency = 1
-	timeLabel.Size = UDim2.new(1, -12, 1, -4)
-	timeLabel.Position = UDim2.new(0, 6, 0, 2)
-	timeLabel.Font = Enum.Font.GothamBold
-	timeLabel.Text = "12:00 PM"
-	timeLabel.TextColor3 = Config.Theme.UIText
-	timeLabel.TextScaled = true
-	timeLabel.Parent = panel
-
-	local sizeConstraint = Instance.new("UITextSizeConstraint")
-	sizeConstraint.MaxTextSize = 20
-	sizeConstraint.MinTextSize = 12
-	sizeConstraint.Parent = timeLabel
-
-	local function refresh()
-		local state = DayNight.getState(Workspace:GetServerTimeNow())
-		timeLabel.Text = state.displayTime
-		-- Slightly cooler text at night so the clock reads with the sky.
-		if state.phase == "Night" then
-			timeLabel.TextColor3 = Color3.fromRGB(190, 210, 235)
-			stroke.Color = Color3.fromRGB(90, 110, 160)
-		else
-			timeLabel.TextColor3 = Config.Theme.UIText
-			stroke.Color = Config.Theme.SeaTeal
+	local accum = 0
+	RunService.RenderStepped:Connect(function(dt)
+		accum += dt
+		if accum < 0.2 then
+			return
 		end
-	end
-
-	refresh()
-	RunService.RenderStepped:Connect(function()
-		refresh()
+		accum = 0
+		if inGameplay then
+			applyGameplayCycle()
+		else
+			applyLobbyDay()
+		end
 	end)
 
-	UserInputService.LastInputTypeChanged:Connect(function()
-		scaler.Scale = PlatformInput.scaleForDevice()
-	end)
-
-	print("[SurviveAtSea] Clock HUD ready")
+	print("[SurviveAtSea] Lobby daytime lock ready (clock lives in crew menu)")
 end
 
 return ClockHUD

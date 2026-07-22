@@ -14,7 +14,7 @@ local LobbyBuilder = {}
 
 local function safeLighting()
 	local ok, err = pcall(function()
-		-- Baseline lighting shell — DayNightService owns ClockTime / brightness after boot.
+		-- Baseline lighting shell — client ClockHUD owns ClockTime / brightness after boot.
 		Lighting.GlobalShadows = true
 		-- ShadowMap reads Terrain water reflections much better than Voxel
 		pcall(function()

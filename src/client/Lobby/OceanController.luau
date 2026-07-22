@@ -11,6 +11,8 @@ local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local OceanConfig = require(Shared:WaitForChild("OceanConfig"))
 local DayNight = require(Shared:WaitForChild("DayNight"))
 
+local ClockHUD = require(script.Parent.ClockHUD)
+
 local OceanController = {}
 
 local SURFACE_Y = OceanConfig.SurfaceY
@@ -23,8 +25,11 @@ local lastDeckPos: { [BasePart]: Vector3 } = {}
 local started = false
 
 local function surfaceFogFromCycle()
-	local state = DayNight.getState(Workspace:GetServerTimeNow())
-	local look = DayNight.lightingFor(state.dayAmount)
+	-- Lobby is always midday; only follow the cycle while on a crew.
+	local dayAmount = if ClockHUD.isGameplayActive()
+		then DayNight.getState(Workspace:GetServerTimeNow()).dayAmount
+		else 1
+	local look = DayNight.lightingFor(dayAmount)
 	return {
 		FogColor = look.FogColor,
 		FogStart = look.FogStart,
