@@ -5,3 +5,5 @@
 
 [tools]
 rojo = "rojo-rbx/rojo@7.7.0"
+# Standalone Luau runtime used to run tests/PortalLoad.spec.luau headlessly.
+lune = "lune-org/lune@0.10.5"

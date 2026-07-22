@@ -1,0 +1,36 @@
+name: Portal Load Test
+
+# Runs the "can players load into a game via the portals?" regression test.
+# This runs on EVERY push (every commit) and EVERY pull request. If it fails,
+# the portal boarding / crew-loading path is broken and the PR must NOT be
+# merged until this check is green again.
+on:
+  push:
+  pull_request:
+
+# Cancel superseded runs on the same ref so the latest commit is what matters.
+concurrency:
+  group: portal-load-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  portal-load:
+    name: Players can load into a game
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Lune (Luau runtime)
+        env:
+          LUNE_VERSION: "0.10.5"
+        run: |
+          set -euo pipefail
+          curl -sSL -o /tmp/lune.zip \
+            "https://github.com/lune-org/lune/releases/download/v${LUNE_VERSION}/lune-${LUNE_VERSION}-linux-x86_64.zip"
+          unzip -o /tmp/lune.zip -d /tmp/lune
+          sudo install -m 0755 /tmp/lune/lune /usr/local/bin/lune
+          lune --version
+
+      - name: Run portal load-into-game regression test
+        run: lune run tests/PortalLoad.spec.luau
