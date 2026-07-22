@@ -40,17 +40,17 @@ local Config = {
 		WaterRescueY = 1.2,
 	},
 
-	-- Starter raft kit: mast + white flag + look-steered helm wheel.
+	-- Starter raft kit: vertical steering column + upright look-steered helm wheel.
 	-- Take the helm → locked standing at the wheel; look steers the raft forever;
-	-- jump up to unlock and step away.
+	-- jump / gamepad B to unlock and step away.
 	Helm = {
 		SpeedStudsPerSecond = 48,
 		TurnLerp = 6,
-		-- Stand offset from deck top (Y is added on top of thickness/2)
+		-- Stand offset from deck center (aft). Y is ignored — stand sits on deck top.
 		StandLocalOffset = Vector3.new(0, 0, 22),
-		MastLocalOffset = Vector3.new(0, 0, -6),
 		LookSendHz = 20,
-		PromptDistance = 10,
+		-- Generous for phone / VR laser / console approach
+		PromptDistance = 14,
 	},
 
 	-- Portal / berth accent (solid purple — no half-and-half overlays)
