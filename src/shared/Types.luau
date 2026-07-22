@@ -19,7 +19,7 @@ export type PartySnapshot = {
 	portalIndex: number,
 	-- Independent raft placement slot (concurrent crews are not capped by portal count)
 	baseSlot: number,
-	-- Workspace:GetServerTimeNow() when the crew formed — day/night always starts at 6:00 AM
+	-- Workspace:GetServerTimeNow() when the crew formed — day/night always starts at 9:00 AM
 	cycleOrigin: number,
 	status: "Open",
 }

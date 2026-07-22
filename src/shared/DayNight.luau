@@ -1,24 +1,45 @@
 -- Day / night cycle math shared by server lighting and client clock HUD.
--- Real time: 10 minutes day + 10 minutes night = 20-minute full cycle.
+-- Real time: 5 minutes day + 5 minutes night = 10-minute full cycle.
 -- Game clock: day runs 6:00 AM → 6:00 PM, night runs 6:00 PM → 6:00 AM.
--- Crews always begin at 6:00 AM (pass cycleOrigin = create server time).
+-- Crews always begin at 9:00 AM (pass cycleOrigin = create server time) —
+-- the sun is already up so players spawn into clear daytime.
 -- Players see a whole-hour clock (e.g. 2:00 PM); lighting still blends smoothly.
 
 local DayNight = {}
 
-DayNight.DaySeconds = 600
-DayNight.NightSeconds = 600
+DayNight.DaySeconds = 300
+DayNight.NightSeconds = 300
 DayNight.CycleSeconds = DayNight.DaySeconds + DayNight.NightSeconds
 
 -- Game-clock endpoints (Roblox Lighting.ClockTime is 0–24)
 DayNight.DayStartHour = 6
 DayNight.NightStartHour = 18
 
+-- Voyages begin at this game hour. 9:00 AM keeps the same 6→18 / 18→6 hour
+-- mapping but starts crews partway into the day so the sun is already out.
+DayNight.StartHour = 9
+
+-- Map a game-clock hour (0–24) to its position within the full cycle [0, CycleSeconds).
+local function cycleSecondsForHour(hour: number): number
+	if hour >= DayNight.DayStartHour and hour < DayNight.NightStartHour then
+		-- Daytime segment: 6 → 18 over DaySeconds
+		local alpha = (hour - DayNight.DayStartHour) / 12
+		return alpha * DayNight.DaySeconds
+	end
+	-- Nighttime segment: 18 → 6 (wraps past midnight) over NightSeconds
+	local nightHour = if hour < DayNight.DayStartHour then hour + 24 else hour
+	local alpha = (nightHour - DayNight.NightStartHour) / 12
+	return DayNight.DaySeconds + alpha * DayNight.NightSeconds
+end
+
+-- Cycle offset applied to elapsed time so every voyage opens at StartHour.
+DayNight.StartOffsetSeconds = cycleSecondsForHour(DayNight.StartHour)
+
 export type Phase = "Day" | "Night"
 
 export type CycleState = {
 	phase: Phase,
-	-- Position within the full 20-minute cycle [0, CycleSeconds)
+	-- Position within the full 10-minute cycle [0, CycleSeconds)
 	cycleSeconds: number,
 	-- Progress within the current phase [0, 1]
 	phaseAlpha: number,
@@ -28,7 +49,7 @@ export type CycleState = {
 	displayTime: string,
 	-- 1 = full daylight, 0 = deep night (smooth across dawn/dusk)
 	dayAmount: number,
-	-- Whole voyage day counter — starts at 1 (6:00 AM) and increments each cycle
+	-- Whole voyage day counter — starts at 1 (9:00 AM) and increments each cycle
 	dayNumber: number,
 }
 
@@ -54,20 +75,22 @@ local function dayAmountFromClock(clockTime: number): number
 end
 
 -- cycleOrigin: server time when the crew was created. Elapsed from origin maps
--- to cycle position so every voyage starts at 6:00 AM daytime.
+-- to cycle position so every voyage starts at 9:00 AM daytime.
 -- Without origin, uses absolute server time (global fallback / lobby sync).
 function DayNight.getState(serverTime: number, cycleOrigin: number?): CycleState
 	local elapsed = serverTime
 	if cycleOrigin ~= nil then
 		elapsed = serverTime - cycleOrigin
 	end
+	-- Shift so elapsed = 0 lands on StartHour (9:00 AM) instead of 6:00 AM.
+	elapsed += DayNight.StartOffsetSeconds
 
 	local cycleSeconds = elapsed % DayNight.CycleSeconds
 	if cycleSeconds < 0 then
 		cycleSeconds += DayNight.CycleSeconds
 	end
 
-	-- Voyage day counter: every full cycle (starting at 6:00 AM) is one day.
+	-- Voyage day counter: every full cycle (starting at 9:00 AM) is one day.
 	-- Day 1 covers the first cycle; negative elapsed (shouldn't happen) clamps to 1.
 	local dayNumber = math.floor(elapsed / DayNight.CycleSeconds) + 1
 	if dayNumber < 1 then
@@ -108,6 +131,7 @@ function DayNight.getDayNumber(serverTime: number, cycleOrigin: number?): number
 	if cycleOrigin ~= nil then
 		elapsed = serverTime - cycleOrigin
 	end
+	elapsed += DayNight.StartOffsetSeconds
 	return math.max(1, math.floor(elapsed / DayNight.CycleSeconds) + 1)
 end
 

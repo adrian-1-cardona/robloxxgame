@@ -1,6 +1,6 @@
 -- Gameplay clock lives in the crew menu (old Cast Off slot).
 -- Lobby stays daytime with no clock — this module only applies lighting.
--- While on a crew, lighting follows that crew's cycle (always starts at 6:00 AM).
+-- While on a crew, lighting follows that crew's cycle (always starts at 9:00 AM).
 
 local Lighting = game:GetService("Lighting")
 local RunService = game:GetService("RunService")
@@ -132,7 +132,7 @@ function ClockHUD.start()
 		end
 	end)
 
-	print("[SurviveAtSea] Lobby daytime lock ready (crew clocks start at 6:00 AM)")
+	print("[SurviveAtSea] Lobby daytime lock ready (crew clocks start at 9:00 AM)")
 end
 
 return ClockHUD

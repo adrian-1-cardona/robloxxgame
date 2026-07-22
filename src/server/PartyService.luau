@@ -35,7 +35,7 @@ export type PartyRecord = {
 	privacy: PartyPrivacy,
 	portalIndex: number,
 	baseSlot: number,
-	-- Server time when crew was created — voyage day/night starts at 6:00 AM from this origin
+	-- Server time when crew was created — voyage day/night starts at 9:00 AM from this origin
 	cycleOrigin: number,
 	memberUserIds: { number },
 	status: "Open",
@@ -250,7 +250,7 @@ function PartyService.createParty(
 		privacy = "Private",
 		portalIndex = portalIndex,
 		baseSlot = baseSlot,
-		-- Day/night elapsed from this origin so every crew wakes at 6:00 AM.
+		-- Day/night elapsed from this origin so every crew wakes at 9:00 AM.
 		cycleOrigin = Workspace:GetServerTimeNow(),
 		memberUserIds = { player.UserId },
 		status = "Open",
