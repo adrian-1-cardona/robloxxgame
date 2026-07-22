@@ -752,7 +752,7 @@ function IslandService.isLockedForCrew(code: string, islandId: string): boolean
 	return state ~= nil and state.locked == true
 end
 
--- Keep rafts outside locked isles (can't sail back after leaving ~100 studs away).
+-- Keep rafts outside locked isles (can't sail back after leaving far enough away).
 function IslandService.clampRaftPosition(code: string, fromPos: Vector3, toPos: Vector3): (Vector3, string?)
 	local result = toPos
 	local blockedName: string? = nil
@@ -857,7 +857,7 @@ local function updateVisitLockouts()
 				state.visited = true
 				if not state.notifiedVisit then
 					state.notifiedVisit = true
-					toastCrew(code, `Visited {isle.name} — leave & sail ~100m away and you can't return.`, "info")
+					toastCrew(code, `Visited {isle.name} — leave & sail far away and you can't return.`, "info")
 				end
 				continue
 			end
