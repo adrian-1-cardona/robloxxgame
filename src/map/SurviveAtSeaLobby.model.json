@@ -8,21 +8,21 @@
         "Anchored": true,
         "Size": [
           1200,
-          30,
+          4,
           1200
         ],
         "Position": [
           0,
-          -16,
+          -54,
           0
         ],
         "Color": [
-          0.02,
-          0.16,
-          0.27
+          0.012,
+          0.11,
+          0.19
         ],
         "Material": "SmoothPlastic",
-        "Transparency": 0.1,
+        "Transparency": 1,
         "CanCollide": false,
         "TopSurface": "Smooth",
         "BottomSurface": "Smooth"
@@ -40,20 +40,20 @@
         ],
         "Position": [
           0,
-          0,
+          0.4,
           0
         ],
         "Color": [
-          0.08,
-          0.47,
-          0.59
+          0.043,
+          0.29,
+          0.36
         ],
         "Material": "Glass",
-        "Transparency": 0.45,
+        "Transparency": 1,
         "CanCollide": false,
         "TopSurface": "Smooth",
         "BottomSurface": "Smooth",
-        "Reflectance": 0.15
+        "Reflectance": 0
       }
     },
     {

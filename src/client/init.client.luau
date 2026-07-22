@@ -12,6 +12,7 @@ local LobbyWorld = require(Shared:WaitForChild("LobbyWorld"))
 
 local LobbyUI = require(script:WaitForChild("Lobby"):WaitForChild("LobbyUI"))
 local HelmController = require(script:WaitForChild("Lobby"):WaitForChild("HelmController"))
+local OceanController = require(script:WaitForChild("Lobby"):WaitForChild("OceanController"))
 
 print(`[SurviveAtSea] Client hello — welcome aboard {Config.GameName}`)
 
@@ -84,9 +85,13 @@ pcall(function()
 	Lighting.FogStart = 200
 	Lighting.FogEnd = 800
 	Lighting.ClockTime = 16.5
+	-- Keep SunRays from LobbyBuilder — they glitter on Terrain water.
 	for _, child in Lighting:GetChildren() do
-		if child:IsA("BloomEffect") or child:IsA("SunRaysEffect") then
+		if child:IsA("BloomEffect") then
 			child:Destroy()
 		end
 	end
 end)
+
+-- After lighting baseline so underwater fog restore matches the open-sea look.
+OceanController.start()

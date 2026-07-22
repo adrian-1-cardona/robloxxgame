@@ -23,8 +23,13 @@ local function safeLighting()
 		Lighting.FogStart = 160
 		Lighting.FogEnd = 900
 		Lighting.GlobalShadows = true
-		Lighting.EnvironmentDiffuseScale = 0.55
-		Lighting.EnvironmentSpecularScale = 0.35
+		-- ShadowMap reads Terrain water reflections much better than Voxel
+		pcall(function()
+			Lighting.Technology = Enum.Technology.ShadowMap
+		end)
+		-- Specular up so Terrain water picks up sky / sun reflections
+		Lighting.EnvironmentDiffuseScale = 0.6
+		Lighting.EnvironmentSpecularScale = 0.85
 
 		for _, child in Lighting:GetChildren() do
 			if child:IsA("Atmosphere") or child:IsA("BloomEffect") or child:IsA("ColorCorrectionEffect") or child:IsA("SunRaysEffect") then
@@ -33,13 +38,19 @@ local function safeLighting()
 		end
 
 		local atmosphere = Instance.new("Atmosphere")
-		atmosphere.Density = 0.14
-		atmosphere.Offset = 0.18
-		atmosphere.Color = Color3.fromRGB(160, 185, 200)
-		atmosphere.Decay = Color3.fromRGB(55, 90, 120)
-		atmosphere.Glare = 0
-		atmosphere.Haze = 0.4
+		atmosphere.Density = 0.12
+		atmosphere.Offset = 0.22
+		atmosphere.Color = Color3.fromRGB(168, 198, 214)
+		atmosphere.Decay = Color3.fromRGB(42, 78, 108)
+		atmosphere.Glare = 0.08
+		atmosphere.Haze = 0.55
 		atmosphere.Parent = Lighting
+
+		-- Soft sun glitter across the wave field (kept subtle — no neon bloom)
+		local sunRays = Instance.new("SunRaysEffect")
+		sunRays.Intensity = 0.045
+		sunRays.Spread = 0.55
+		sunRays.Parent = Lighting
 
 		local sky = Lighting:FindFirstChildOfClass("Sky")
 		if not sky then
