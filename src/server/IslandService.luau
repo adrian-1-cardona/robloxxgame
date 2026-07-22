@@ -1008,10 +1008,16 @@ function IslandService.ensure(): Folder
 	table.clear(IslandService._byId)
 	table.clear(IslandService._pirates)
 
-	for _, entry in Config.Islands.Catalog do
+	for i, entry in Config.Islands.Catalog do
 		local record = buildFlatIsland(entry, folder)
 		table.insert(IslandService._islands, record)
 		IslandService._byId[record.id] = record
+		-- These flats are huge (thousands of parts each). Yield between isles so a
+		-- cold boot can't exhaust the script execution budget building them all at
+		-- once. Safe: ensure() is only ever called off the critical portal path.
+		if i < #Config.Islands.Catalog then
+			task.wait()
+		end
 	end
 
 	-- Register every loot model so drag / weld / pickup remotes can find them
