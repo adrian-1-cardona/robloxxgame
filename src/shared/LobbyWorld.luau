@@ -733,7 +733,7 @@ local function buildFloatie(parent: Instance, position: Vector3, yawDegrees: num
 
 	local ringRadius = 2.2 * s
 	local tubeDia = 0.82 * s
-	local segments = 32
+	local segments = 24
 	local white = Color3.fromRGB(240, 238, 231)
 	local orange = Color3.fromRGB(230, 92, 36)
 
@@ -793,22 +793,22 @@ local function buildFloatie(parent: Instance, position: Vector3, yawDegrees: num
 	-- Grab line draped between the lashings, sagging outward off the ring.
 	local grabRadius = ringRadius + tubeDia * 0.55
 	local droopSpans = 4
-	local perSpan = 5
+	local perSpan = 3
+	-- A point along the sagging span at parameter t, bulging outward at the middle.
+	local function ropePoint(a0: number, a1: number, t: number): Vector3
+		local a = a0 + (a1 - a0) * t
+		local sag = math.sin(t * math.pi) * (0.5 * s)
+		local r = grabRadius + sag
+		return Vector3.new(math.cos(a) * r, -0.04 * s, math.sin(a) * r)
+	end
 	for span = 0, droopSpans - 1 do
 		local a0 = (span / droopSpans) * math.pi * 2 + math.pi / 8
 		local a1 = ((span + 1) / droopSpans) * math.pi * 2 + math.pi / 8
 		for j = 0, perSpan - 1 do
 			local t0 = j / perSpan
 			local t1 = (j + 1) / perSpan
-			local function pointAt(t: number): Vector3
-				local a = a0 + (a1 - a0) * t
-				-- sag pushes the rope outward at the midpoint of each span
-				local sag = math.sin(t * math.pi) * (0.5 * s)
-				local r = grabRadius + sag
-				return Vector3.new(math.cos(a) * r, -0.04 * s, math.sin(a) * r)
-			end
-			local p0 = pointAt(t0)
-			local p1 = pointAt(t1)
+			local p0 = ropePoint(a0, a1, t0)
+			local p1 = ropePoint(a0, a1, t1)
 			local mid = (p0 + p1) * 0.5
 			local dir = (p1 - p0)
 			local len = dir.Magnitude
@@ -829,7 +829,7 @@ local function buildFloatie(parent: Instance, position: Vector3, yawDegrees: num
 end
 
 -- Realistic standing-water puddle: a damp stain soaked into the planks with a
--- thin sky-reflecting water surface on top that shimmers gently.
+-- thin, glassy sky-reflecting water surface resting on top.
 local function buildPuddle(parent: Instance, center: Vector3, radius: number)
 	local model = Instance.new("Model")
 	model.Name = "Puddle"
@@ -844,7 +844,6 @@ local function buildPuddle(parent: Instance, center: Vector3, radius: number)
 		{ Vector3.new(-radius * 0.2, 0, -radius * 0.35), 0.4 },
 	}
 
-	local waterParts: { BasePart } = {}
 	for i, blob in blobs do
 		local off = blob[1] :: Vector3
 		local scale = blob[2] :: number
@@ -865,8 +864,11 @@ local function buildPuddle(parent: Instance, center: Vector3, radius: number)
 			CastShadow = false,
 		})
 
-		-- Water surface: thin, glassy, reflecting the sky with a cool tint.
-		local water = part({
+		-- Water surface: thin, glassy, reflecting the sky with a cool tint. A
+		-- little per-blob variance in sheen keeps the surface from looking flat
+		-- and uniform, without any per-frame property writes to replicate.
+		local sheen = 0.5 + math.noise(off.X * 0.5, off.Z * 0.5) * 0.12
+		part({
 			Name = "Water" .. i,
 			Parent = model,
 			Size = Vector3.new(w, 0.05, d),
@@ -874,27 +876,11 @@ local function buildPuddle(parent: Instance, center: Vector3, radius: number)
 			Color = Color3.fromRGB(72, 96, 108),
 			Material = Enum.Material.Glass,
 			Transparency = 0.28,
-			Reflectance = 0.55,
+			Reflectance = math.clamp(sheen, 0.42, 0.6),
 			CanCollide = false,
 			CastShadow = false,
 		})
-		table.insert(waterParts, water)
 	end
-
-	-- Gentle shimmer: nudge reflectance/transparency so the surface looks like
-	-- it is catching moving light rather than sitting perfectly still.
-	task.spawn(function()
-		local t = math.noise(center.X * 0.3, center.Z * 0.3) * 6
-		while model.Parent do
-			t += 0.05
-			for k, water in waterParts do
-				local phase = t + k * 0.7
-				water.Reflectance = 0.5 + math.sin(phase) * 0.08
-				water.Transparency = 0.28 + math.sin(phase * 1.3) * 0.05
-			end
-			task.wait(0.12)
-		end
-	end)
 
 	return model
 end
@@ -1178,8 +1164,9 @@ local function buildDeckDressing(parent: Instance)
 	buildObjectiveSign(parent, Vector3.new(14, PIER.DeckY, -30), 200)
 
 	-- Small walk-by objective placard along the left-side walkway, facing inward
-	-- so players read it as they stroll past (clear of the cannons at z≈8/42).
-	buildObjectiveBillboard(parent, Vector3.new(-31, PIER.DeckY, 24), 90)
+	-- so players read it as they stroll past (clear of the cannons at z≈8/42 and
+	-- the under-deck support pillar near z≈20).
+	buildObjectiveBillboard(parent, Vector3.new(-31, PIER.DeckY, 28), 90)
 end
 
 local function buildScenery(root: Folder)
