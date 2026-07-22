@@ -719,7 +719,8 @@ local function buildMiniIsland(parent: Instance, position: Vector3, footprint: V
 	return island
 end
 
--- Lifeguard ring buoy lying flat on the deck (classic white/orange life preserver).
+-- SOLAS-style lifebuoy lying flat on the deck: a smooth round tube banded
+-- white/orange, wrapped with rope lashings and a drooping grab line.
 local function buildFloatie(parent: Instance, position: Vector3, yawDegrees: number?, scale: number?)
 	local s = scale or 1
 	local model = Instance.new("Model")
@@ -728,53 +729,108 @@ local function buildFloatie(parent: Instance, position: Vector3, yawDegrees: num
 
 	local yaw = math.rad(yawDegrees or 0)
 	-- Lay it flat on the deck, with a tiny natural tilt so it reads as "dropped there"
-	local tilt = math.rad((math.noise(position.X * 0.11, position.Z * 0.11)) * 8)
+	local tilt = math.rad((math.noise(position.X * 0.11, position.Z * 0.11)) * 6)
 	local baseCf = CFrame.new(position) * CFrame.Angles(0, yaw, tilt)
 
 	local ringRadius = 2.2 * s
-	local segments = 20
-	local white = Color3.fromRGB(238, 236, 228)
-	local orange = Color3.fromRGB(226, 96, 42)
+	local tubeDia = 0.82 * s
+	local segments = 24
+	local white = Color3.fromRGB(240, 238, 231)
+	local orange = Color3.fromRGB(230, 92, 36)
 
+	-- Smooth torus tube: tangential cylinder segments overlapped so the ring
+	-- reads as one continuous rounded float instead of a bead necklace.
+	local segLen = (2 * math.pi * ringRadius / segments) * 1.35
 	for i = 0, segments - 1 do
 		local ang = (i / segments) * math.pi * 2
-		local offset = Vector3.new(math.cos(ang) * ringRadius, 0, math.sin(ang) * ringRadius)
-		-- Quarters alternate white / orange like a real ring buoy
+		local localPos = Vector3.new(math.cos(ang) * ringRadius, 0, math.sin(ang) * ringRadius)
+		local tangent = Vector3.new(-math.sin(ang), 0, math.cos(ang))
+		-- Four painted quadrants alternate white / orange like a real lifebuoy
 		local quarter = math.floor((i / segments) * 4)
 		local color = if quarter % 2 == 0 then white else orange
 		part({
-			Name = "RingSeg" .. i,
+			Name = "Tube" .. i,
 			Parent = model,
-			Size = Vector3.new(0.95 * s, 0.72 * s, 0.95 * s),
-			CFrame = baseCf * CFrame.new(offset) * CFrame.Angles(0, -ang, 0),
+			Size = Vector3.new(segLen, tubeDia, tubeDia),
+			CFrame = baseCf * CFrame.fromMatrix(localPos, tangent, Vector3.yAxis),
 			Color = color,
 			Material = Enum.Material.SmoothPlastic,
+			Reflectance = 0.05,
+			CanCollide = false,
+			Shape = Enum.PartType.Cylinder,
+		})
+		-- Rounded ball caps hide the seams between straight cylinder chords.
+		part({
+			Name = "Joint" .. i,
+			Parent = model,
+			Size = Vector3.new(tubeDia, tubeDia, tubeDia),
+			CFrame = baseCf * CFrame.new(localPos),
+			Color = color,
+			Material = Enum.Material.SmoothPlastic,
+			Reflectance = 0.05,
 			CanCollide = false,
 			Shape = Enum.PartType.Ball,
 		})
 	end
 
-	-- Rope lashing loops around the ring (four tie-off points)
+	-- Four rope lashings wrapped over the tube at the tie-off points.
+	local rope = Color3.fromRGB(206, 186, 138)
 	for i = 0, 3 do
 		local ang = (i / 4) * math.pi * 2 + math.pi / 8
-		local offset = Vector3.new(math.cos(ang) * ringRadius, 0.05 * s, math.sin(ang) * ringRadius)
+		local localPos = Vector3.new(math.cos(ang) * ringRadius, 0, math.sin(ang) * ringRadius)
+		local tangent = Vector3.new(-math.sin(ang), 0, math.cos(ang))
 		part({
 			Name = "Lash" .. i,
 			Parent = model,
-			Size = Vector3.new(0.32 * s, 0.85 * s, 0.32 * s),
-			CFrame = baseCf * CFrame.new(offset) * CFrame.Angles(math.rad(90), -ang, 0),
-			Color = Color3.fromRGB(214, 198, 150),
+			Size = Vector3.new(0.26 * s, tubeDia * 1.28, tubeDia * 1.28),
+			CFrame = baseCf * CFrame.fromMatrix(localPos, tangent, Vector3.yAxis),
+			Color = rope,
 			Material = Enum.Material.Fabric,
 			CanCollide = false,
 			Shape = Enum.PartType.Cylinder,
 		})
 	end
 
+	-- Grab line draped between the lashings, sagging outward off the ring.
+	local grabRadius = ringRadius + tubeDia * 0.55
+	local droopSpans = 4
+	local perSpan = 3
+	-- A point along the sagging span at parameter t, bulging outward at the middle.
+	local function ropePoint(a0: number, a1: number, t: number): Vector3
+		local a = a0 + (a1 - a0) * t
+		local sag = math.sin(t * math.pi) * (0.5 * s)
+		local r = grabRadius + sag
+		return Vector3.new(math.cos(a) * r, -0.04 * s, math.sin(a) * r)
+	end
+	for span = 0, droopSpans - 1 do
+		local a0 = (span / droopSpans) * math.pi * 2 + math.pi / 8
+		local a1 = ((span + 1) / droopSpans) * math.pi * 2 + math.pi / 8
+		for j = 0, perSpan - 1 do
+			local t0 = j / perSpan
+			local t1 = (j + 1) / perSpan
+			local p0 = ropePoint(a0, a1, t0)
+			local p1 = ropePoint(a0, a1, t1)
+			local mid = (p0 + p1) * 0.5
+			local dir = (p1 - p0)
+			local len = dir.Magnitude
+			part({
+				Name = "Grab" .. span .. "_" .. j,
+				Parent = model,
+				Size = Vector3.new(math.max(len, 0.05), 0.16 * s, 0.16 * s),
+				CFrame = baseCf * CFrame.fromMatrix(mid, dir.Unit, Vector3.yAxis),
+				Color = rope,
+				Material = Enum.Material.Fabric,
+				CanCollide = false,
+				Shape = Enum.PartType.Cylinder,
+			})
+		end
+	end
+
 	return model
 end
 
--- Realistic standing-water puddle: a mirror-still sheet flush with the planks,
--- ringed by a darker "damp" halo so the surrounding wood reads as wet.
+-- Realistic standing-water puddle: a damp stain soaked into the planks with a
+-- thin, glassy sky-reflecting water surface resting on top.
 local function buildPuddle(parent: Instance, center: Vector3, radius: number)
 	local model = Instance.new("Model")
 	model.Name = "Puddle"
@@ -786,34 +842,42 @@ local function buildPuddle(parent: Instance, center: Vector3, radius: number)
 		{ Vector3.new(radius * 0.55, 0, radius * 0.25), 0.62 },
 		{ Vector3.new(-radius * 0.45, 0, radius * 0.4), 0.56 },
 		{ Vector3.new(radius * 0.15, 0, -radius * 0.5), 0.5 },
+		{ Vector3.new(-radius * 0.2, 0, -radius * 0.35), 0.4 },
 	}
+
 	for i, blob in blobs do
 		local off = blob[1] :: Vector3
 		local scale = blob[2] :: number
+		local w = radius * 2 * scale
+		local d = radius * 1.7 * scale
 
-		-- Damp halo: slightly larger dark wet-plank patch beneath the water.
+		-- Damp halo: the wood darkened and soaked where water has spread,
+		-- slightly larger than the water and flush with the planks.
 		part({
 			Name = "Damp" .. i,
 			Parent = model,
-			Size = Vector3.new(radius * 2.35 * scale, 0.05, radius * 2.0 * scale),
+			Size = Vector3.new(w * 1.22, 0.04, d * 1.22),
 			CFrame = CFrame.new(center + off + Vector3.new(0, 0.02, 0)),
-			Color = Color3.fromRGB(58, 40, 26),
+			Color = Color3.fromRGB(64, 48, 33),
 			Material = Enum.Material.WoodPlanks,
-			Transparency = 0.4,
+			Transparency = 0.42,
 			CanCollide = false,
 			CastShadow = false,
 		})
 
-		-- The water sheet itself: dark, glassy, highly reflective (mirrors the sky).
+		-- Water surface: thin, glassy, reflecting the sky with a cool tint. A
+		-- little per-blob variance in sheen keeps the surface from looking flat
+		-- and uniform, without any per-frame property writes to replicate.
+		local sheen = 0.5 + math.noise(off.X * 0.5, off.Z * 0.5) * 0.12
 		part({
 			Name = "Water" .. i,
 			Parent = model,
-			Size = Vector3.new(radius * 2 * scale, 0.06, radius * 1.7 * scale),
+			Size = Vector3.new(w, 0.05, d),
 			CFrame = CFrame.new(center + off + Vector3.new(0, 0.05, 0)),
-			Color = Color3.fromRGB(40, 58, 66),
+			Color = Color3.fromRGB(72, 96, 108),
 			Material = Enum.Material.Glass,
-			Transparency = 0.18,
-			Reflectance = 0.62,
+			Transparency = 0.28,
+			Reflectance = math.clamp(sheen, 0.42, 0.6),
 			CanCollide = false,
 			CastShadow = false,
 		})
@@ -981,6 +1045,96 @@ local function buildObjectiveSign(parent: Instance, position: Vector3, yawDegree
 	return model
 end
 
+-- A small, eye-level placard along the walkway that spells out the objective
+-- in one short paragraph. Sized so players can stroll right up and read it.
+local function buildObjectiveBillboard(parent: Instance, position: Vector3, yawDegrees: number?)
+	local model = Instance.new("Model")
+	model.Name = "ObjectiveBillboard"
+	model.Parent = parent
+
+	local yaw = math.rad(yawDegrees or 0)
+	local baseCf = CFrame.new(position) * CFrame.Angles(0, yaw, 0)
+
+	-- Single stout post
+	part({
+		Name = "Post",
+		Parent = model,
+		Size = Vector3.new(0.5, 3.4, 0.5),
+		CFrame = baseCf * CFrame.new(0, 1.7, 0),
+		Color = Color3.fromRGB(88, 60, 36),
+		Material = Enum.Material.Wood,
+		CanCollide = false,
+	})
+
+	-- Compact board tilted back a touch so it reads while walking past
+	local board = part({
+		Name = "Board",
+		Parent = model,
+		Size = Vector3.new(4.6, 2.4, 0.28),
+		CFrame = baseCf * CFrame.new(0, 4, 0) * CFrame.Angles(math.rad(-8), 0, 0),
+		Color = Color3.fromRGB(150, 110, 68),
+		Material = Enum.Material.WoodPlanks,
+		CanCollide = false,
+	})
+
+	-- Thin frame trim around the board face
+	part({
+		Name = "FrameTop",
+		Parent = model,
+		Size = Vector3.new(5.0, 0.28, 0.34),
+		CFrame = baseCf * CFrame.new(0, 5.22, 0) * CFrame.Angles(math.rad(-8), 0, 0),
+		Color = Color3.fromRGB(108, 74, 44),
+		Material = Enum.Material.Wood,
+		CanCollide = false,
+	})
+	part({
+		Name = "FrameBottom",
+		Parent = model,
+		Size = Vector3.new(5.0, 0.28, 0.34),
+		CFrame = baseCf * CFrame.new(0, 2.78, 0) * CFrame.Angles(math.rad(-8), 0, 0),
+		Color = Color3.fromRGB(108, 74, 44),
+		Material = Enum.Material.Wood,
+		CanCollide = false,
+	})
+
+	local surface = Instance.new("SurfaceGui")
+	surface.Name = "ObjectiveFace"
+	surface.Adornee = board
+	surface.Face = Enum.NormalId.Front
+	surface.CanvasSize = Vector2.new(460, 240)
+	surface.SizingMode = Enum.SurfaceGuiSizingMode.FixedSize
+	surface.Parent = board
+
+	local bg = Instance.new("Frame")
+	bg.Size = UDim2.fromScale(1, 1)
+	bg.BackgroundColor3 = Color3.fromRGB(246, 238, 216)
+	bg.BorderSizePixel = 0
+	bg.Parent = surface
+
+	local pad = Instance.new("UIPadding")
+	pad.PaddingTop = UDim.new(0, 18)
+	pad.PaddingBottom = UDim.new(0, 18)
+	pad.PaddingLeft = UDim.new(0, 22)
+	pad.PaddingRight = UDim.new(0, 22)
+	pad.Parent = bg
+
+	local body = Instance.new("TextLabel")
+	body.BackgroundTransparency = 1
+	body.Size = UDim2.fromScale(1, 1)
+	body.Font = Enum.Font.GothamMedium
+	body.Text = "Gather your crew and board a portal boat. Set sail together and survive the open sea."
+	body.TextColor3 = Color3.fromRGB(48, 42, 34)
+	body.TextWrapped = true
+	body.TextScaled = true
+	body.Parent = bg
+
+	local bodyConstraint = Instance.new("UITextSizeConstraint")
+	bodyConstraint.MaxTextSize = 34
+	bodyConstraint.Parent = body
+
+	return model
+end
+
 -- Deck dressing: floaties, puddles, a flag, and the objective sign on the pier.
 local function buildDeckDressing(parent: Instance)
 	-- Lifeguard floaties laying on the deck (clear of the berth row at z≈68)
@@ -1009,6 +1163,11 @@ local function buildDeckDressing(parent: Instance)
 
 	-- Objective sign facing the spawn point
 	buildObjectiveSign(parent, Vector3.new(14, PIER.DeckY, -30), 200)
+
+	-- Small walk-by objective placard along the left-side walkway, facing inward
+	-- so players read it as they stroll past (clear of the cannons at z≈8/42 and
+	-- the under-deck support pillar near z≈20).
+	buildObjectiveBillboard(parent, Vector3.new(-31, PIER.DeckY, 28), 90)
 end
 
 local function buildScenery(root: Folder)
