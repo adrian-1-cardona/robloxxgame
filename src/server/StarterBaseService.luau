@@ -1,5 +1,6 @@
--- One huge square wooden plank per crew — the Survive at Sea starter base.
+-- One huge open wooden platform per crew — the Survive at Sea starter base.
 -- Party size only gates who can join; it never changes the plank footprint.
+-- Deck is timber planks with no rails / walls — pure open raft.
 --
 -- Bases are Models with PrimaryPart = Deck so they can be moved later
 -- (sea drift / voyage travel) via setBaseCFrame without rebuilding.
@@ -128,14 +129,14 @@ function StarterBaseService.ensureBase(code: string, baseSlot: number): Model
 	privacyValue.Value = "Private"
 	privacyValue.Parent = model
 
-	-- Deck sits just above the ocean surface so it reads as mid-sea timber
+	-- Structural deck (collision) — warm timber base under the visible plank layer
 	local deck = makePart({
 		Name = "Deck",
 		Parent = model,
 		Size = Vector3.new(size, thickness, size),
 		CFrame = CFrame.new(center),
-		Color = Color3.fromRGB(118, 80, 48),
-		Material = Enum.Material.WoodPlanks,
+		Color = Color3.fromRGB(96, 64, 38),
+		Material = Enum.Material.Wood,
 	})
 	model.PrimaryPart = deck
 
@@ -164,63 +165,83 @@ function StarterBaseService.ensureBase(code: string, baseSlot: number): Model
 		CastShadow = false,
 	})
 
-	local seamColor = Color3.fromRGB(86, 58, 34)
-	for i = -2, 2 do
-		if i ~= 0 then
-			makePart({
-				Name = `SeamX_{i}`,
-				Parent = model,
-				Size = Vector3.new(0.6, thickness + 0.15, size - 4),
-				CFrame = CFrame.new(center + Vector3.new(i * (size / 5), 0.05, 0)),
-				Color = seamColor,
-				Material = Enum.Material.Wood,
-				CanCollide = false,
-			})
-			makePart({
-				Name = `SeamZ_{i}`,
-				Parent = model,
-				Size = Vector3.new(size - 4, thickness + 0.15, 0.6),
-				CFrame = CFrame.new(center + Vector3.new(0, 0.05, i * (size / 5))),
-				Color = seamColor,
-				Material = Enum.Material.Wood,
-				CanCollide = false,
-			})
-		end
+	-- Open wooden platform: dense plank boards + timber beams. No rails / walls / posts.
+	local half = size / 2
+	local deckTop = center.Y + thickness / 2
+	local plankColors = {
+		Color3.fromRGB(138, 96, 58),
+		Color3.fromRGB(122, 82, 48),
+		Color3.fromRGB(148, 104, 64),
+		Color3.fromRGB(110, 74, 42),
+		Color3.fromRGB(132, 90, 54),
+		Color3.fromRGB(118, 78, 46),
+	}
+	local plankW = 3.2
+	local plankGap = 0.18
+	local plankStep = plankW + plankGap
+	local plankCount = math.max(1, math.floor((size - 1.5) / plankStep))
+	local plankSpan = plankCount * plankStep - plankGap
+	local plankStart = -plankSpan / 2 + plankW / 2
+	for i = 0, plankCount - 1 do
+		local tone = plankColors[(i % #plankColors) + 1]
+		makePart({
+			Name = `Plank_{i}`,
+			Parent = model,
+			Size = Vector3.new(plankW, 0.55, size - 2.4),
+			CFrame = CFrame.new(center.X + plankStart + i * plankStep, deckTop + 0.22, center.Z),
+			Color = tone,
+			Material = Enum.Material.WoodPlanks,
+			CanCollide = false,
+		})
 	end
 
-	local half = size / 2
-	local railH = 2.2
-	local railT = 1.2
-	local railY = center.Y + thickness / 2 + railH / 2
+	-- Cross-grain timber joists peeking between plank runs
+	local joistColor = Color3.fromRGB(78, 50, 28)
+	for j = -3, 3 do
+		makePart({
+			Name = `Joist_{j}`,
+			Parent = model,
+			Size = Vector3.new(size - 3.2, 0.35, 0.9),
+			CFrame = CFrame.new(center.X, deckTop + 0.05, center.Z + j * (size / 7)),
+			Color = joistColor,
+			Material = Enum.Material.Wood,
+			CanCollide = false,
+		})
+	end
+
+	-- Low flush rim boards (trim only — not walls) so the platform edges read as timber
+	local rimH = 0.7
+	local rimT = 1.35
+	local rimY = deckTop + rimH / 2 + 0.15
+	local rimColor = Color3.fromRGB(86, 56, 32)
 	for _, spec in {
-		{ Name = "RailNorth", CFrame = CFrame.new(center.X, railY, center.Z - half + railT / 2), Size = Vector3.new(size, railH, railT) },
-		{ Name = "RailSouth", CFrame = CFrame.new(center.X, railY, center.Z + half - railT / 2), Size = Vector3.new(size, railH, railT) },
-		{ Name = "RailWest", CFrame = CFrame.new(center.X - half + railT / 2, railY, center.Z), Size = Vector3.new(railT, railH, size - railT * 2) },
-		{ Name = "RailEast", CFrame = CFrame.new(center.X + half - railT / 2, railY, center.Z), Size = Vector3.new(railT, railH, size - railT * 2) },
+		{ Name = "RimNorth", CFrame = CFrame.new(center.X, rimY, center.Z - half + rimT / 2), Size = Vector3.new(size, rimH, rimT) },
+		{ Name = "RimSouth", CFrame = CFrame.new(center.X, rimY, center.Z + half - rimT / 2), Size = Vector3.new(size, rimH, rimT) },
+		{ Name = "RimWest", CFrame = CFrame.new(center.X - half + rimT / 2, rimY, center.Z), Size = Vector3.new(rimT, rimH, size - rimT * 2) },
+		{ Name = "RimEast", CFrame = CFrame.new(center.X + half - rimT / 2, rimY, center.Z), Size = Vector3.new(rimT, rimH, size - rimT * 2) },
 	} do
 		makePart({
 			Name = spec.Name,
 			Parent = model,
 			Size = spec.Size,
 			CFrame = spec.CFrame,
-			Color = Color3.fromRGB(92, 64, 42),
+			Color = rimColor,
 			Material = Enum.Material.Wood,
+			CanCollide = false,
 		})
 	end
 
-	for _, cornerOffset in {
-		Vector3.new(-half + 1.5, 0, -half + 1.5),
-		Vector3.new(half - 1.5, 0, -half + 1.5),
-		Vector3.new(-half + 1.5, 0, half - 1.5),
-		Vector3.new(half - 1.5, 0, half - 1.5),
-	} do
+	-- Underside timber beams so the hull still reads as wood from the waterline
+	local beamY = center.Y - thickness / 2 - 0.35
+	for b = -2, 2 do
 		makePart({
-			Name = "CornerPost",
+			Name = `KeelBeam_{b}`,
 			Parent = model,
-			Size = Vector3.new(2.4, 5, 2.4),
-			CFrame = CFrame.new(center + cornerOffset + Vector3.new(0, thickness / 2 + 2.5, 0)),
-			Color = Color3.fromRGB(78, 52, 30),
+			Size = Vector3.new(1.6, 0.9, size - 4),
+			CFrame = CFrame.new(center.X + b * (size / 5), beamY, center.Z),
+			Color = Color3.fromRGB(72, 46, 26),
 			Material = Enum.Material.Wood,
+			CanCollide = false,
 		})
 	end
 

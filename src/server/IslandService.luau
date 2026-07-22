@@ -370,7 +370,7 @@ local function buildFlatIsland(entry: {
 	makePart({
 		Name = "ReefShelf",
 		Parent = model,
-		Size = Vector3.new(size + 10, 2.2, size + 10),
+		Size = Vector3.new(size + 28, 2.2, size + 28),
 		CFrame = CFrame.new(center.X, OceanConfig.SurfaceY - 1.2, center.Z),
 		Color = Color3.fromRGB(72, 110, 98),
 		Material = Enum.Material.Slate,
@@ -398,9 +398,16 @@ local function buildFlatIsland(entry: {
 		})
 	end
 
-	buildPalm(model, topY, center, -size * 0.18, size * 0.1)
-	if size >= 42 then
-		buildPalm(model, topY, center, size * 0.16, -size * 0.12)
+	-- Scatter palms across the big flats so the sand doesn't read empty
+	buildPalm(model, topY, center, -size * 0.28, size * 0.18)
+	buildPalm(model, topY, center, size * 0.22, -size * 0.2)
+	buildPalm(model, topY, center, -size * 0.12, -size * 0.26)
+	if size >= 170 then
+		buildPalm(model, topY, center, size * 0.3, size * 0.12)
+		buildPalm(model, topY, center, size * 0.08, size * 0.32)
+	end
+	if size >= 185 then
+		buildPalm(model, topY, center, -size * 0.32, -size * 0.08)
 	end
 
 	if entry.HasHouse then
@@ -421,7 +428,7 @@ local function buildFlatIsland(entry: {
 	gui.Adornee = marker
 	gui.Size = UDim2.fromOffset(180, 42)
 	gui.AlwaysOnTop = true
-	gui.MaxDistance = 520
+	gui.MaxDistance = 900
 	gui.Parent = marker
 
 	local label = Instance.new("TextLabel")
@@ -504,7 +511,7 @@ function IslandService.isLockedForCrew(code: string, islandId: string): boolean
 	return state ~= nil and state.locked == true
 end
 
--- Keep rafts outside locked isles (can't sail back after leaving ~100 studs away).
+-- Keep rafts outside locked isles (can't sail back after leaving far enough away).
 function IslandService.clampRaftPosition(code: string, fromPos: Vector3, toPos: Vector3): (Vector3, string?)
 	local result = toPos
 	local blockedName: string? = nil
@@ -609,7 +616,7 @@ local function updateVisitLockouts()
 				state.visited = true
 				if not state.notifiedVisit then
 					state.notifiedVisit = true
-					toastCrew(code, `Visited {isle.name} — leave & sail ~100m away and you can't return.`, "info")
+					toastCrew(code, `Visited {isle.name} — leave & sail far away and you can't return.`, "info")
 				end
 				continue
 			end
