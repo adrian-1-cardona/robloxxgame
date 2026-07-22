@@ -3,13 +3,17 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
+local DayNight = require(Shared:WaitForChild("DayNight"))
 local Remotes = require(Shared:WaitForChild("Remotes"))
 
+local ClockHUD = require(script.Parent.ClockHUD)
 local PlatformInput = require(script.Parent.PlatformInput)
 
 local player = Players.LocalPlayer
@@ -31,6 +35,8 @@ local partyPanel
 local createPanel
 local joinPanel
 local toastFrame
+local clockLabel: TextLabel? = nil
+local clockStroke: UIStroke? = nil
 
 local function corner(parent: Instance, radius: number?)
 	local c = Instance.new("UICorner")
@@ -139,6 +145,33 @@ local function showToast(message: string, kind: string?)
 	end)
 end
 
+local function refreshClockLabel()
+	if not clockLabel or not partyPanel or not partyPanel.Visible then
+		return
+	end
+
+	local dayState = DayNight.getState(Workspace:GetServerTimeNow())
+	clockLabel.Text = dayState.displayTime
+	if dayState.phase == "Night" then
+		clockLabel.TextColor3 = Color3.fromRGB(190, 210, 235)
+		if clockStroke then
+			clockStroke.Color = Color3.fromRGB(90, 110, 160)
+		end
+	else
+		clockLabel.TextColor3 = Config.Theme.UIText
+		if clockStroke then
+			clockStroke.Color = Config.Theme.SeaTeal
+		end
+	end
+end
+
+local function setGameplayMode(active: boolean)
+	ClockHUD.setGameplayActive(active)
+	if active then
+		refreshClockLabel()
+	end
+end
+
 local function refreshPartyPanel()
 	if not partyPanel then
 		return
@@ -153,6 +186,7 @@ local function refreshPartyPanel()
 
 	if typeof(party) ~= "table" or party.__openCreate then
 		partyPanel.Visible = false
+		setGameplayMode(false)
 		if joinPanel then
 			joinPanel.Visible = true
 		end
@@ -160,12 +194,13 @@ local function refreshPartyPanel()
 	end
 
 	partyPanel.Visible = true
+	setGameplayMode(true)
 	-- On a crew: hide the join box so the top-right is the live code
 	if joinPanel then
 		joinPanel.Visible = false
 	end
 
-	title.Text = "CREW BASE"
+	title.Text = "CREW"
 	codeLabel.Text = party.code
 	if privacyLabel then
 		privacyLabel.Text = "PRIVATE · CODE ONLY"
@@ -180,6 +215,7 @@ local function refreshPartyPanel()
 	members.Text = table.concat(lines, "\n") .. `\n{ #party.members }/{party.maxPlayers}`
 
 	leaveBtn.Visible = true
+	refreshClockLabel()
 end
 
 local function openCreate(portalIndex: number)
@@ -377,26 +413,27 @@ local function buildGui()
 
 	createPanel.Size = UDim2.new(0, 360, 0, 250)
 
-	-- Compact top-right code panel
+	-- Compact top-right crew menu (clock sits where Cast Off used to)
 	partyPanel = Instance.new("Frame")
 	partyPanel.Name = "PartyPanel"
 	partyPanel.BackgroundColor3 = Config.Theme.UIPanel
 	partyPanel.BackgroundTransparency = 0.1
-	partyPanel.Size = UDim2.new(0, 196, 0, 156)
-	partyPanel.Position = UDim2.new(1, -208, 0, 10)
+	partyPanel.Size = UDim2.new(0, 156, 0, 168)
+	partyPanel.Position = UDim2.new(1, -8, 0, 6)
+	partyPanel.AnchorPoint = Vector2.new(1, 0)
 	partyPanel.Visible = false
 	partyPanel.Parent = root
-	corner(partyPanel, 10)
-	stroke(partyPanel, Config.Theme.Lantern, 1.2)
+	corner(partyPanel, 8)
+	stroke(partyPanel, Config.Theme.Lantern, 1.1)
 
 	textLabel({
 		Name = "Title",
 		Parent = partyPanel,
-		Text = "BASE",
+		Text = "CREW",
 		Font = Enum.Font.GothamBlack,
-		Size = UDim2.new(1, -14, 0, 18),
-		Position = UDim2.new(0, 7, 0, 6),
-		MaxTextSize = 13,
+		Size = UDim2.new(1, -12, 0, 14),
+		Position = UDim2.new(0, 6, 0, 4),
+		MaxTextSize = 11,
 	})
 
 	textLabel({
@@ -404,9 +441,9 @@ local function buildGui()
 		Parent = partyPanel,
 		Text = "CODE",
 		TextColor3 = Config.Theme.UIMuted,
-		Size = UDim2.new(1, -14, 0, 12),
-		Position = UDim2.new(0, 7, 0, 24),
-		MaxTextSize = 10,
+		Size = UDim2.new(1, -12, 0, 10),
+		Position = UDim2.new(0, 6, 0, 18),
+		MaxTextSize = 9,
 	})
 
 	textLabel({
@@ -416,9 +453,9 @@ local function buildGui()
 		Font = Enum.Font.GothamBlack,
 		TextColor3 = Config.Theme.UIAccent,
 		TextXAlignment = Enum.TextXAlignment.Center,
-		Size = UDim2.new(1, -14, 0, 28),
-		Position = UDim2.new(0, 7, 0, 36),
-		MaxTextSize = 24,
+		Size = UDim2.new(1, -12, 0, 22),
+		Position = UDim2.new(0, 6, 0, 28),
+		MaxTextSize = 18,
 	})
 
 	textLabel({
@@ -427,9 +464,9 @@ local function buildGui()
 		Text = "PRIVATE · CODE ONLY",
 		TextColor3 = Config.Theme.Lantern,
 		TextXAlignment = Enum.TextXAlignment.Center,
-		Size = UDim2.new(1, -14, 0, 14),
-		Position = UDim2.new(0, 7, 0, 64),
-		MaxTextSize = 11,
+		Size = UDim2.new(1, -12, 0, 12),
+		Position = UDim2.new(0, 6, 0, 50),
+		MaxTextSize = 9,
 	})
 
 	textLabel({
@@ -437,17 +474,39 @@ local function buildGui()
 		Parent = partyPanel,
 		Text = "",
 		TextYAlignment = Enum.TextYAlignment.Top,
-		Size = UDim2.new(1, -14, 0, 48),
-		Position = UDim2.new(0, 7, 0, 80),
-		MaxTextSize = 12,
+		Size = UDim2.new(1, -12, 0, 36),
+		Position = UDim2.new(0, 6, 0, 64),
+		MaxTextSize = 11,
+	})
+
+	-- Old Cast Off slot → live day/night clock (gameplay only)
+	local clockSlot = Instance.new("Frame")
+	clockSlot.Name = "ClockSlot"
+	clockSlot.BackgroundColor3 = Color3.fromRGB(6, 20, 32)
+	clockSlot.BackgroundTransparency = 0.25
+	clockSlot.Size = UDim2.new(1, -12, 0, 26)
+	clockSlot.Position = UDim2.new(0, 6, 0, 104)
+	clockSlot.Parent = partyPanel
+	corner(clockSlot, 6)
+	clockStroke = stroke(clockSlot, Config.Theme.SeaTeal, 1)
+
+	clockLabel = textLabel({
+		Name = "Clock",
+		Parent = clockSlot,
+		Text = "12:00 PM",
+		Font = Enum.Font.GothamBold,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Size = UDim2.new(1, -6, 1, -2),
+		Position = UDim2.new(0, 3, 0, 1),
+		MaxTextSize = 14,
 	})
 
 	button({
 		Name = "Leave",
 		Parent = partyPanel,
 		Text = "Leave",
-		Size = UDim2.new(1, -14, 0, 24),
-		Position = UDim2.new(0, 7, 0, 128),
+		Size = UDim2.new(1, -12, 0, 22),
+		Position = UDim2.new(0, 6, 0, 136),
 		BackgroundColor3 = Color3.fromRGB(70, 40, 45),
 		TextColor3 = Config.Theme.Foam,
 		OnClick = function()
@@ -490,14 +549,16 @@ local function buildGui()
 		if width < 700 then
 			joinPanel.Size = UDim2.new(1, -24, 0, 132)
 			joinPanel.Position = UDim2.new(0, 12, 1, -148)
-			partyPanel.Size = UDim2.new(0, 180, 0, 156)
-			partyPanel.Position = UDim2.new(1, -192, 0, 8)
+			partyPanel.Size = UDim2.new(0, 148, 0, 168)
+			partyPanel.Position = UDim2.new(1, -6, 0, 4)
+			partyPanel.AnchorPoint = Vector2.new(1, 0)
 			createPanel.Size = UDim2.new(1, -24, 0, 260)
 		else
 			joinPanel.Size = UDim2.new(0, 260, 0, 132)
 			joinPanel.Position = UDim2.new(1, -276, 1, -148)
-			partyPanel.Size = UDim2.new(0, 196, 0, 156)
-			partyPanel.Position = UDim2.new(1, -208, 0, 10)
+			partyPanel.Size = UDim2.new(0, 156, 0, 168)
+			partyPanel.Position = UDim2.new(1, -8, 0, 6)
+			partyPanel.AnchorPoint = Vector2.new(1, 0)
 		end
 	end
 
@@ -563,6 +624,13 @@ end
 function LobbyUI.start()
 	buildGui()
 	bindRemotes()
+
+	-- Tick the crew-menu clock only while gameplay (on a crew) is active.
+	RunService.RenderStepped:Connect(function()
+		if partyPanel and partyPanel.Visible then
+			refreshClockLabel()
+		end
+	end)
 
 	-- Client-built portals signal create via BindableEvent
 	local openEvent = ReplicatedStorage:FindFirstChild("SurviveAtSeaOpenCreate")

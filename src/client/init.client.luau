@@ -29,9 +29,10 @@ else
 	print("[SurviveAtSea] Found Workspace.SurviveAtSeaLobby")
 end
 
+-- Lighting lock first so lobby stays daytime before any crew UI opens.
+ClockHUD.start()
 LobbyUI.start()
 HelmController.start()
-ClockHUD.start()
 
 local player = Players.LocalPlayer
 
@@ -83,7 +84,7 @@ end)
 
 pcall(function()
 	local Lighting = game:GetService("Lighting")
-	-- DayNightService owns ClockTime / brightness / fog — only strip neon bloom here.
+	-- Client ClockHUD owns ClockTime / brightness / fog — only strip neon bloom here.
 	for _, child in Lighting:GetChildren() do
 		if child:IsA("BloomEffect") then
 			child:Destroy()
