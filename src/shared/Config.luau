@@ -36,6 +36,22 @@ local Config = {
 		WaterRescueY = 1.2,
 	},
 
+	-- Starter gear: wooden club given when you board a crew raft.
+	-- Melee swing: right-click (PC), RT / ButtonR2 (console), tap Attack (mobile).
+	-- CanBeDropped = true so Roblox backpack drop works (Backspace / Xbox X / etc.).
+	Club = {
+		ToolName = "Club",
+		Damage = 22,
+		SwingCooldown = 0.55,
+		-- Forward reach from HumanoidRootPart for hit checks
+		Range = 7.5,
+		HitRadius = 3.2,
+		-- How long the swing hit window stays open (server)
+		HitWindow = 0.22,
+		-- Client swing visual duration
+		SwingDuration = 0.35,
+	},
+
 	-- Starter raft kit: vertical steering column + upright look-steered helm wheel.
 	-- Take the helm → locked standing at the wheel; look steers; W / stick / arrows drive;
 	-- jump / gamepad B to unlock and step away.

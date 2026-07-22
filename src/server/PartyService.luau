@@ -21,6 +21,7 @@ local PartyCode = require(Shared:WaitForChild("PartyCode"))
 local Types = require(Shared:WaitForChild("Types"))
 
 local StarterBaseService = require(script.Parent:WaitForChild("StarterBaseService"))
+local StarterGearService = require(script.Parent:WaitForChild("StarterGearService"))
 
 type PartyPrivacy = Types.PartyPrivacy
 type PartySnapshot = Types.PartySnapshot
@@ -117,6 +118,8 @@ end
 local function seatOnBase(player: Player, party: PartyRecord)
 	StarterBaseService.ensureBase(party.code, party.baseSlot)
 	StarterBaseService.teleportPlayerToBase(player, party.baseSlot, memberSlot(party, player.UserId))
+	-- Voyage starter kit: wooden club (droppable melee)
+	StarterGearService.ensureStarterClub(player)
 end
 
 local function removePlayerFromCurrentParty(userId: number)
@@ -147,6 +150,7 @@ local function removePlayerFromCurrentParty(userId: number)
 	party.memberUserIds = remaining
 
 	if leavingPlayer then
+		StarterGearService.clearStarterClub(leavingPlayer)
 		StarterBaseService.teleportPlayerToLobby(leavingPlayer)
 	end
 

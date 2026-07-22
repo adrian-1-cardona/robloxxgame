@@ -24,6 +24,8 @@ local IslandService = require(script.Parent:WaitForChild("IslandService"))
 local OceanTerrainService = require(script.Parent:WaitForChild("OceanTerrainService"))
 local DayNightService = require(script.Parent:WaitForChild("DayNightService"))
 local WeatherService = require(script.Parent:WaitForChild("WeatherService"))
+local StarterGearService = require(script.Parent:WaitForChild("StarterGearService"))
+local MeleeService = require(script.Parent:WaitForChild("Combat"):WaitForChild("MeleeService"))
 
 print(`[SurviveAtSea] Booting {Config.GameName} lobby…`)
 
@@ -55,6 +57,8 @@ local HelmLook = remoteFolder:WaitForChild("HelmLook")
 local HelmThrottle = remoteFolder:WaitForChild("HelmThrottle")
 local HelmState = remoteFolder:WaitForChild("HelmState")
 local HelmDismount = remoteFolder:WaitForChild("HelmDismount")
+local MeleeAttack = remoteFolder:WaitForChild("MeleeAttack")
+local MeleeSwingFx = remoteFolder:WaitForChild("MeleeSwingFx")
 
 -- Helm: look-steer + throttle drive, jump to unlock
 StarterBaseService._onBaseBuilt = function(code, model)
@@ -93,6 +97,14 @@ HelmDismount.OnServerEvent:Connect(function(player)
 	if HelmService.isHelming(player) then
 		HelmService.release(player, "Left the helm.")
 	end
+end)
+
+-- Starter club + melee (RMB / RT / mobile tap). Drop uses default Tool backpack.
+StarterGearService.start(function(player)
+	return PartyService.isInParty(player)
+end)
+MeleeService.start(MeleeSwingFx :: RemoteEvent, MeleeAttack :: RemoteEvent, function(player)
+	return HelmService.isHelming(player)
 end)
 
 PortalService.start(Toast, PartyUpdated, PortalsUpdated)
@@ -143,6 +155,7 @@ local function seatPlayer(player: Player)
 	if seat then
 		-- Death / respawn while on a crew → back on the raft (for now)
 		StarterBaseService.teleportPlayerToBase(player, seat.baseSlot, seat.slotIndex)
+		StarterGearService.ensureStarterClub(player)
 	else
 		LobbyWorld.seatCharacter(character)
 	end
