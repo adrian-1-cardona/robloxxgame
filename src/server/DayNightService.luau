@@ -1,6 +1,6 @@
 -- Publishes day / night cycle state from server time so clients stay in sync.
 -- Visual lighting is client-owned: lobby stays daytime; gameplay follows each
--- crew's cycleOrigin (voyage always begins at 6:00 AM). Attributes here are a
+-- crew's cycleOrigin (voyage always begins at 9:00 AM). Attributes here are a
 -- global fallback for debugging — clients prefer ClockHUD.getGameplayState().
 
 local RunService = game:GetService("RunService")
@@ -43,7 +43,7 @@ function DayNightService.start()
 		publishState(DayNight.getState(Workspace:GetServerTimeNow()))
 	end)
 
-	print("[SurviveAtSea] Day/night sync started — crews start at 6:00 AM, hourly clock")
+	print("[SurviveAtSea] Day/night sync started — 5 min day / 5 min night, crews start at 9:00 AM")
 end
 
 return DayNightService
