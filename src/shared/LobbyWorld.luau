@@ -718,6 +718,282 @@ local function buildMiniIsland(parent: Instance, position: Vector3, footprint: V
 	return island
 end
 
+-- Lifeguard ring buoy lying flat on the deck (classic white/orange life preserver).
+local function buildFloatie(parent: Instance, position: Vector3, yawDegrees: number?, scale: number?)
+	local s = scale or 1
+	local model = Instance.new("Model")
+	model.Name = "Floatie"
+	model.Parent = parent
+
+	local yaw = math.rad(yawDegrees or 0)
+	-- Lay it flat on the deck, with a tiny natural tilt so it reads as "dropped there"
+	local tilt = math.rad((math.noise(position.X * 0.11, position.Z * 0.11)) * 8)
+	local baseCf = CFrame.new(position) * CFrame.Angles(0, yaw, tilt)
+
+	local ringRadius = 2.2 * s
+	local segments = 20
+	local white = Color3.fromRGB(238, 236, 228)
+	local orange = Color3.fromRGB(226, 96, 42)
+
+	for i = 0, segments - 1 do
+		local ang = (i / segments) * math.pi * 2
+		local offset = Vector3.new(math.cos(ang) * ringRadius, 0, math.sin(ang) * ringRadius)
+		-- Quarters alternate white / orange like a real ring buoy
+		local quarter = math.floor((i / segments) * 4)
+		local color = if quarter % 2 == 0 then white else orange
+		part({
+			Name = "RingSeg" .. i,
+			Parent = model,
+			Size = Vector3.new(0.95 * s, 0.72 * s, 0.95 * s),
+			CFrame = baseCf * CFrame.new(offset) * CFrame.Angles(0, -ang, 0),
+			Color = color,
+			Material = Enum.Material.SmoothPlastic,
+			CanCollide = false,
+			Shape = Enum.PartType.Ball,
+		})
+	end
+
+	-- Rope lashing loops around the ring (four tie-off points)
+	for i = 0, 3 do
+		local ang = (i / 4) * math.pi * 2 + math.pi / 8
+		local offset = Vector3.new(math.cos(ang) * ringRadius, 0.05 * s, math.sin(ang) * ringRadius)
+		part({
+			Name = "Lash" .. i,
+			Parent = model,
+			Size = Vector3.new(0.32 * s, 0.85 * s, 0.32 * s),
+			CFrame = baseCf * CFrame.new(offset) * CFrame.Angles(math.rad(90), -ang, 0),
+			Color = Color3.fromRGB(214, 198, 150),
+			Material = Enum.Material.Fabric,
+			CanCollide = false,
+			Shape = Enum.PartType.Cylinder,
+		})
+	end
+
+	return model
+end
+
+-- Thin, slightly reflective standing-water puddle sitting on the deck planks.
+local function buildPuddle(parent: Instance, center: Vector3, radius: number)
+	local model = Instance.new("Model")
+	model.Name = "Puddle"
+	model.Parent = parent
+
+	-- A few overlapping flat blobs give an irregular, natural puddle outline
+	local blobs = {
+		{ Vector3.new(0, 0, 0), 1.0 },
+		{ Vector3.new(radius * 0.55, 0, radius * 0.25), 0.6 },
+		{ Vector3.new(-radius * 0.45, 0, radius * 0.4), 0.55 },
+		{ Vector3.new(radius * 0.15, 0, -radius * 0.5), 0.5 },
+	}
+	for i, blob in blobs do
+		local off = blob[1] :: Vector3
+		local scale = blob[2] :: number
+		part({
+			Name = "Water" .. i,
+			Parent = model,
+			Size = Vector3.new(radius * 2 * scale, 0.08, radius * 1.7 * scale),
+			CFrame = CFrame.new(center + off + Vector3.new(0, 0.06, 0)),
+			Color = Color3.fromRGB(60, 82, 92),
+			Material = Enum.Material.Glass,
+			Transparency = 0.32,
+			Reflectance = 0.45,
+			CanCollide = false,
+			CastShadow = false,
+		})
+	end
+
+	return model
+end
+
+-- Simple flag on a tall pole with a gentle wave.
+local function buildFlag(parent: Instance, position: Vector3, yawDegrees: number?)
+	local model = Instance.new("Model")
+	model.Name = "Flag"
+	model.Parent = parent
+
+	local yaw = math.rad(yawDegrees or 0)
+	local baseCf = CFrame.new(position) * CFrame.Angles(0, yaw, 0)
+
+	part({
+		Name = "PoleBase",
+		Parent = model,
+		Size = Vector3.new(2.2, 0.6, 2.2),
+		CFrame = baseCf * CFrame.new(0, 0.3, 0),
+		Color = Color3.fromRGB(70, 48, 30),
+		Material = Enum.Material.Wood,
+		Shape = Enum.PartType.Cylinder,
+		CanCollide = false,
+	})
+	part({
+		Name = "Pole",
+		Parent = model,
+		Size = Vector3.new(0.55, 24, 0.55),
+		CFrame = baseCf * CFrame.new(0, 12, 0),
+		Color = Color3.fromRGB(120, 96, 62),
+		Material = Enum.Material.Wood,
+		CanCollide = false,
+	})
+	part({
+		Name = "Finial",
+		Parent = model,
+		Size = Vector3.new(1.1, 1.1, 1.1),
+		CFrame = baseCf * CFrame.new(0, 24.2, 0),
+		Color = Color3.fromRGB(220, 190, 110),
+		Material = Enum.Material.Metal,
+		Shape = Enum.PartType.Ball,
+		CanCollide = false,
+	})
+
+	local flag = part({
+		Name = "Cloth",
+		Parent = model,
+		Size = Vector3.new(0.3, 4.5, 8),
+		CFrame = baseCf * CFrame.new(0, 21, 4.2),
+		Color = Config.Berth.Purple,
+		Material = Enum.Material.Fabric,
+		CanCollide = false,
+	})
+	local flagBase = flag.CFrame
+
+	task.spawn(function()
+		local t = 0
+		while flag.Parent do
+			t += 0.06
+			flag.CFrame = flagBase * CFrame.Angles(0, math.rad(math.sin(t) * 6), math.rad(math.sin(t * 1.6) * 3))
+			task.wait(0.06)
+		end
+	end)
+
+	return model
+end
+
+-- Simple objective sign posted on a wooden board (readable text on the sign face).
+local function buildObjectiveSign(parent: Instance, position: Vector3, yawDegrees: number?)
+	local model = Instance.new("Model")
+	model.Name = "ObjectiveSign"
+	model.Parent = parent
+
+	local yaw = math.rad(yawDegrees or 0)
+	local baseCf = CFrame.new(position) * CFrame.Angles(0, yaw, 0)
+
+	for _, side in { -3.2, 3.2 } do
+		part({
+			Name = "Post",
+			Parent = model,
+			Size = Vector3.new(0.7, 9, 0.7),
+			CFrame = baseCf * CFrame.new(side, 4.5, 0),
+			Color = Color3.fromRGB(88, 60, 36),
+			Material = Enum.Material.Wood,
+			CanCollide = false,
+		})
+	end
+
+	local board = part({
+		Name = "Board",
+		Parent = model,
+		Size = Vector3.new(9, 5, 0.5),
+		CFrame = baseCf * CFrame.new(0, 8, 0),
+		Color = Color3.fromRGB(150, 110, 68),
+		Material = Enum.Material.WoodPlanks,
+	})
+
+	-- Header trim strip so the sign reads clearly from the spawn
+	part({
+		Name = "TrimTop",
+		Parent = model,
+		Size = Vector3.new(9.6, 0.6, 0.7),
+		CFrame = baseCf * CFrame.new(0, 10.7, 0),
+		Color = Color3.fromRGB(112, 78, 46),
+		Material = Enum.Material.Wood,
+		CanCollide = false,
+	})
+
+	local surface = Instance.new("SurfaceGui")
+	surface.Name = "ObjectiveFace"
+	surface.Adornee = board
+	surface.Face = Enum.NormalId.Front
+	surface.CanvasSize = Vector2.new(360, 200)
+	surface.SizingMode = Enum.SurfaceGuiSizingMode.FixedSize
+	surface.Parent = board
+
+	local bg = Instance.new("Frame")
+	bg.Size = UDim2.fromScale(1, 1)
+	bg.BackgroundColor3 = Color3.fromRGB(244, 234, 210)
+	bg.BorderSizePixel = 0
+	bg.Parent = surface
+
+	local pad = Instance.new("UIPadding")
+	pad.PaddingTop = UDim.new(0, 14)
+	pad.PaddingBottom = UDim.new(0, 14)
+	pad.PaddingLeft = UDim.new(0, 16)
+	pad.PaddingRight = UDim.new(0, 16)
+	pad.Parent = bg
+
+	local layout = Instance.new("UIListLayout")
+	layout.FillDirection = Enum.FillDirection.Vertical
+	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	layout.VerticalAlignment = Enum.VerticalAlignment.Center
+	layout.Padding = UDim.new(0, 8)
+	layout.Parent = bg
+
+	local header = Instance.new("TextLabel")
+	header.BackgroundTransparency = 1
+	header.Size = UDim2.new(1, 0, 0, 44)
+	header.Font = Enum.Font.GothamBold
+	header.Text = "OBJECTIVE"
+	header.TextColor3 = Color3.fromRGB(196, 82, 40)
+	header.TextScaled = true
+	header.LayoutOrder = 1
+	header.Parent = bg
+
+	local body = Instance.new("TextLabel")
+	body.BackgroundTransparency = 1
+	body.Size = UDim2.new(1, 0, 0, 110)
+	body.Font = Enum.Font.GothamMedium
+	body.Text = "Board a portal, gather your crew,\nand set sail to survive at sea."
+	body.TextColor3 = Color3.fromRGB(48, 42, 34)
+	body.TextWrapped = true
+	body.TextScaled = true
+	body.LayoutOrder = 2
+	body.Parent = bg
+
+	local bodyConstraint = Instance.new("UITextSizeConstraint")
+	bodyConstraint.MaxTextSize = 26
+	bodyConstraint.Parent = body
+
+	return model
+end
+
+-- Deck dressing: floaties, puddles, a flag, and the objective sign on the pier.
+local function buildDeckDressing(parent: Instance)
+	-- Lifeguard floaties laying on the deck (clear of the berth row at z≈68)
+	local floaties = {
+		{ Vector3.new(-24, PIER.DeckY, -18), 20, 1.0 },
+		{ Vector3.new(22, PIER.DeckY, 4), -35, 0.95 },
+		{ Vector3.new(-12, PIER.DeckY, 30), 65, 1.05 },
+	}
+	for _, f in floaties do
+		buildFloatie(parent, f[1] :: Vector3, f[2] :: number, f[3] :: number)
+	end
+
+	-- Realistic standing-water puddles scattered across the planks
+	local puddles = {
+		{ Vector3.new(8, PIER.DeckY, -20), 3.2 },
+		{ Vector3.new(-18, PIER.DeckY, 12), 2.6 },
+		{ Vector3.new(16, PIER.DeckY, 34), 3.6 },
+		{ Vector3.new(-6, PIER.DeckY, -4), 2.2 },
+	}
+	for _, p in puddles do
+		buildPuddle(parent, p[1] :: Vector3, p[2] :: number)
+	end
+
+	-- A flag near the front corner of the pier
+	buildFlag(parent, Vector3.new(-30, PIER.DeckY, -34), 25)
+
+	-- Objective sign facing the spawn point
+	buildObjectiveSign(parent, Vector3.new(14, PIER.DeckY, -30), 200)
+end
+
 local function buildScenery(root: Folder)
 	local existing = root:FindFirstChild("Scenery")
 	if existing then
@@ -728,20 +1004,7 @@ local function buildScenery(root: Folder)
 	scenery.Name = "Scenery"
 	scenery.Parent = root
 
-	-- Palms on the pier (keep clear of berth row at z≈70)
-	local palmSpots = {
-		{ Vector3.new(-28, PIER.DeckY, -28), 1.1 },
-		{ Vector3.new(28, PIER.DeckY, -28), 1.0 },
-		{ Vector3.new(-30, PIER.DeckY, 38), 0.95 },
-		{ Vector3.new(30, PIER.DeckY, 38), 1.05 },
-		{ Vector3.new(-22, PIER.DeckY, 8), 0.85 },
-		{ Vector3.new(24, PIER.DeckY, 16), 0.9 },
-		{ Vector3.new(-26, PIER.DeckY, 26), 0.8 },
-		{ Vector3.new(26, PIER.DeckY, 28), 0.85 },
-	}
-	for _, spot in palmSpots do
-		buildPalm(scenery, spot[1] :: Vector3, spot[2] :: number)
-	end
+	-- No palms on the pier deck — keep the boarding ship clear (island palms only)
 
 	-- Deck cannons aimed OUTWARD, inset from rails so they don't clip
 	local cannons = {
@@ -788,6 +1051,9 @@ local function buildScenery(root: Folder)
 	for _, isle in islands do
 		buildMiniIsland(scenery, isle[1] :: Vector3, isle[2] :: Vector3, isle[3] :: number)
 	end
+
+	-- Deck props: floaties, puddles, flag, and the objective sign
+	buildDeckDressing(scenery)
 end
 
 local function clearPathwayMarkers(root: Folder)
