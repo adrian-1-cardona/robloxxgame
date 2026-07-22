@@ -29,7 +29,11 @@
 
     "Workspace": {
       "$properties": {
-        "FilteringEnabled": true
+        "FilteringEnabled": true,
+        "StreamingEnabled": true,
+        "StreamingMinRadius": 512,
+        "StreamingTargetRadius": 1024,
+        "StreamingIntegrityMode": "Disabled"
       },
       "$ignoreUnknownInstances": true,
       "SurviveAtSeaLobby": {
@@ -48,7 +52,41 @@
         "GlobalShadows": true,
         "Outlines": false,
         "OutdoorAmbient": [0.35, 0.55, 0.63],
-        "Technology": "Voxel"
+        "Technology": "ShadowMap"
+      },
+      "Atmosphere": {
+        "$className": "Atmosphere",
+        "$properties": {
+          "Density": 0.32,
+          "Offset": 0.25,
+          "Color": [0.78, 0.83, 0.87],
+          "Decay": [0.36, 0.46, 0.55],
+          "Glare": 0.25,
+          "Haze": 1.6
+        }
+      },
+      "Sky": {
+        "$className": "Sky",
+        "$properties": {
+          "SunAngularSize": 12,
+          "StarCount": 3000
+        }
+      },
+      "SunRays": {
+        "$className": "SunRaysEffect",
+        "$properties": {
+          "Intensity": 0.18,
+          "Spread": 0.85
+        }
+      },
+      "SeaGrade": {
+        "$className": "ColorCorrectionEffect",
+        "$properties": {
+          "Brightness": 0.0,
+          "Contrast": 0.08,
+          "Saturation": 0.12,
+          "TintColor": [0.98, 1.0, 1.0]
+        }
       }
     },
 

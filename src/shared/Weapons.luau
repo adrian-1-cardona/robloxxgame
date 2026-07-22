@@ -14,6 +14,23 @@ local Weapons = {}
 -- Ammo reserves are tracked as Player attributes: "Ammo_" .. ammoId.
 export type AmmoId = "Bullet" | "Shell" | "Arrow" | "Powder"
 
+-- Loot rarity tiers. Shared by weapons AND armor (see Armor.luau) so a picked-up item's
+-- floating tag / pricing reads the same colour everywhere:
+--   1 Common (grey) · 2 Uncommon (green) · 3 Rare (blue) · 4 Epic (purple) · 5 Legendary (gold)
+-- Common items drop the most often; each higher tier is progressively rarer.
+Weapons.Rarity = {
+	[0] = { Name = "Starter", Color = Color3.fromRGB(200, 205, 210) },
+	[1] = { Name = "Common", Color = Color3.fromRGB(178, 186, 194) },
+	[2] = { Name = "Uncommon", Color = Color3.fromRGB(108, 214, 116) },
+	[3] = { Name = "Rare", Color = Color3.fromRGB(84, 168, 255) },
+	[4] = { Name = "Epic", Color = Color3.fromRGB(190, 122, 255) },
+	[5] = { Name = "Legendary", Color = Color3.fromRGB(255, 176, 72) },
+}
+
+function Weapons.rarityInfo(rarity: number?): { Name: string, Color: Color3 }
+	return Weapons.Rarity[rarity or 1] or Weapons.Rarity[1]
+end
+
 Weapons.Ammo = {
 	Bullet = { Id = "Bullet", Label = "Bullets", Attribute = "Ammo_Bullet", Max = 240 },
 	Shell = { Id = "Shell", Label = "Shells", Attribute = "Ammo_Shell", Max = 120 },
@@ -34,7 +51,7 @@ Weapons.List = {
 		HitRadius = 3.2,
 		HitWindow = 0.22,
 		SwingDuration = 0.35,
-		Rarity = 0, -- starter; not part of loot rolls
+		Rarity = 1, -- Common grey — the most abundant island loot (see LootWeights)
 	},
 	Spear = {
 		Id = "Spear",
@@ -47,7 +64,7 @@ Weapons.List = {
 		HitRadius = 2.4,
 		HitWindow = 0.24,
 		SwingDuration = 0.32,
-		Rarity = 3,
+		Rarity = 2,
 	},
 	Bow = {
 		Id = "Bow",
@@ -62,7 +79,7 @@ Weapons.List = {
 		ReloadTime = 0.0,
 		Pellets = 1,
 		Spread = 0.0,
-		Rarity = 3,
+		Rarity = 2,
 	},
 	Pistol = {
 		Id = "Pistol",
@@ -92,7 +109,7 @@ Weapons.List = {
 		ReloadTime = 1.9,
 		Pellets = 1,
 		Spread = 0.016,
-		Rarity = 3,
+		Rarity = 4,
 	},
 	Rifle = {
 		Id = "Rifle",
@@ -107,7 +124,7 @@ Weapons.List = {
 		ReloadTime = 2.4,
 		Pellets = 1,
 		Spread = 0.004,
-		Rarity = 4,
+		Rarity = 5,
 	},
 	Shotgun = {
 		Id = "Shotgun",
@@ -124,6 +141,7 @@ Weapons.List = {
 		Spread = 0.10,
 		Rarity = 3,
 	},
+	-- (Musket below)
 	Musket = {
 		Id = "Musket",
 		Name = "Old Musket",
@@ -142,21 +160,24 @@ Weapons.List = {
 }
 
 -- Weapons that can drop as island loot, with relative weights (rarer = smaller weight).
+-- Clubs are Common grey and drop the most often; bows are a frequent find too. Rifles
+-- are Legendary and barely ever show up.
 Weapons.LootWeights = {
-	Spear = 24,
-	Bow = 20,
-	Pistol = 22,
-	Revolver = 12,
+	Club = 46, -- Common grey — you'll find these all over the beaches
+	Spear = 26, -- Common melee
+	Bow = 30, -- frequent find (quiet hunting)
+	Pistol = 20,
+	Musket = 16,
 	Shotgun = 12,
-	Rifle = 6,
-	Musket = 14,
+	Revolver = 10,
+	Rifle = 4, -- Legendary — extremely rare
 }
 
 -- Ammo bundle sizes handed out by loot / merchant.
 Weapons.AmmoBundle = {
 	Bullet = 12,
 	Shell = 6,
-	Arrow = 10,
+	Arrow = 16, -- bows are common, so arrows come in bigger bundles
 	Powder = 4,
 }
 

@@ -11,6 +11,7 @@ local Config = require(Shared:WaitForChild("Config"))
 local OceanConfig = require(Shared:WaitForChild("OceanConfig"))
 local LobbyWorld = require(Shared:WaitForChild("LobbyWorld"))
 local Weapons = require(Shared:WaitForChild("Weapons"))
+local Armor = require(Shared:WaitForChild("Armor"))
 
 local StarterBaseService = require(script.Parent:WaitForChild("StarterBaseService"))
 local LootPropFactory = require(script.Parent:WaitForChild("Items"):WaitForChild("LootPropFactory"))
@@ -18,6 +19,7 @@ local NpcFactory = require(script.Parent:WaitForChild("Items"):WaitForChild("Npc
 local VillageBuilder = require(script.Parent:WaitForChild("VillageBuilder"))
 local MerchantService = require(script.Parent:WaitForChild("MerchantService"))
 local WeaponService = require(script.Parent:WaitForChild("WeaponService"))
+local ArmorService = require(script.Parent:WaitForChild("ArmorService"))
 
 export type IslandRecord = {
 	id: string,
@@ -156,6 +158,8 @@ local function buildPalm(model: Model, topY: number, x: number, z: number, scale
 			Color = frondColors[(i % #frondColors) + 1],
 			Material = Enum.Material.Grass,
 			CanCollide = false,
+			-- Fronds are small and everywhere; skipping their shadows is a big perf win.
+			CastShadow = false,
 		})
 	end
 	-- Coconuts cluster
@@ -168,9 +172,31 @@ local function buildPalm(model: Model, topY: number, x: number, z: number, scale
 			Color = Color3.fromRGB(72, 48, 28),
 			Material = Enum.Material.Wood,
 			CanCollide = false,
+			CastShadow = false,
 			Shape = Enum.PartType.Ball,
 		})
 	end
+end
+
+-- A tiny splash of tropical colour — cheap, shadowless flowers for nicer beaches.
+local function buildFlower(model: Model, topY: number, x: number, z: number)
+	local palette = {
+		Color3.fromRGB(240, 96, 120),
+		Color3.fromRGB(255, 186, 72),
+		Color3.fromRGB(210, 120, 240),
+		Color3.fromRGB(255, 240, 150),
+	}
+	makePart({
+		Name = "Flower",
+		Parent = model,
+		Size = Vector3.new(0.7, 0.7, 0.7),
+		CFrame = CFrame.new(x, topY + 0.5, z),
+		Color = palette[math.random(1, #palette)],
+		Material = Enum.Material.Neon,
+		CanCollide = false,
+		CastShadow = false,
+		Shape = Enum.PartType.Ball,
+	})
 end
 
 local function buildBush(model: Model, topY: number, x: number, z: number, jungle: boolean)
@@ -184,6 +210,7 @@ local function buildBush(model: Model, topY: number, x: number, z: number, jungl
 		Color = if jungle then Color3.fromRGB(28, 78, 38) else Color3.fromRGB(52, 118, 58),
 		Material = Enum.Material.Grass,
 		CanCollide = false,
+		CastShadow = false,
 		Shape = Enum.PartType.Ball,
 	})
 end
@@ -197,6 +224,7 @@ local function buildGrassTuft(model: Model, topY: number, x: number, z: number)
 		Color = Color3.fromRGB(68, 140, 62),
 		Material = Enum.Material.Grass,
 		CanCollide = false,
+		CastShadow = false,
 	})
 end
 
@@ -220,6 +248,8 @@ local function buildJungleTree(model: Model, topY: number, x: number, z: number)
 			Color = Color3.fromRGB(24 + i * 8, 72 + i * 10, 34 + i * 6),
 			Material = Enum.Material.Grass,
 			CanCollide = false,
+			-- Only the lowest canopy blob casts shadow; upper blobs skip it (perf).
+			CastShadow = i == 0,
 			Shape = Enum.PartType.Ball,
 		})
 	end
@@ -376,6 +406,14 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 		local angle = math.random() * math.pi * 2
 		local r = half * (0.72 + math.random() * 0.2)
 		buildDriftwood(model, topY, center.X + math.cos(angle) * r, center.Z + math.sin(angle) * r)
+	end
+
+	-- Scattered tropical flowers for colour (shadowless, so nearly free).
+	local flowerCount = math.floor(size / 22)
+	for _ = 1, flowerCount do
+		local angle = math.random() * math.pi * 2
+		local r = half * (0.18 + math.random() * 0.62)
+		buildFlower(model, topY, center.X + math.cos(angle) * r, center.Z + math.sin(angle) * r)
 	end
 end
 
@@ -688,6 +726,17 @@ local function buildFlatIsland(entry: { [string]: any }, folder: Folder): Island
 				* CFrame.Angles(0, math.rad(math.random(0, 360)), 0)
 			WeaponService.spawnWeaponPickup(model, weaponId, cf)
 		end
+		-- A scrap of armor may wash up on wild isles too.
+		local armorCount = (entry.Loot and entry.Loot.Armor) or 0
+		for _ = 1, armorCount do
+			local a = math.random() * math.pi * 2
+			local r = size * (0.2 + math.random() * 0.24)
+			local armorId = Armor.rollLootArmor(function(lo, hi)
+				return math.random(lo, hi)
+			end)
+			local cf = CFrame.new(center.X + math.cos(a) * r, topY + 0.5, center.Z + math.sin(a) * r)
+			ArmorService.spawnArmorPickup(model, armorId, cf)
+		end
 	else
 		-- Build the themed village (houses, beds, torches, fences, campfire, chests, loot).
 		local deps = {
@@ -701,6 +750,13 @@ local function buildFlatIsland(entry: { [string]: any }, folder: Folder): Island
 			end,
 			isLocked = function(code: string, islandId: string)
 				return IslandService.isLockedForCrew(code, islandId)
+			end,
+			-- Armor hooks so village chests can grant armor and stands can spawn worn loot.
+			wearArmor = function(player: Player, armorId: string)
+				return ArmorService.wearArmor(player, armorId)
+			end,
+			spawnArmorPickup = function(parent: Instance, armorId: string, cf: CFrame)
+				return ArmorService.spawnArmorPickup(parent, armorId, cf)
 			end,
 		}
 		local layout = VillageBuilder.build(model, center, size, topY, entry, deps)
@@ -1061,11 +1117,8 @@ local function updateNpcs(dt: number)
 			runtime.attackAccum += dt
 			if runtime.attackAccum >= combat.AttackCooldown and bestDist <= 3.8 then
 				runtime.attackAccum = 0
-				local character = bestPlayer.Character
-				local hum = character and character:FindFirstChildOfClass("Humanoid")
-				if hum and hum.Health > 0 then
-					hum:TakeDamage(combat.Damage)
-				end
+				-- Route through ArmorService so worn armor reduces the hit.
+				ArmorService.applyPlayerDamage(bestPlayer, combat.Damage)
 			end
 		else
 			-- Passive islander: idle wander around their home within the village.
