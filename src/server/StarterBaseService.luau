@@ -102,7 +102,6 @@ end
 function StarterBaseService.ensureBase(code: string, baseSlot: number): Model
 	local existing = StarterBaseService._basesByCode[code]
 	if existing and existing.Parent then
-		StarterBaseService.refreshCodeLabel(code)
 		return existing
 	end
 
@@ -245,38 +244,6 @@ function StarterBaseService.ensureBase(code: string, baseSlot: number): Model
 		})
 	end
 
-	local marker = makePart({
-		Name = "CodeMarker",
-		Parent = model,
-		Size = Vector3.new(2, 2, 2),
-		CFrame = CFrame.new(center + Vector3.new(0, thickness / 2 + 8, -half + 6)),
-		Transparency = 1,
-		CanCollide = false,
-		CastShadow = false,
-	})
-	local gui = Instance.new("BillboardGui")
-	gui.Name = "BaseBillboard"
-	gui.Adornee = marker
-	gui.Size = UDim2.fromOffset(200, 48)
-	gui.AlwaysOnTop = true
-	gui.MaxDistance = 160
-	gui.Parent = marker
-
-	local label = Instance.new("TextLabel")
-	label.Name = "Label"
-	label.BackgroundTransparency = 0.25
-	label.BackgroundColor3 = Color3.fromRGB(18, 36, 48)
-	label.Size = UDim2.fromScale(1, 1)
-	label.Font = Enum.Font.GothamBold
-	label.TextScaled = true
-	label.TextColor3 = Config.Theme.Foam
-	label.Text = `PRIVATE · {code}`
-	label.Parent = gui
-
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 8)
-	corner.Parent = label
-
 	-- Invisible spawn pad so deaths land on the raft (not the pier)
 	local spawn = Instance.new("SpawnLocation")
 	spawn.Name = "RaftSpawn"
@@ -298,23 +265,6 @@ function StarterBaseService.ensureBase(code: string, baseSlot: number): Model
 		StarterBaseService._onBaseBuilt(code, model)
 	end
 	return model
-end
-
-function StarterBaseService.refreshCodeLabel(code: string)
-	local model = StarterBaseService._basesByCode[code]
-	if not model then
-		return
-	end
-	local privacyValue = model:FindFirstChild("Privacy")
-	if privacyValue and privacyValue:IsA("StringValue") then
-		privacyValue.Value = "Private"
-	end
-	local marker = model:FindFirstChild("CodeMarker")
-	local gui = marker and marker:FindFirstChild("BaseBillboard")
-	local label = gui and gui:FindFirstChild("Label")
-	if label and label:IsA("TextLabel") then
-		label.Text = `PRIVATE · {code}`
-	end
 end
 
 -- Future sea travel: move the whole plank (and its local water) as one unit.
