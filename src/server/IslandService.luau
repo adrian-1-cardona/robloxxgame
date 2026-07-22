@@ -338,7 +338,14 @@ local function spawnPirate(island: IslandRecord, index: number): Model
 	return model
 end
 
-local function buildFlatIsland(entry: any, folder: Folder): IslandRecord
+local function buildFlatIsland(entry: {
+	Id: string,
+	Name: string,
+	Offset: Vector3,
+	SizeStuds: number,
+	HasHouse: boolean,
+	Pirates: number,
+}, folder: Folder): IslandRecord
 	local thickness = Config.Islands.Thickness
 	local topY = Config.Islands.TopY
 	local size = entry.SizeStuds

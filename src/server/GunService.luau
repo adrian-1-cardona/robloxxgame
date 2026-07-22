@@ -2,6 +2,7 @@
 -- Server-authoritative fire: client sends look, server raycasts + damages.
 
 local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
@@ -143,7 +144,7 @@ function GunService.tryShoot(player: Player, look: Vector3): boolean
 	params.FilterDescendantsInstances = { character }
 	params.IgnoreWater = true
 
-	local result = workspace:Raycast(origin, dir * range, params)
+	local result = Workspace:Raycast(origin, dir * range, params)
 	if not result then
 		return true
 	end
