@@ -21,12 +21,16 @@ local PortalService = require(script.Parent:WaitForChild("PortalService"))
 local StarterBaseService = require(script.Parent:WaitForChild("StarterBaseService"))
 local HelmService = require(script.Parent:WaitForChild("HelmService"))
 local OceanTerrainService = require(script.Parent:WaitForChild("OceanTerrainService"))
+local DayNightService = require(script.Parent:WaitForChild("DayNightService"))
 
 print(`[SurviveAtSea] Booting {Config.GameName} lobby…`)
 
 -- Build/replicate dock on the server so all players share it
 local lobby = LobbyWorld.ensure()
 LobbyBuilder.enhanceExisting(lobby)
+
+-- Day / night cycle owns Lighting.ClockTime after the lobby shell is ready
+DayNightService.start()
 
 -- Realistic Terrain water streams around the pier and every sailing raft
 OceanTerrainService.start()
@@ -35,7 +39,6 @@ local remoteFolder = Remotes.createServerRemotes()
 local CreateParty = remoteFolder:WaitForChild("CreateParty")
 local JoinParty = remoteFolder:WaitForChild("JoinParty")
 local LeaveParty = remoteFolder:WaitForChild("LeaveParty")
-local StartLaunch = remoteFolder:WaitForChild("StartLaunch")
 local PartyUpdated = remoteFolder:WaitForChild("PartyUpdated")
 local PortalsUpdated = remoteFolder:WaitForChild("PortalsUpdated")
 local Toast = remoteFolder:WaitForChild("Toast")
@@ -112,14 +115,6 @@ LeaveParty.OnServerEvent:Connect(function(player)
 	Toast:FireClient(player, message, if ok then "info" else "error")
 	if ok then
 		PartyUpdated:FireClient(player, nil)
-	end
-end)
-
-StartLaunch.OnServerEvent:Connect(function(player)
-	local ok, message, snapshot = PartyService.startLaunch(player)
-	Toast:FireClient(player, message, if ok then "success" else "error")
-	if ok and snapshot then
-		PartyUpdated:FireClient(player, snapshot)
 	end
 end)
 

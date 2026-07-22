@@ -19,8 +19,7 @@ export type PartySnapshot = {
 	portalIndex: number,
 	-- Independent raft placement slot (concurrent crews are not capped by portal count)
 	baseSlot: number,
-	countdownEndsAt: number?,
-	status: "Open" | "Launching" | "Departed",
+	status: "Open",
 }
 
 -- Pier portals are reusable boarding gates, not exclusive party pads.

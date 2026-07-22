@@ -3,7 +3,6 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
@@ -32,7 +31,6 @@ local partyPanel
 local createPanel
 local joinPanel
 local toastFrame
-local countdownLabel
 
 local function corner(parent: Instance, radius: number?)
 	local c = Instance.new("UICorner")
@@ -151,7 +149,6 @@ local function refreshPartyPanel()
 	local members = partyPanel:FindFirstChild("Members") :: TextLabel
 	local codeLabel = partyPanel:FindFirstChild("Code") :: TextLabel
 	local privacyLabel = partyPanel:FindFirstChild("Privacy") :: TextLabel
-	local castOff = partyPanel:FindFirstChild("CastOff") :: TextButton
 	local leaveBtn = partyPanel:FindFirstChild("Leave") :: TextButton
 
 	if typeof(party) ~= "table" or party.__openCreate then
@@ -182,15 +179,7 @@ local function refreshPartyPanel()
 	end
 	members.Text = table.concat(lines, "\n") .. `\n{ #party.members }/{party.maxPlayers}`
 
-	local isHost = party.hostUserId == player.UserId
-	castOff.Visible = isHost and party.status == "Open"
-	leaveBtn.Visible = party.status == "Open" or party.status == "Departed"
-
-	if party.status == "Launching" and party.countdownEndsAt then
-		countdownLabel.Visible = true
-	else
-		countdownLabel.Visible = false
-	end
+	leaveBtn.Visible = true
 end
 
 local function openCreate(portalIndex: number)
@@ -232,19 +221,6 @@ local function buildGui()
 	scaler.Parent = root
 
 	-- No top-left brand/tagline chrome — keeps the ocean view clean
-
-	countdownLabel = textLabel({
-		Name = "Countdown",
-		Parent = root,
-		Text = "CASTING OFF…",
-		TextColor3 = Config.Theme.Lantern,
-		TextXAlignment = Enum.TextXAlignment.Center,
-		Font = Enum.Font.GothamBlack,
-		Size = UDim2.new(0.5, 0, 0, 40),
-		Position = UDim2.new(0.25, 0, 0.08, 0),
-		MaxTextSize = 30,
-	})
-	countdownLabel.Visible = false
 
 	-- Join by code (bottom-right when not already on a crew)
 	joinPanel = Instance.new("Frame")
@@ -406,7 +382,7 @@ local function buildGui()
 	partyPanel.Name = "PartyPanel"
 	partyPanel.BackgroundColor3 = Config.Theme.UIPanel
 	partyPanel.BackgroundTransparency = 0.1
-	partyPanel.Size = UDim2.new(0, 196, 0, 188)
+	partyPanel.Size = UDim2.new(0, 196, 0, 156)
 	partyPanel.Position = UDim2.new(1, -208, 0, 10)
 	partyPanel.Visible = false
 	partyPanel.Parent = root
@@ -467,23 +443,11 @@ local function buildGui()
 	})
 
 	button({
-		Name = "CastOff",
-		Parent = partyPanel,
-		Text = "Cast Off",
-		Size = UDim2.new(1, -14, 0, 28),
-		Position = UDim2.new(0, 7, 0, 128),
-		BackgroundColor3 = Config.Theme.Lantern,
-		OnClick = function()
-			remotes.StartLaunch:FireServer()
-		end,
-	})
-
-	button({
 		Name = "Leave",
 		Parent = partyPanel,
 		Text = "Leave",
 		Size = UDim2.new(1, -14, 0, 24),
-		Position = UDim2.new(0, 7, 0, 158),
+		Position = UDim2.new(0, 7, 0, 128),
 		BackgroundColor3 = Color3.fromRGB(70, 40, 45),
 		TextColor3 = Config.Theme.Foam,
 		OnClick = function()
@@ -526,13 +490,13 @@ local function buildGui()
 		if width < 700 then
 			joinPanel.Size = UDim2.new(1, -24, 0, 132)
 			joinPanel.Position = UDim2.new(0, 12, 1, -148)
-			partyPanel.Size = UDim2.new(0, 180, 0, 188)
+			partyPanel.Size = UDim2.new(0, 180, 0, 156)
 			partyPanel.Position = UDim2.new(1, -192, 0, 8)
 			createPanel.Size = UDim2.new(1, -24, 0, 260)
 		else
 			joinPanel.Size = UDim2.new(0, 260, 0, 132)
 			joinPanel.Position = UDim2.new(1, -276, 1, -148)
-			partyPanel.Size = UDim2.new(0, 196, 0, 188)
+			partyPanel.Size = UDim2.new(0, 196, 0, 156)
 			partyPanel.Position = UDim2.new(1, -208, 0, 10)
 		end
 	end
@@ -558,7 +522,6 @@ local function bindRemotes()
 		CreateParty = folder:WaitForChild("CreateParty") :: RemoteEvent,
 		JoinParty = folder:WaitForChild("JoinParty") :: RemoteEvent,
 		LeaveParty = folder:WaitForChild("LeaveParty") :: RemoteEvent,
-		StartLaunch = folder:WaitForChild("StartLaunch") :: RemoteEvent,
 		PartyUpdated = folder:WaitForChild("PartyUpdated") :: RemoteEvent,
 		PortalsUpdated = folder:WaitForChild("PortalsUpdated") :: RemoteEvent,
 		Toast = folder:WaitForChild("Toast") :: RemoteEvent,
@@ -592,21 +555,6 @@ local function bindRemotes()
 	end
 end
 
-local function runCountdownTicker()
-	RunService.RenderStepped:Connect(function()
-		local party = state.party
-		if typeof(party) ~= "table" or party.status ~= "Launching" or not party.countdownEndsAt then
-			if countdownLabel then
-				countdownLabel.Visible = false
-			end
-			return
-		end
-		local remaining = math.max(0, math.ceil(party.countdownEndsAt - workspace:GetServerTimeNow()))
-		countdownLabel.Visible = true
-		countdownLabel.Text = if remaining > 0 then `CASTING OFF IN {remaining}` else "SETTING SAIL!"
-	end)
-end
-
 function LobbyUI.openCreateForPortal(portalIndex: number)
 	openCreate(portalIndex)
 	showToast(`Portal {portalIndex} — pick crew size, then spawn. Friends join by code.`, "info")
@@ -615,7 +563,6 @@ end
 function LobbyUI.start()
 	buildGui()
 	bindRemotes()
-	runCountdownTicker()
 
 	-- Client-built portals signal create via BindableEvent
 	local openEvent = ReplicatedStorage:FindFirstChild("SurviveAtSeaOpenCreate")

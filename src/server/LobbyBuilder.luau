@@ -14,14 +14,7 @@ local LobbyBuilder = {}
 
 local function safeLighting()
 	local ok, err = pcall(function()
-		-- Warm late-afternoon harbor light (no bloom / no neon glare)
-		Lighting.ClockTime = 17.1
-		Lighting.Brightness = 2.6
-		Lighting.Ambient = Color3.fromRGB(78, 92, 98)
-		Lighting.OutdoorAmbient = Color3.fromRGB(118, 128, 132)
-		Lighting.FogColor = Color3.fromRGB(130, 170, 190)
-		Lighting.FogStart = 280
-		Lighting.FogEnd = 1400
+		-- Baseline lighting shell — DayNightService owns ClockTime / brightness after boot.
 		Lighting.GlobalShadows = true
 		-- ShadowMap reads Terrain water reflections much better than Voxel
 		pcall(function()
@@ -63,6 +56,7 @@ local function safeLighting()
 		sky.MoonAngularSize = 11
 
 		local cc = Instance.new("ColorCorrectionEffect")
+		cc.Name = "SurviveAtSeaDayNight"
 		cc.TintColor = Color3.fromRGB(255, 246, 236)
 		cc.Contrast = 0.06
 		cc.Saturation = 0.05
