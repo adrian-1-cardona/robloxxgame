@@ -47,6 +47,10 @@ local Config = {
 		LookSendHz = 20,
 		-- Generous for phone / VR laser / console approach
 		PromptDistance = 14,
+		-- Visual: spin the wooden wheel with look yaw (matches helmsman face turn)
+		WheelLookGain = 1.35,
+		WheelMaxRadians = math.rad(85),
+		WheelSpinLerp = 10,
 	},
 
 	-- Portal / berth accent (solid purple — no half-and-half overlays)

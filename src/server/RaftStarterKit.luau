@@ -1,5 +1,5 @@
 -- Visual starter kit for each crew raft: vertical steering column + ship's wheel.
--- Pure construction — HelmService owns interaction / movement.
+-- Pure construction — HelmService owns interaction / movement / look-driven wheel spin.
 
 local Config = require(game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("Config"))
 
@@ -79,9 +79,14 @@ local function buildHelmWheel(kit: Folder, deck: BasePart, center: Vector3)
 	-- Upright wheel: cylinder axis points at helmsman (world ±stand Look flipped → local +Z)
 	local wheelCf = wheelCenter * CFrame.Angles(0, math.rad(90), 0)
 
+	-- Spinning assembly — HelmService pivots this with look yaw while helming
+	local wheelModel = Instance.new("Model")
+	wheelModel.Name = "HelmWheel"
+	wheelModel.Parent = kit
+
 	makePart({
 		Name = "HelmAxle",
-		Parent = kit,
+		Parent = wheelModel,
 		Size = Vector3.new(1.1, 0.55, 0.55),
 		CFrame = wheelCf,
 		Color = Color3.fromRGB(48, 34, 22),
@@ -92,7 +97,7 @@ local function buildHelmWheel(kit: Folder, deck: BasePart, center: Vector3)
 	-- Rim — thick silhouette so it still reads at sailing distances
 	makePart({
 		Name = "HelmRim",
-		Parent = kit,
+		Parent = wheelModel,
 		Size = Vector3.new(0.7, 4.8, 4.8),
 		CFrame = wheelCf,
 		Color = Color3.fromRGB(110, 78, 48),
@@ -102,20 +107,21 @@ local function buildHelmWheel(kit: Folder, deck: BasePart, center: Vector3)
 
 	local hub = makePart({
 		Name = "HelmHub",
-		Parent = kit,
+		Parent = wheelModel,
 		Size = Vector3.new(0.85, 1.25, 1.25),
 		CFrame = wheelCf,
 		Color = Color3.fromRGB(58, 40, 24),
 		Material = Enum.Material.Wood,
 		Shape = Enum.PartType.Cylinder,
 	})
+	wheelModel.PrimaryPart = hub
 
 	-- Spokes in the wheel plane (radial around the cylinder axis / local X)
 	for i = 0, 5 do
 		local angle = math.rad(i * 30)
 		makePart({
 			Name = `HelmSpoke_{i}`,
-			Parent = kit,
+			Parent = wheelModel,
 			Size = Vector3.new(0.32, 0.32, 3.9),
 			CFrame = hub.CFrame * CFrame.Angles(angle, 0, 0),
 			Color = Color3.fromRGB(96, 68, 42),
@@ -128,13 +134,19 @@ local function buildHelmWheel(kit: Folder, deck: BasePart, center: Vector3)
 		local angle = math.rad(i * 45)
 		makePart({
 			Name = `HelmHandle_{i}`,
-			Parent = kit,
+			Parent = wheelModel,
 			Size = Vector3.new(0.4, 1.05, 0.4),
 			CFrame = hub.CFrame * CFrame.Angles(angle, 0, 0) * CFrame.new(0, 2.55, 0),
 			Color = Color3.fromRGB(130, 92, 55),
 			Material = Enum.Material.Wood,
 		})
 	end
+
+	-- Rest pose relative to the post so the wheel can spin after the raft moves
+	local restLocal = Instance.new("CFrameValue")
+	restLocal.Name = "WheelRestLocal"
+	restLocal.Value = column.CFrame:ToObjectSpace(wheelCf)
+	restLocal.Parent = wheelModel
 
 	-- Invisible stand anchor: where the sailor is locked while steering (behind the wheel)
 	local stand = makePart({
