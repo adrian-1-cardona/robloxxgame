@@ -33,13 +33,22 @@ else
 	print("[SurviveAtSea] Found Workspace.SurviveAtSeaLobby")
 end
 
+-- Fault isolation: a crash in any single controller must never stop the rest
+-- (especially the portal wiring below) from starting.
+local function safeStart(label: string, fn: () -> ())
+	local ok, err = pcall(fn)
+	if not ok then
+		warn(`[SurviveAtSea] {label} failed to start (lobby still playable):`, err)
+	end
+end
+
 -- Lighting lock first so lobby stays daytime before any crew UI opens.
-ClockHUD.start()
-LobbyUI.start()
-HelmController.start()
-GunController.start()
-MeleeController.start()
-DragController.start()
+safeStart("ClockHUD", ClockHUD.start)
+safeStart("LobbyUI", LobbyUI.start)
+safeStart("HelmController", HelmController.start)
+safeStart("GunController", GunController.start)
+safeStart("MeleeController", MeleeController.start)
+safeStart("DragController", DragController.start)
 
 local player = Players.LocalPlayer
 
@@ -165,7 +174,7 @@ pcall(function()
 end)
 
 -- After lighting baseline so underwater fog restore matches the open-sea look.
-OceanController.start()
+safeStart("OceanController", OceanController.start)
 
 -- Open-sea weather only (rain / thunder / overcast). Lobby pier stays clear.
-WeatherController.start()
+safeStart("WeatherController", WeatherController.start)

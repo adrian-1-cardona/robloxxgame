@@ -35,17 +35,16 @@ print(`[SurviveAtSea] Booting {Config.GameName} lobby…`)
 local lobby = LobbyWorld.ensure()
 LobbyBuilder.enhanceExisting(lobby)
 
--- Day / night cycle owns Lighting.ClockTime after the lobby shell is ready
-DayNightService.start()
-
--- Cosmetic open-sea weather schedule (clients apply FX only while in a crew)
-WeatherService.start()
-
--- Stationary isles (spread flats — houses, pirates, visit lockout)
-IslandService.ensure()
-
--- Realistic Terrain water streams around the pier and every sailing raft
-OceanTerrainService.start()
+-- Fault isolation: a crash in any single service must never take down the
+-- boarding-pier / crew-creation path wired below. (Regression guard: the huge
+-- island + loot world-gen used to run BEFORE the remotes existed, so any hiccup
+-- there left every portal dead.)
+local function safeStart(label: string, fn: () -> ())
+	local ok, err = pcall(fn)
+	if not ok then
+		warn(`[SurviveAtSea] {label} failed to start (lobby still playable):`, err)
+	end
+end
 
 local remoteFolder = Remotes.createServerRemotes()
 local CreateParty = remoteFolder:WaitForChild("CreateParty")
@@ -69,30 +68,15 @@ local LootWeld = remoteFolder:WaitForChild("LootWeld")
 local LootUnweld = remoteFolder:WaitForChild("LootUnweld")
 local LootPlace = remoteFolder:WaitForChild("LootPlace")
 
-GunService.start(Toast :: RemoteEvent)
-
-IslandService.start(
-	Toast :: RemoteEvent,
-	function(player: Player): string?
-		return PartyService.getPartyCode(player)
-	end,
-	function(code: string): { number }
-		return PartyService.getMemberUserIds(code)
-	end
-)
-
-LootPropService.start(Toast :: RemoteEvent, function(player: Player): string?
+-- Shared accessors used by several services below.
+local function getPartyCode(player: Player): string?
 	return PartyService.getPartyCode(player)
-end, {
-	DragStart = LootDragStart :: RemoteEvent,
-	DragUpdate = LootDragUpdate :: RemoteEvent,
-	DragEnd = LootDragEnd :: RemoteEvent,
-	WeldProp = LootWeld :: RemoteEvent,
-	UnweldProp = LootUnweld :: RemoteEvent,
-	PlaceLoot = LootPlace :: RemoteEvent,
-})
+end
+local function getMemberUserIds(code: string): { number }
+	return PartyService.getMemberUserIds(code)
+end
 
--- Helm: look-steer + throttle drive, jump to unlock
+-- Raft build hooks must exist before any crew spawns its plank.
 StarterBaseService._onBaseBuilt = function(code, model)
 	HelmService.bindBase(code, model)
 end
@@ -101,52 +85,8 @@ StarterBaseService._onBaseDestroyed = function(code)
 	IslandService.clearCrew(code)
 end
 
-HelmService.start(
-	HelmState :: RemoteEvent,
-	Toast :: RemoteEvent,
-	function(player: Player): string?
-		return PartyService.getPartyCode(player)
-	end,
-	function(code: string): { number }
-		return PartyService.getMemberUserIds(code)
-	end
-)
-
-HelmLook.OnServerEvent:Connect(function(player, look)
-	if typeof(look) ~= "Vector3" then
-		return
-	end
-	HelmService.setLook(player, look)
-end)
-
-HelmThrottle.OnServerEvent:Connect(function(player, throttle)
-	if typeof(throttle) ~= "number" then
-		return
-	end
-	HelmService.setThrottle(player, throttle)
-end)
-
-HelmDismount.OnServerEvent:Connect(function(player)
-	if HelmService.isHelming(player) then
-		HelmService.release(player, "Left the helm.")
-	end
-end)
-
-ShootGun.OnServerEvent:Connect(function(player, look)
-	if typeof(look) ~= "Vector3" then
-		return
-	end
-	GunService.tryShoot(player, look)
-end)
-
--- Starter club + melee (RMB / RT / mobile tap). Drop uses default Tool backpack.
-StarterGearService.start(function(player)
-	return PartyService.isInParty(player)
-end)
-MeleeService.start(MeleeSwingFx :: RemoteEvent, MeleeAttack :: RemoteEvent, function(player)
-	return HelmService.isHelming(player)
-end)
-
+-- === Boarding-pier / crew path — wired first so portals always work, even if
+-- the heavier world generation below is slow or throws. ===
 PortalService.start(Toast, PartyUpdated, PortalsUpdated)
 
 GetLobbyState.OnServerInvoke = function(player)
@@ -234,12 +174,87 @@ for _, player in Players:GetPlayers() do
 end
 Players.PlayerAdded:Connect(onPlayerReady)
 
+-- === Gameplay + world services — each fault-isolated so a failure here can
+-- never break the boarding pier / crew creation wired above. ===
+safeStart("DayNightService", DayNightService.start)
+safeStart("WeatherService", WeatherService.start)
+safeStart("GunService", function()
+	GunService.start(Toast :: RemoteEvent)
+end)
+
+-- Helm: look-steer + throttle drive, jump to unlock
+safeStart("HelmService", function()
+	HelmService.start(HelmState :: RemoteEvent, Toast :: RemoteEvent, getPartyCode, getMemberUserIds)
+end)
+
+HelmLook.OnServerEvent:Connect(function(player, look)
+	if typeof(look) ~= "Vector3" then
+		return
+	end
+	HelmService.setLook(player, look)
+end)
+
+HelmThrottle.OnServerEvent:Connect(function(player, throttle)
+	if typeof(throttle) ~= "number" then
+		return
+	end
+	HelmService.setThrottle(player, throttle)
+end)
+
+HelmDismount.OnServerEvent:Connect(function(player)
+	if HelmService.isHelming(player) then
+		HelmService.release(player, "Left the helm.")
+	end
+end)
+
+ShootGun.OnServerEvent:Connect(function(player, look)
+	if typeof(look) ~= "Vector3" then
+		return
+	end
+	GunService.tryShoot(player, look)
+end)
+
+-- Starter club + melee (RMB / RT / mobile tap). Drop uses default Tool backpack.
+safeStart("StarterGearService", function()
+	StarterGearService.start(function(player)
+		return PartyService.isInParty(player)
+	end)
+end)
+safeStart("MeleeService", function()
+	MeleeService.start(MeleeSwingFx :: RemoteEvent, MeleeAttack :: RemoteEvent, function(player)
+		return HelmService.isHelming(player)
+	end)
+end)
+
+-- World loot: drag / weld / pick up island salvage.
+safeStart("LootPropService", function()
+	LootPropService.start(Toast :: RemoteEvent, getPartyCode, {
+		DragStart = LootDragStart :: RemoteEvent,
+		DragUpdate = LootDragUpdate :: RemoteEvent,
+		DragEnd = LootDragEnd :: RemoteEvent,
+		WeldProp = LootWeld :: RemoteEvent,
+		UnweldProp = LootUnweld :: RemoteEvent,
+		PlaceLoot = LootPlace :: RemoteEvent,
+	})
+end)
+
 -- Fall into water → rescued onto raft; death already uses CharacterAdded → seatPlayer
 -- Skip while at the helm (stand lock owns their position)
-StarterBaseService.startWaterRescue(function(player)
-	return PartyService.getBaseSeatInfo(player)
-end, function(player)
-	return HelmService.isHelming(player)
+safeStart("WaterRescue", function()
+	StarterBaseService.startWaterRescue(function(player)
+		return PartyService.getBaseSeatInfo(player)
+	end, function(player)
+		return HelmService.isHelming(player)
+	end)
+end)
+
+-- Heavy world generation (huge islands, loot props, streaming terrain water)
+-- runs off the main boot thread so it can never stall or break the pier above.
+task.spawn(function()
+	safeStart("OceanTerrainService", OceanTerrainService.start)
+	safeStart("IslandService", function()
+		IslandService.start(Toast :: RemoteEvent, getPartyCode, getMemberUserIds)
+	end)
 end)
 
 print(`[SurviveAtSea] Lobby ready — private crews only, max {Config.MaxPartySize} per run, portals are reusable.`)
