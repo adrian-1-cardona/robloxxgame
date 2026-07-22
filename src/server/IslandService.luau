@@ -1,4 +1,5 @@
--- Stationary open-sea islands: spread flats with optional raid houses + chasing pirates.
+-- Stationary open-sea islands: huge beach flats with grass / jungle / palms,
+-- detachable house walls + scattered loot, optional raid houses + chasing pirates.
 -- Visit lockout: step on an isle, leave on the raft, sail LockoutStuds away → can't return.
 
 local Players = game:GetService("Players")
@@ -12,6 +13,7 @@ local LobbyWorld = require(Shared:WaitForChild("LobbyWorld"))
 
 local GunService = require(script.Parent:WaitForChild("GunService"))
 local StarterBaseService = require(script.Parent:WaitForChild("StarterBaseService"))
+local LootPropFactory = require(script.Parent:WaitForChild("Items"):WaitForChild("LootPropFactory"))
 
 export type IslandRecord = {
 	id: string,
@@ -22,6 +24,7 @@ export type IslandRecord = {
 	thickness: number,
 	hasHouse: boolean,
 	pirateCount: number,
+	biome: string,
 	model: Model,
 	label: TextLabel?,
 	pirates: { Model },
@@ -112,44 +115,201 @@ local function ensureCrewState(code: string, islandId: string): CrewIslandState
 	return state
 end
 
-local function buildPalm(model: Model, topY: number, center: Vector3, ox: number, oz: number)
-	local trunkH = 8 + math.random() * 2
+local function buildPalm(model: Model, topY: number, x: number, z: number, scale: number?)
+	local s = scale or (0.85 + math.random() * 0.45)
+	local trunkH = (10 + math.random() * 5) * s
+	local lean = math.rad((math.random() - 0.5) * 16)
 	local trunk = makePart({
 		Name = "PalmTrunk",
 		Parent = model,
-		Size = Vector3.new(0.85, trunkH, 0.85),
-		CFrame = CFrame.new(center.X + ox, topY + trunkH * 0.5, center.Z + oz)
-			* CFrame.Angles(0, 0, math.rad((math.random() - 0.5) * 10)),
+		Size = Vector3.new(0.95 * s, trunkH, 0.95 * s),
+		CFrame = CFrame.new(x, topY + trunkH * 0.5, z) * CFrame.Angles(0, math.rad(math.random(0, 360)), lean),
 		Color = Color3.fromRGB(92, 64, 38),
 		Material = Enum.Material.Wood,
 		CanCollide = false,
 	})
+	local frondColors = {
+		Color3.fromRGB(48, 118, 62),
+		Color3.fromRGB(42, 108, 55),
+		Color3.fromRGB(56, 132, 70),
+		Color3.fromRGB(38, 98, 52),
+	}
+	for i = 0, 4 do
+		local yaw = math.rad(i * 72 + math.random(-12, 12))
+		local pitch = math.rad(8 + math.random() * 18)
+		makePart({
+			Name = `PalmFrond_{i}`,
+			Parent = model,
+			Size = Vector3.new((6.5 + math.random() * 2.5) * s, 0.32 * s, (1.6 + math.random() * 0.6) * s),
+			CFrame = trunk.CFrame
+				* CFrame.new(0, trunkH * 0.46, 0)
+				* CFrame.Angles(pitch, yaw, math.rad((math.random() - 0.5) * 12)),
+			Color = frondColors[(i % #frondColors) + 1],
+			Material = Enum.Material.Grass,
+			CanCollide = false,
+		})
+	end
+	-- Coconuts cluster
+	if math.random() < 0.55 then
+		makePart({
+			Name = "Coconuts",
+			Parent = model,
+			Size = Vector3.new(1.1 * s, 1.0 * s, 1.1 * s),
+			CFrame = trunk.CFrame * CFrame.new(0.35 * s, trunkH * 0.42, 0.1 * s),
+			Color = Color3.fromRGB(72, 48, 28),
+			Material = Enum.Material.Wood,
+			CanCollide = false,
+			Shape = Enum.PartType.Ball,
+		})
+	end
+end
+
+local function buildBush(model: Model, topY: number, x: number, z: number, jungle: boolean)
+	local h = if jungle then 2.8 + math.random() * 2.2 else 1.4 + math.random() * 1.2
+	local w = if jungle then 4.5 + math.random() * 2.5 else 2.8 + math.random() * 1.6
 	makePart({
-		Name = "PalmFrond",
+		Name = "Bush",
 		Parent = model,
-		Size = Vector3.new(7.2, 0.35, 2.1),
-		CFrame = trunk.CFrame * CFrame.new(0, trunkH * 0.48, 0) * CFrame.Angles(0, math.rad(20), math.rad(10)),
-		Color = Color3.fromRGB(48, 118, 62),
+		Size = Vector3.new(w, h, w * (0.75 + math.random() * 0.35)),
+		CFrame = CFrame.new(x, topY + h * 0.45, z),
+		Color = if jungle then Color3.fromRGB(28, 78, 38) else Color3.fromRGB(52, 118, 58),
 		Material = Enum.Material.Grass,
 		CanCollide = false,
+		Shape = Enum.PartType.Ball,
 	})
+end
+
+local function buildGrassTuft(model: Model, topY: number, x: number, z: number)
 	makePart({
-		Name = "PalmFrond2",
+		Name = "GrassTuft",
 		Parent = model,
-		Size = Vector3.new(6.2, 0.35, 1.9),
-		CFrame = trunk.CFrame * CFrame.new(0, trunkH * 0.45, 0) * CFrame.Angles(0, math.rad(-35), math.rad(-8)),
-		Color = Color3.fromRGB(42, 108, 55),
+		Size = Vector3.new(1.6 + math.random(), 1.1 + math.random() * 0.8, 0.35),
+		CFrame = CFrame.new(x, topY + 0.7, z) * CFrame.Angles(0, math.rad(math.random(0, 360)), math.rad((math.random() - 0.5) * 20)),
+		Color = Color3.fromRGB(68, 140, 62),
 		Material = Enum.Material.Grass,
 		CanCollide = false,
 	})
 end
 
+local function buildJungleTree(model: Model, topY: number, x: number, z: number)
+	local trunkH = 14 + math.random() * 8
+	local trunk = makePart({
+		Name = "JungleTrunk",
+		Parent = model,
+		Size = Vector3.new(1.4, trunkH, 1.4),
+		CFrame = CFrame.new(x, topY + trunkH * 0.5, z),
+		Color = Color3.fromRGB(62, 44, 28),
+		Material = Enum.Material.Wood,
+		CanCollide = false,
+	})
+	for i = 0, 2 do
+		makePart({
+			Name = `Canopy_{i}`,
+			Parent = model,
+			Size = Vector3.new(8 + math.random() * 4, 4 + math.random() * 2, 8 + math.random() * 4),
+			CFrame = trunk.CFrame * CFrame.new((math.random() - 0.5) * 2, trunkH * 0.42 + i * 1.2, (math.random() - 0.5) * 2),
+			Color = Color3.fromRGB(24 + i * 8, 72 + i * 10, 34 + i * 6),
+			Material = Enum.Material.Grass,
+			CanCollide = false,
+			Shape = Enum.PartType.Ball,
+		})
+	end
+end
+
+local function scatterVegetation(model: Model, center: Vector3, size: number, topY: number, biome: string)
+	local half = size * 0.5
+	local beachBand = half * 0.78 -- outer ring stays sandier; vegetation denser inward
+
+	local palmCount = math.floor(size / 9)
+	if biome == "beach" then
+		palmCount = math.floor(size / 11)
+	elseif biome == "jungle" then
+		palmCount = math.floor(size / 10)
+	end
+
+	for _ = 1, palmCount do
+		local angle = math.random() * math.pi * 2
+		-- Prefer shoreline palms for beach vibe
+		local r = half * (0.55 + math.random() * 0.38)
+		if biome == "jungle" and math.random() < 0.35 then
+			r = half * (0.15 + math.random() * 0.4)
+		end
+		local x = center.X + math.cos(angle) * r
+		local z = center.Z + math.sin(angle) * r
+		buildPalm(model, topY, x, z)
+	end
+
+	local bushCount = math.floor(size / 7)
+	for _ = 1, bushCount do
+		local angle = math.random() * math.pi * 2
+		local r = half * (0.12 + math.random() * 0.7)
+		if r > beachBand and biome == "beach" then
+			continue
+		end
+		buildBush(model, topY, center.X + math.cos(angle) * r, center.Z + math.sin(angle) * r, biome == "jungle")
+	end
+
+	local tuftCount = math.floor(size / 4)
+	for _ = 1, tuftCount do
+		local angle = math.random() * math.pi * 2
+		local r = half * (0.2 + math.random() * 0.65)
+		buildGrassTuft(model, topY, center.X + math.cos(angle) * r, center.Z + math.sin(angle) * r)
+	end
+
+	if biome == "jungle" or biome == "palm" then
+		local treeCount = if biome == "jungle" then math.floor(size / 16) else math.floor(size / 28)
+		for _ = 1, treeCount do
+			local angle = math.random() * math.pi * 2
+			local r = half * (0.08 + math.random() * 0.45)
+			buildJungleTree(model, topY, center.X + math.cos(angle) * r, center.Z + math.sin(angle) * r)
+		end
+	end
+end
+
+local function scatterLooseLoot(model: Model, center: Vector3, size: number, topY: number, islandId: string)
+	local half = size * 0.5
+	local lootFolder = Instance.new("Folder")
+	lootFolder.Name = "IsleLoot"
+	lootFolder.Parent = model
+
+	-- Torches stuck in the sand / grass
+	local torchCount = math.clamp(math.floor(size / 55), 2, 5)
+	for i = 1, torchCount do
+		local angle = (i / torchCount) * math.pi * 2 + math.random() * 0.4
+		local r = half * (0.25 + math.random() * 0.45)
+		local cf = CFrame.new(center.X + math.cos(angle) * r, topY + 1.7, center.Z + math.sin(angle) * r)
+		local torch = LootPropFactory.createTorchWorld(lootFolder, cf)
+		torch:SetAttribute("IslandId", islandId)
+	end
+
+	-- Salvage planks & crates along the beach ring
+	local plankCount = math.clamp(math.floor(size / 40), 3, 8)
+	for i = 1, plankCount do
+		local angle = math.random() * math.pi * 2
+		local r = half * (0.62 + math.random() * 0.28)
+		local yaw = math.rad(math.random(0, 360))
+		local cf = CFrame.new(center.X + math.cos(angle) * r, topY + 0.35, center.Z + math.sin(angle) * r)
+			* CFrame.Angles(0, yaw, math.rad((math.random() - 0.5) * 8))
+		local plank = LootPropFactory.createPlankWorld(lootFolder, cf)
+		plank:SetAttribute("IslandId", islandId)
+	end
+
+	local crateCount = math.clamp(math.floor(size / 70), 1, 4)
+	for i = 1, crateCount do
+		local angle = math.random() * math.pi * 2
+		local r = half * (0.2 + math.random() * 0.5)
+		local cf = CFrame.new(center.X + math.cos(angle) * r, topY + 1.2, center.Z + math.sin(angle) * r)
+		local crate = LootPropFactory.createCrateWorld(lootFolder, cf)
+		crate:SetAttribute("IslandId", islandId)
+	end
+end
+
 local function buildHouse(model: Model, center: Vector3, topY: number, islandId: string)
-	local houseCf = CFrame.new(center.X + 4, topY, center.Z - 2)
+	local houseCf = CFrame.new(center.X + 6, topY, center.Z - 4)
 	local floor = makePart({
 		Name = "HouseFloor",
 		Parent = model,
-		Size = Vector3.new(14, 0.6, 12),
+		Size = Vector3.new(16, 0.6, 14),
 		CFrame = houseCf * CFrame.new(0, 0.3, 0),
 		Color = Color3.fromRGB(110, 78, 48),
 		Material = Enum.Material.WoodPlanks,
@@ -157,31 +317,41 @@ local function buildHouse(model: Model, center: Vector3, topY: number, islandId:
 
 	local wallH = 7
 	local wallY = topY + wallH * 0.5
+	local wallsFolder = Instance.new("Folder")
+	wallsFolder.Name = "SalvageWalls"
+	wallsFolder.Parent = model
+
+	-- Detachable walls — drag onto your boat for a mini shelter
 	for _, spec in {
-		{ Name = "WallBack", Size = Vector3.new(14, wallH, 0.7), Offset = Vector3.new(0, 0, -5.65) },
-		{ Name = "WallLeft", Size = Vector3.new(0.7, wallH, 11), Offset = Vector3.new(-6.65, 0, 0) },
-		{ Name = "WallRight", Size = Vector3.new(0.7, wallH, 11), Offset = Vector3.new(6.65, 0, 0) },
-		{ Name = "WallFrontL", Size = Vector3.new(4.5, wallH, 0.7), Offset = Vector3.new(-4.75, 0, 5.65) },
-		{ Name = "WallFrontR", Size = Vector3.new(4.5, wallH, 0.7), Offset = Vector3.new(4.75, 0, 5.65) },
+		{ Name = "WallBack", Size = Vector3.new(16, wallH, 0.7), Offset = Vector3.new(0, 0, -6.65) },
+		{ Name = "WallLeft", Size = Vector3.new(0.7, wallH, 13), Offset = Vector3.new(-7.65, 0, 0) },
+		{ Name = "WallRight", Size = Vector3.new(0.7, wallH, 13), Offset = Vector3.new(7.65, 0, 0) },
+		{ Name = "WallFrontL", Size = Vector3.new(5.2, wallH, 0.7), Offset = Vector3.new(-5.4, 0, 6.65) },
+		{ Name = "WallFrontR", Size = Vector3.new(5.2, wallH, 0.7), Offset = Vector3.new(5.4, 0, 6.65) },
 	} do
-		makePart({
-			Name = spec.Name,
-			Parent = model,
-			Size = spec.Size,
-			CFrame = CFrame.new(floor.Position + Vector3.new(spec.Offset.X, wallY - topY - 0.3, spec.Offset.Z)),
-			Color = Color3.fromRGB(128, 92, 58),
-			Material = Enum.Material.Wood,
-		})
+		local wallCf = CFrame.new(floor.Position + Vector3.new(spec.Offset.X, wallY - topY - 0.3, spec.Offset.Z))
+		local wall = LootPropFactory.createWallWorld(wallsFolder, spec.Size, wallCf)
+		wall.Name = spec.Name
+		wall:SetAttribute("IslandId", islandId)
+		wall:SetAttribute("FromHouse", true)
 	end
 
+	-- Roof stays fixed (not loot) so the shack still reads as a ruin after walls leave
 	makePart({
 		Name = "Roof",
 		Parent = model,
-		Size = Vector3.new(15.5, 0.7, 13.5),
+		Size = Vector3.new(17.5, 0.7, 15.5),
 		CFrame = CFrame.new(floor.Position + Vector3.new(0, wallH + 0.2, 0)),
 		Color = Color3.fromRGB(78, 52, 30),
 		Material = Enum.Material.Wood,
 	})
+
+	-- Interior torch (loot)
+	local torch = LootPropFactory.createTorchWorld(
+		model,
+		CFrame.new(floor.Position + Vector3.new(4, 1.7, -3))
+	)
+	torch:SetAttribute("IslandId", islandId)
 
 	-- Raid chest
 	local chest = makePart({
@@ -345,70 +515,133 @@ local function buildFlatIsland(entry: {
 	SizeStuds: number,
 	HasHouse: boolean,
 	Pirates: number,
+	Biome: string?,
 }, folder: Folder): IslandRecord
 	local thickness = Config.Islands.Thickness
 	local topY = Config.Islands.TopY
 	local size = entry.SizeStuds
+	local biome = entry.Biome or "beach"
 	local center = worldCenterForOffset(entry.Offset, topY, thickness)
 
 	local model = Instance.new("Model")
 	model.Name = `Isle_{entry.Id}`
 	model:SetAttribute("IslandId", entry.Id)
+	model:SetAttribute("Biome", biome)
 	model.Parent = folder
 
+	-- Deep sand foundation (whole island footprint)
 	local deck = makePart({
 		Name = "FlatSand",
 		Parent = model,
 		Size = Vector3.new(size, thickness, size),
 		CFrame = CFrame.new(center),
-		Color = Color3.fromRGB(222, 202, 160),
+		Color = Color3.fromRGB(228, 208, 164),
 		Material = Enum.Material.Sand,
 		CanCollide = true,
 	})
 	model.PrimaryPart = deck
 
+	-- Soft beach apron — wider shallow sand lip into the water
 	makePart({
-		Name = "ReefShelf",
+		Name = "BeachApron",
 		Parent = model,
-		Size = Vector3.new(size + 28, 2.2, size + 28),
-		CFrame = CFrame.new(center.X, OceanConfig.SurfaceY - 1.2, center.Z),
-		Color = Color3.fromRGB(72, 110, 98),
-		Material = Enum.Material.Slate,
+		Size = Vector3.new(size + 18, 1.1, size + 18),
+		CFrame = CFrame.new(center.X, topY - 0.2, center.Z),
+		Color = Color3.fromRGB(236, 218, 178),
+		Material = Enum.Material.Sand,
 		CanCollide = false,
 		CastShadow = false,
 	})
 
-	local lipY = topY + 0.15
-	local lipT = 1.4
+	-- Inner grass meadow (beach vibe: sand rim, green heart)
+	local grassSize = size * 0.72
+	makePart({
+		Name = "GrassHeart",
+		Parent = model,
+		Size = Vector3.new(grassSize, 0.55, grassSize),
+		CFrame = CFrame.new(center.X, topY + 0.2, center.Z),
+		Color = if biome == "jungle" then Color3.fromRGB(46, 102, 52) else Color3.fromRGB(72, 138, 68),
+		Material = Enum.Material.Grass,
+		CanCollide = false,
+	})
+
+	-- Jungle undergrowth darker patch toward center
+	if biome == "jungle" or biome == "palm" then
+		local jungleSize = size * (if biome == "jungle" then 0.42 else 0.28)
+		makePart({
+			Name = "JungleFloor",
+			Parent = model,
+			Size = Vector3.new(jungleSize, 0.5, jungleSize),
+			CFrame = CFrame.new(center.X + size * 0.04, topY + 0.35, center.Z - size * 0.03),
+			Color = Color3.fromRGB(34, 82, 40),
+			Material = Enum.Material.LeafyGrass,
+			CanCollide = false,
+		})
+	end
+
+	-- Tide-wet sand band near the shoreline
+	local wet = size * 0.92
+	makePart({
+		Name = "WetSandRing",
+		Parent = model,
+		Size = Vector3.new(wet, 0.25, wet),
+		CFrame = CFrame.new(center.X, topY + 0.05, center.Z),
+		Color = Color3.fromRGB(198, 178, 142),
+		Material = Enum.Material.Sand,
+		CanCollide = false,
+		CastShadow = false,
+	})
+	-- Punch visual: grass sits on top of wet sand in the middle via GrassHeart already
+
+	makePart({
+		Name = "ReefShelf",
+		Parent = model,
+		Size = Vector3.new(size + 28, 2.8, size + 28),
+		CFrame = CFrame.new(center.X, OceanConfig.SurfaceY - 1.4, center.Z),
+		Color = Color3.fromRGB(62, 118, 108),
+		Material = Enum.Material.Limestone,
+		CanCollide = false,
+		CastShadow = false,
+	})
+
+	-- Coral / rock knolls in the shallows
+	for i = 1, math.floor(size / 35) do
+		local angle = (i / math.max(size / 35, 1)) * math.pi * 2
+		local r = size * 0.5 + 6 + math.random() * 8
+		makePart({
+			Name = `ReefKnob_{i}`,
+			Parent = model,
+			Size = Vector3.new(3 + math.random() * 3, 1.5 + math.random(), 3 + math.random() * 3),
+			CFrame = CFrame.new(center.X + math.cos(angle) * r, OceanConfig.SurfaceY - 0.4, center.Z + math.sin(angle) * r),
+			Color = Color3.fromRGB(180 + math.random(0, 40), 110 + math.random(0, 40), 120),
+			Material = Enum.Material.Coral,
+			CanCollide = false,
+			Shape = Enum.PartType.Ball,
+		})
+	end
+
+	local lipY = topY + 0.18
+	local lipT = 2.4
 	local half = size * 0.5
 	for _, spec in {
-		{ Name = "LipNorth", CFrame = CFrame.new(center.X, lipY, center.Z - half + lipT * 0.5), Size = Vector3.new(size, 0.35, lipT) },
-		{ Name = "LipSouth", CFrame = CFrame.new(center.X, lipY, center.Z + half - lipT * 0.5), Size = Vector3.new(size, 0.35, lipT) },
-		{ Name = "LipWest", CFrame = CFrame.new(center.X - half + lipT * 0.5, lipY, center.Z), Size = Vector3.new(lipT, 0.35, size - lipT * 2) },
-		{ Name = "LipEast", CFrame = CFrame.new(center.X + half - lipT * 0.5, lipY, center.Z), Size = Vector3.new(lipT, 0.35, size - lipT * 2) },
+		{ Name = "LipNorth", CFrame = CFrame.new(center.X, lipY, center.Z - half + lipT * 0.5), Size = Vector3.new(size, 0.4, lipT) },
+		{ Name = "LipSouth", CFrame = CFrame.new(center.X, lipY, center.Z + half - lipT * 0.5), Size = Vector3.new(size, 0.4, lipT) },
+		{ Name = "LipWest", CFrame = CFrame.new(center.X - half + lipT * 0.5, lipY, center.Z), Size = Vector3.new(lipT, 0.4, size - lipT * 2) },
+		{ Name = "LipEast", CFrame = CFrame.new(center.X + half - lipT * 0.5, lipY, center.Z), Size = Vector3.new(lipT, 0.4, size - lipT * 2) },
 	} do
 		makePart({
 			Name = spec.Name,
 			Parent = model,
 			Size = spec.Size,
 			CFrame = spec.CFrame,
-			Color = Color3.fromRGB(236, 218, 178),
+			Color = Color3.fromRGB(242, 224, 186),
 			Material = Enum.Material.Sand,
 			CanCollide = false,
 		})
 	end
 
-	-- Scatter palms across the big flats so the sand doesn't read empty
-	buildPalm(model, topY, center, -size * 0.28, size * 0.18)
-	buildPalm(model, topY, center, size * 0.22, -size * 0.2)
-	buildPalm(model, topY, center, -size * 0.12, -size * 0.26)
-	if size >= 170 then
-		buildPalm(model, topY, center, size * 0.3, size * 0.12)
-		buildPalm(model, topY, center, size * 0.08, size * 0.32)
-	end
-	if size >= 185 then
-		buildPalm(model, topY, center, -size * 0.32, -size * 0.08)
-	end
+	scatterVegetation(model, center, size, topY, biome)
+	scatterLooseLoot(model, center, size, topY, entry.Id)
 
 	if entry.HasHouse then
 		buildHouse(model, center, topY, entry.Id)
@@ -418,7 +651,7 @@ local function buildFlatIsland(entry: {
 		Name = "IsleMarker",
 		Parent = model,
 		Size = Vector3.new(1, 1, 1),
-		CFrame = CFrame.new(center.X, topY + 11, center.Z),
+		CFrame = CFrame.new(center.X, topY + 18, center.Z),
 		Transparency = 1,
 		CanCollide = false,
 		CastShadow = false,
@@ -426,7 +659,7 @@ local function buildFlatIsland(entry: {
 	local gui = Instance.new("BillboardGui")
 	gui.Name = "IsleBillboard"
 	gui.Adornee = marker
-	gui.Size = UDim2.fromOffset(180, 42)
+	gui.Size = UDim2.fromOffset(200, 44)
 	gui.AlwaysOnTop = true
 	gui.MaxDistance = 900
 	gui.Parent = marker
@@ -455,6 +688,7 @@ local function buildFlatIsland(entry: {
 		thickness = thickness,
 		hasHouse = entry.HasHouse == true,
 		pirateCount = entry.Pirates or 0,
+		biome = biome,
 		model = model,
 		label = label,
 		pirates = {},
@@ -499,9 +733,16 @@ end
 
 function IslandService.paintTerrain()
 	for _, isle in IslandService._islands do
-		local pad = 4
-		local size = Vector3.new(isle.size + pad * 2, isle.thickness + 4, isle.size + pad * 2)
+		local pad = 10
+		local size = Vector3.new(isle.size + pad * 2, isle.thickness + 6, isle.size + pad * 2)
 		Workspace.Terrain:FillBlock(CFrame.new(isle.center), size, Enum.Material.Sand)
+		-- Soft grass fill in the heart for beach / jungle read under fog
+		local grass = isle.size * 0.7
+		Workspace.Terrain:FillBlock(
+			CFrame.new(isle.center.X, isle.center.Y + 1.5, isle.center.Z),
+			Vector3.new(grass, 3, grass),
+			if isle.biome == "jungle" then Enum.Material.LeafyGrass else Enum.Material.Grass
+		)
 	end
 end
 
@@ -773,8 +1014,16 @@ function IslandService.ensure(): Folder
 		IslandService._byId[record.id] = record
 	end
 
+	-- Register every loot model so drag / weld / pickup remotes can find them
+	local LootPropService = require(script.Parent:WaitForChild("LootPropService"))
+	for _, desc in folder:GetDescendants() do
+		if desc:IsA("Model") and desc:GetAttribute("IsLootProp") == true then
+			LootPropService.registerExisting(desc)
+		end
+	end
+
 	IslandService.paintTerrain()
-	print(`[SurviveAtSea] {#IslandService._islands} stationary isles ready (houses, pirates, visit lockout)`)
+	print(`[SurviveAtSea] {#IslandService._islands} huge beach isles ready (palms, jungle, loot, visit lockout)`)
 	return folder
 end
 

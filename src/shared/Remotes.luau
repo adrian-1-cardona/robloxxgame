@@ -51,6 +51,13 @@ function Remotes.createServerRemotes(): Folder
 		-- Melee: client requests a swing; server validates + damages; SwingFx for other clients
 		"MeleeAttack",
 		"MeleeSwingFx",
+		-- Loot drag / weld / place (walls, torches, planks)
+		"LootDragStart",
+		"LootDragUpdate",
+		"LootDragEnd",
+		"LootWeld",
+		"LootUnweld",
+		"LootPlace",
 	}
 
 	for _, name in names do

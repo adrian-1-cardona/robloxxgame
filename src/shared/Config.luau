@@ -74,9 +74,10 @@ local Config = {
 	},
 
 	-- Stationary open-sea isles. Visit → leave on the raft → sail far enough away → locked forever for that crew.
+	-- Huge beach-vibe flats: sand ring → grass → jungle heart, palms everywhere, widely spaced.
 	Islands = {
-		Thickness = 5,
-		TopY = 2.8,
+		Thickness = 8,
+		TopY = 3.4,
 		-- Distance from isle center after a visit before the isle locks (must clear the huge sand pad)
 		LockoutStuds = 320,
 		-- Extra pad outside the sand when a locked crew tries to sail back in
@@ -93,7 +94,7 @@ local Config = {
 			Range = 220,
 			Cooldown = 0.9,
 		},
-		-- Huge sand flats, spread far apart so sailing between them is a real trip
+		-- Huge beach / jungle flats, spread far apart so sailing between them is a real trip
 		Catalog = {
 			{
 				Id = "tide_flat",
@@ -102,6 +103,7 @@ local Config = {
 				SizeStuds = 168,
 				HasHouse = false,
 				Pirates = 0,
+				Biome = "beach",
 			},
 			{
 				Id = "drift_shack",
@@ -110,6 +112,7 @@ local Config = {
 				SizeStuds = 188,
 				HasHouse = true,
 				Pirates = 0,
+				Biome = "palm",
 			},
 			{
 				Id = "crow_cay",
@@ -117,7 +120,8 @@ local Config = {
 				Offset = Vector3.new(1460, 0, -1460),
 				SizeStuds = 180,
 				HasHouse = false,
-				Pirates = 3,
+				Pirates = 4,
+				Biome = "jungle",
 			},
 			{
 				Id = "raid_cove",
@@ -125,7 +129,8 @@ local Config = {
 				Offset = Vector3.new(-500, 0, -2020),
 				SizeStuds = 196,
 				HasHouse = true,
-				Pirates = 2,
+				Pirates = 3,
+				Biome = "jungle",
 			},
 			{
 				Id = "quiet_sand",
@@ -134,6 +139,7 @@ local Config = {
 				SizeStuds = 160,
 				HasHouse = false,
 				Pirates = 0,
+				Biome = "beach",
 			},
 			{
 				Id = "smuggler_hut",
@@ -142,6 +148,7 @@ local Config = {
 				SizeStuds = 180,
 				HasHouse = true,
 				Pirates = 0,
+				Biome = "palm",
 			},
 			{
 				Id = "buccaneer_flat",
@@ -149,7 +156,8 @@ local Config = {
 				Offset = Vector3.new(-1740, 0, -780),
 				SizeStuds = 188,
 				HasHouse = false,
-				Pirates = 4,
+				Pirates = 5,
+				Biome = "jungle",
 			},
 			{
 				Id = "wreck_spit",
@@ -157,9 +165,20 @@ local Config = {
 				Offset = Vector3.new(1060, 0, -2410),
 				SizeStuds = 172,
 				HasHouse = true,
-				Pirates = 1,
+				Pirates = 2,
+				Biome = "palm",
 			},
 		},
+	},
+
+	-- World loot: drag (hold RMB / RT / touch) or pick up into backpack; weld to raft for shelters / light.
+	Loot = {
+		DragRange = 18,
+		DragHoldSeconds = 0.18,
+		WeldDeckRange = 22,
+		MaxHeldProps = 1,
+		-- Inventory pickup via ProximityPrompt (optional alongside drag)
+		PickupPromptDistance = 10,
 	},
 
 	-- Portal / berth accent (solid purple — no half-and-half overlays)
