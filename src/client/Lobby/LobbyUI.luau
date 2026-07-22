@@ -38,6 +38,13 @@ local clockStroke: UIStroke? = nil
 -- Top-of-panel heading, repurposed as the live voyage day counter ("Day 3").
 local dayLabel: TextLabel? = nil
 
+-- Objective directions HUD (top-left one-liners that fade out after a while).
+local objectiveFrame: CanvasGroup? = nil
+-- Bumped whenever a new objective sequence starts so any in-flight sequence bows out.
+local objectiveGeneration = 0
+-- Which hint set is currently playing ("lobby" / "voyage") so we don't replay on every update.
+local objectivePhase: string? = nil
+
 local function corner(parent: Instance, radius: number?)
 	local c = Instance.new("UICorner")
 	c.CornerRadius = UDim.new(0, radius or 12)
@@ -145,6 +152,69 @@ local function showToast(message: string, kind: string?)
 	end)
 end
 
+-- Cycle a list of one-line objective directions through the top-left HUD.
+-- Each line fades in, lingers for an adequate read, then fades out before the next.
+-- A fresh call cancels any sequence still playing (bumps the generation guard).
+local function playObjectives(hints: { string })
+	if not objectiveFrame or #hints == 0 then
+		return
+	end
+	local frame = objectiveFrame
+	local label = frame:FindFirstChild("Message") :: TextLabel?
+	if not label then
+		return
+	end
+
+	local timing = Config.ObjectiveHints
+	local fadeIn = timing.FadeInSeconds or 0.45
+	local hold = timing.HoldSeconds or 11
+	local fadeOut = timing.FadeOutSeconds or 0.6
+
+	objectiveGeneration += 1
+	local generation = objectiveGeneration
+
+	task.spawn(function()
+		for _, text in hints do
+			-- Bail out immediately if a newer sequence took over.
+			if generation ~= objectiveGeneration then
+				return
+			end
+
+			label.Text = text
+			frame.Visible = true
+			frame.GroupTransparency = 1
+
+			local fadeInTween = TweenService:Create(frame, TweenInfo.new(fadeIn), { GroupTransparency = 0 })
+			fadeInTween:Play()
+			fadeInTween.Completed:Wait()
+
+			task.wait(hold)
+			if generation ~= objectiveGeneration then
+				return
+			end
+
+			local fadeOutTween = TweenService:Create(frame, TweenInfo.new(fadeOut), { GroupTransparency = 1 })
+			fadeOutTween:Play()
+			fadeOutTween.Completed:Wait()
+		end
+
+		if generation == objectiveGeneration then
+			frame.Visible = false
+		end
+	end)
+end
+
+-- Show the right objective directions for the current phase, but only once per phase
+-- change so boarding / party refreshes don't restart the sequence every update.
+local function showObjectivesForPhase(phase: string)
+	if objectivePhase == phase then
+		return
+	end
+	objectivePhase = phase
+	local hints = if phase == "voyage" then Config.ObjectiveHints.Voyage else Config.ObjectiveHints.Lobby
+	playObjectives(hints)
+end
+
 local function refreshClockLabel()
 	if not clockLabel or not partyPanel or not partyPanel.Visible then
 		return
@@ -193,12 +263,16 @@ local function refreshPartyPanel()
 		if joinPanel then
 			joinPanel.Visible = true
 		end
+		-- Back on the pier: replay the lobby "how to start" directions.
+		showObjectivesForPhase("lobby")
 		return
 	end
 
 	partyPanel.Visible = true
 	local origin = if typeof(party.cycleOrigin) == "number" then party.cycleOrigin else nil
 	setGameplayMode(true, origin)
+	-- On a crew and out at sea: show the voyage survival directions.
+	showObjectivesForPhase("voyage")
 	-- On a crew: hide the join box so the top-right is the live code
 	if joinPanel then
 		joinPanel.Visible = false
@@ -546,6 +620,47 @@ local function buildGui()
 		MaxTextSize = 20,
 	})
 
+	-- Objective directions (top-left, one line, fades out after an adequate read)
+	objectiveFrame = Instance.new("CanvasGroup")
+	objectiveFrame.Name = "ObjectiveHint"
+	objectiveFrame.BackgroundColor3 = Config.Theme.UIPanel
+	objectiveFrame.BackgroundTransparency = 0.18
+	objectiveFrame.Size = UDim2.new(0, 340, 0, 40)
+	objectiveFrame.Position = UDim2.new(0, 0, 0, 4)
+	objectiveFrame.AnchorPoint = Vector2.new(0, 0)
+	objectiveFrame.Visible = false
+	objectiveFrame.GroupTransparency = 1
+	objectiveFrame.Parent = root
+	corner(objectiveFrame, 10)
+	stroke(objectiveFrame, Config.Theme.Lantern, 1.5)
+
+	local objectiveConstraint = Instance.new("UISizeConstraint")
+	objectiveConstraint.MinSize = Vector2.new(240, 36)
+	objectiveConstraint.MaxSize = Vector2.new(380, 44)
+	objectiveConstraint.Parent = objectiveFrame
+
+	-- Lantern accent stripe down the left edge as a little "direction" marker.
+	local objectiveStripe = Instance.new("Frame")
+	objectiveStripe.Name = "Stripe"
+	objectiveStripe.BackgroundColor3 = Config.Theme.Lantern
+	objectiveStripe.BorderSizePixel = 0
+	objectiveStripe.Size = UDim2.new(0, 4, 1, -12)
+	objectiveStripe.Position = UDim2.new(0, 8, 0, 6)
+	objectiveStripe.Parent = objectiveFrame
+	corner(objectiveStripe, 2)
+
+	local objectiveLabel = textLabel({
+		Name = "Message",
+		Parent = objectiveFrame,
+		Text = "",
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Size = UDim2.new(1, -24, 1, -8),
+		Position = UDim2.new(0, 18, 0, 4),
+		MaxTextSize = 15,
+	})
+	-- Keep every direction on a single line; TextScaled shrinks to fit instead of wrapping.
+	objectiveLabel.TextWrapped = false
+
 	-- Layout adaptation on resize / device
 	local function relayout()
 		state.device = PlatformInput.getDeviceKind()
@@ -653,6 +768,13 @@ function LobbyUI.start()
 	end)
 
 	showToast("Walk a portal to form a private crew. Friends join with your code.", "info")
+
+	-- Fallback: if the phase wasn't resolved from lobby state (e.g. GetLobbyState failed),
+	-- kick off the lobby directions so new players always see the objective.
+	if objectivePhase == nil then
+		showObjectivesForPhase("lobby")
+	end
+
 	print(`[SurviveAtSea] Lobby UI ready ({state.device})`)
 end
 

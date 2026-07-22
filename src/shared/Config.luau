@@ -213,6 +213,32 @@ local Config = {
 		Font = Enum.Font.GothamBold,
 		BodyFont = Enum.Font.GothamMedium,
 	},
+
+	-- Objective directions: little one-line hints that pop up in the top corner,
+	-- linger for an adequate read, then fade out. Shown once per phase (lobby vs voyage)
+	-- so newcomers always know what to do without cluttering the ocean view.
+	ObjectiveHints = {
+		-- Fade + linger timing (seconds). Each hint holds for HoldSeconds, so the whole
+		-- lobby/voyage set stays on screen for roughly a minute before the last one fades.
+		FadeInSeconds = 0.45,
+		HoldSeconds = 11,
+		FadeOutSeconds = 0.6,
+
+		-- On the pier, before boarding a crew. One line each.
+		Lobby = {
+			"Walk into a glowing pier portal to start a voyage.",
+			"Pick your crew size, then spawn on your own raft.",
+			"Share your crew code so friends can board with you.",
+		},
+
+		-- Out at sea, once you're on a crew raft. One line each.
+		Voyage = {
+			"Take the helm and sail out to the distant islands.",
+			"Raid island chests and pirates for guns and loot.",
+			"Swing your club to fight — haul loot to build your raft.",
+			"Survive the day and night out on the open sea.",
+		},
+	},
 }
 
 return Config
