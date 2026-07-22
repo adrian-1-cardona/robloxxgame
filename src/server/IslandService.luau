@@ -94,31 +94,6 @@ local function makePart(props: { [string]: any }): Part
 	return p
 end
 
--- Horizontal disc (cylinder laid flat) — used to give islands a rounded, organic
--- footprint instead of the old hard square silhouette. Diameter spans XZ, thickness is Y.
-local function makeDisc(props: { [string]: any }): Part
-	local diameter = props.Diameter or 4
-	local thickness = props.Thickness or 1
-	local p = Instance.new("Part")
-	p.Name = props.Name or "IslandDisc"
-	p.Anchored = true
-	p.CanCollide = if props.CanCollide == nil then true else props.CanCollide
-	p.Material = props.Material or Enum.Material.Sand
-	p.Color = props.Color or Color3.fromRGB(220, 200, 158)
-	p.Shape = Enum.PartType.Cylinder
-	-- A Cylinder's flat faces sit on its local X axis; rotate X→Y so the disc lies flat.
-	p.Size = Vector3.new(thickness, diameter, diameter)
-	p.CFrame = (props.CFrame or CFrame.new()) * CFrame.Angles(0, 0, math.rad(90))
-	p.TopSurface = Enum.SurfaceType.Smooth
-	p.BottomSurface = Enum.SurfaceType.Smooth
-	p.CastShadow = if props.CastShadow == nil then true else props.CastShadow
-	if props.Transparency ~= nil then
-		p.Transparency = props.Transparency
-	end
-	p.Parent = props.Parent
-	return p
-end
-
 local function flatDistance(a: Vector3, b: Vector3): number
 	local dx = a.X - b.X
 	local dz = a.Z - b.Z
@@ -320,50 +295,6 @@ local function buildDune(model: Model, topY: number, x: number, z: number, grass
 	})
 end
 
--- Gentle central rise (a couple of walkable steps) topped with palms + a boulder so
--- every isle has a real high point instead of a pancake.
-local function buildHill(model: Model, center: Vector3, size: number, topY: number, biome: string): number
-	local baseDia = size * 0.46
-	local layers = 3
-	local stepH = 2.1
-	local grassColor = if biome == "jungle" then Color3.fromRGB(40, 96, 48) else Color3.fromRGB(70, 134, 66)
-	local peakY = topY
-	for i = 0, layers - 1 do
-		local t = i / layers
-		local dia = baseDia * (1 - t * 0.6)
-		local y = topY + 0.4 + i * stepH + stepH * 0.5
-		makeDisc({
-			Name = `HillTier_{i}`,
-			Parent = model,
-			Diameter = dia,
-			Thickness = stepH + 0.4,
-			CFrame = CFrame.new(center.X, y, center.Z),
-			Color = grassColor:Lerp(Color3.fromRGB(150, 132, 96), t * 0.22),
-			Material = Enum.Material.Grass,
-			CanCollide = true,
-		})
-		peakY = y + (stepH + 0.4) * 0.5
-	end
-	-- Rounded grassy crown
-	makePart({
-		Name = "HillCrown",
-		Parent = model,
-		Size = Vector3.new(baseDia * 0.34, baseDia * 0.2, baseDia * 0.34),
-		CFrame = CFrame.new(center.X, peakY - 0.4, center.Z),
-		Color = grassColor,
-		Material = Enum.Material.Grass,
-		CanCollide = true,
-		Shape = Enum.PartType.Ball,
-	})
-	-- A landmark palm cluster + boulder on the summit
-	buildPalm(model, peakY, center.X - baseDia * 0.06, center.Z + baseDia * 0.04, 1.25)
-	if math.random() < 0.6 then
-		buildPalm(model, peakY, center.X + baseDia * 0.1, center.Z - baseDia * 0.08, 1.0)
-	end
-	buildRock(model, peakY, center.X + baseDia * 0.14, center.Z + baseDia * 0.12, 1.3)
-	return peakY
-end
-
 local function scatterVegetation(model: Model, center: Vector3, size: number, topY: number, biome: string)
 	local half = size * 0.5
 	local beachBand = half * 0.78 -- outer ring stays sandier; vegetation denser inward
@@ -549,6 +480,118 @@ local function spawnVillager(island: IslandRecord, cf: CFrame, kind: string): Mo
 	return model
 end
 
+-- Stable per-isle seed from its id so an island's terrain is identical every build
+-- (deterministic) but distinct from every other island.
+local function seedFromId(id: string): number
+	local h = 2166136261
+	for i = 1, #id do
+		h = (h * 31 + string.byte(id, i)) % 2147483647
+	end
+	return h
+end
+
+-- Sculpt one island entirely out of Roblox voxel Terrain. Produces an organic,
+-- non-circular landmass with a flat, walkable interior plateau at topY (so villages,
+-- loot and NPCs sit correctly), sandy beaches at the coast, a grass/jungle interior,
+-- and biome-driven relief — low dunes for beaches, hills for palm isles, tall rocky
+-- peaks for jungles — all placed in the OUTER band so they never bury the settlement.
+-- Seeded per isle, so each island looks and feels different.
+local function generateIslandTerrain(
+	id: string,
+	center: Vector3,
+	topY: number,
+	size: number,
+	biome: string,
+	theme: string
+)
+	local Terrain = Workspace.Terrain
+	local rng = Random.new(seedFromId(id))
+	local cx, cz = center.X, center.Z
+	local half = size * 0.5
+	local surfaceY = OceanConfig.SurfaceY
+	local isTown = theme == "town" or theme == "stone_town"
+
+	local grassMat = if biome == "jungle" then Enum.Material.LeafyGrass else Enum.Material.Grass
+	local sandMat = Enum.Material.Sand
+
+	-- Solid land column from a submerged base up to a flat top face at `topAt`.
+	local baseBottom = surfaceY - 40
+	local function landColumn(px: number, pz: number, radius: number, topAt: number, material: Enum.Material)
+		local h = topAt - baseBottom
+		if h <= 0 then
+			return
+		end
+		Terrain:FillCylinder(CFrame.new(px, (topAt + baseBottom) * 0.5, pz), h, radius, material)
+	end
+
+	-- 1) Sand body: a main plateau plus several offset lobes give an irregular coast.
+	landColumn(cx, cz, half * 0.66, topY, sandMat)
+	local lobes = rng:NextInteger(4, 7)
+	for i = 1, lobes do
+		local a = (i / lobes) * math.pi * 2 + rng:NextNumber(-0.55, 0.55)
+		local dist = half * rng:NextNumber(0.22, 0.44)
+		local lobeR = half * rng:NextNumber(0.26, 0.46)
+		-- Keep every lobe inside the isle circle so the raft's shoreline collision is clean.
+		if dist + lobeR > half * 0.98 then
+			lobeR = math.max(half * 0.18, half * 0.98 - dist)
+		end
+		landColumn(cx + math.cos(a) * dist, cz + math.sin(a) * dist, lobeR, topY, sandMat)
+	end
+
+	-- 2) Grass/jungle cap over the interior, leaving a sandy coastal rim.
+	local capTop = topY + 0.3
+	local capBottom = topY - 3.5
+	local capH = capTop - capBottom
+	local capY = (capTop + capBottom) * 0.5
+	Terrain:FillCylinder(CFrame.new(cx, capY, cz), capH, half * 0.6, grassMat)
+	for _ = 1, 3 do
+		local a = rng:NextNumber(0, math.pi * 2)
+		local d = half * rng:NextNumber(0.12, 0.4)
+		local r = half * rng:NextNumber(0.2, 0.34)
+		Terrain:FillCylinder(CFrame.new(cx + math.cos(a) * d, capY, cz + math.sin(a) * d), capH, r, grassMat)
+	end
+
+	-- 3) Relief (hills / peaks) — always in the outer band, well clear of the settlement
+	-- heart, so houses and villagers keep flat ground. Towns spread wider, so their
+	-- relief is pushed even further out.
+	local peakExtra, hillCount
+	if biome == "jungle" then
+		peakExtra, hillCount = rng:NextNumber(34, 66), rng:NextInteger(2, 3)
+	elseif biome == "palm" then
+		peakExtra, hillCount = rng:NextNumber(16, 32), rng:NextInteger(1, 2)
+	else
+		peakExtra, hillCount = rng:NextNumber(5, 13), rng:NextInteger(0, 1)
+	end
+	local hillBandMin = if isTown then 0.84 else 0.6
+	local hillBandMax = 0.94
+	local rockMat = if biome == "jungle" then Enum.Material.Rock else grassMat
+	for _ = 1, hillCount do
+		local a = rng:NextNumber(0, math.pi * 2)
+		local d = half * rng:NextNumber(hillBandMin, hillBandMax)
+		local hx, hz = cx + math.cos(a) * d, cz + math.sin(a) * d
+		local baseR = half * (if isTown then rng:NextNumber(0.06, 0.11) else rng:NextNumber(0.12, 0.2))
+		local steps = 6
+		for s = 0, steps do
+			local t = s / steps
+			local y = topY + peakExtra * t
+			local r = baseR * (1 - t * 0.72)
+			Terrain:FillBall(Vector3.new(hx, y, hz), math.max(r, 3), if t > 0.55 then rockMat else grassMat)
+		end
+	end
+
+	-- 4) A scatter of shallow rock knobs just off the coast for a natural reef read.
+	local knobs = rng:NextInteger(3, 7)
+	for _ = 1, knobs do
+		local a = rng:NextNumber(0, math.pi * 2)
+		local d = half * rng:NextNumber(0.9, 1.02)
+		Terrain:FillBall(
+			Vector3.new(cx + math.cos(a) * d, surfaceY - 0.5, cz + math.sin(a) * d),
+			rng:NextNumber(3, 7),
+			Enum.Material.Rock
+		)
+	end
+end
+
 local function buildFlatIsland(entry: { [string]: any }, folder: Folder): IslandRecord
 	local thickness = Config.Islands.Thickness
 	local topY = Config.Islands.TopY
@@ -562,113 +605,22 @@ local function buildFlatIsland(entry: { [string]: any }, folder: Folder): Island
 	model:SetAttribute("Biome", biome)
 	model.Parent = folder
 
-	-- Rounded sand foundation — a solid disc gives the isle an organic, circular
-	-- coastline instead of the old hard square. This is the walkable footprint.
-	local deck = makeDisc({
-		Name = "FlatSand",
+	-- The isle body is real Roblox voxel Terrain now (not Parts). Keep a tiny invisible
+	-- anchor so the Model still has a stable PrimaryPart for any code that references it.
+	local anchor = makePart({
+		Name = "IsleAnchor",
 		Parent = model,
-		Diameter = size,
-		Thickness = thickness,
-		CFrame = CFrame.new(center),
-		Color = Color3.fromRGB(228, 208, 164),
-		Material = Enum.Material.Sand,
-		CanCollide = true,
-	})
-	model.PrimaryPart = deck
-
-	-- Sloping beach shelf — wider, lower rounded sand that eases down into the surf.
-	-- COLLIDABLE so you can actually walk the outer coastline instead of sinking through
-	-- the sand fringe that sits beyond the solid deck disc.
-	makeDisc({
-		Name = "BeachShelf",
-		Parent = model,
-		Diameter = size + 46,
-		Thickness = 2.6,
-		-- Top sits ~0.1 below the deck top so the outer sand fringe is walkable (no falling
-		-- through past the deck edge) without forming a lip above the interior.
-		CFrame = CFrame.new(center.X, topY - 1.4, center.Z),
-		Color = Color3.fromRGB(236, 218, 178),
-		Material = Enum.Material.Sand,
-		CanCollide = true,
-		CastShadow = false,
-	})
-
-	-- Tide-wet sand band near the shoreline (darker, damp ring). Sits ~flush with the deck
-	-- top so it's a thin cosmetic skin, never a lip you sink into.
-	makeDisc({
-		Name = "WetSandRing",
-		Parent = model,
-		Diameter = size * 0.98,
-		Thickness = 0.35,
-		CFrame = CFrame.new(center.X, topY - 0.1, center.Z),
-		Color = Color3.fromRGB(198, 178, 142),
-		Material = Enum.Material.Sand,
+		Size = Vector3.new(2, 2, 2),
+		CFrame = CFrame.new(center.X, topY, center.Z),
+		Transparency = 1,
 		CanCollide = false,
 		CastShadow = false,
 	})
+	model.PrimaryPart = anchor
 
-	-- Rounded grass meadow (sand rim → green heart) laid flush on top of the deck.
-	-- Top is essentially level with the sand deck (topY) so players stand on a single
-	-- clean surface — no sinking into the "first layer" of grass/sand.
-	local grassSize = size * 0.74
-	makeDisc({
-		Name = "GrassHeart",
-		Parent = model,
-		Diameter = grassSize,
-		Thickness = 0.5,
-		CFrame = CFrame.new(center.X, topY - 0.2, center.Z),
-		Color = if biome == "jungle" then Color3.fromRGB(46, 102, 52) else Color3.fromRGB(72, 138, 68),
-		Material = Enum.Material.Grass,
-		CanCollide = false,
-	})
-
-	-- Jungle undergrowth: a darker leafy patch toward the center (flush cosmetic skin)
-	if biome == "jungle" or biome == "palm" then
-		local jungleSize = size * (if biome == "jungle" then 0.44 else 0.3)
-		makeDisc({
-			Name = "JungleFloor",
-			Parent = model,
-			Diameter = jungleSize,
-			Thickness = 0.5,
-			CFrame = CFrame.new(center.X + size * 0.03, topY - 0.14, center.Z - size * 0.02),
-			Color = Color3.fromRGB(34, 82, 40),
-			Material = Enum.Material.LeafyGrass,
-			CanCollide = false,
-		})
-	end
-
-	-- Submerged reef shelf ringing the isle (rounded, sits just under the surface)
-	makeDisc({
-		Name = "ReefShelf",
-		Parent = model,
-		Diameter = size + 90,
-		Thickness = 3,
-		CFrame = CFrame.new(center.X, OceanConfig.SurfaceY - 1.4, center.Z),
-		Color = Color3.fromRGB(62, 118, 108),
-		Material = Enum.Material.Limestone,
-		CanCollide = false,
-		CastShadow = false,
-	})
-
-	-- Coral / rock knolls in the shallows
-	local knobCount = math.floor(size / 30)
-	for i = 1, knobCount do
-		local angle = (i / math.max(knobCount, 1)) * math.pi * 2 + math.random() * 0.5
-		local r = size * 0.5 + 8 + math.random() * 12
-		makePart({
-			Name = `ReefKnob_{i}`,
-			Parent = model,
-			Size = Vector3.new(3 + math.random() * 4, 1.5 + math.random() * 1.5, 3 + math.random() * 4),
-			CFrame = CFrame.new(center.X + math.cos(angle) * r, OceanConfig.SurfaceY - 0.4, center.Z + math.sin(angle) * r),
-			Color = Color3.fromRGB(180 + math.random(0, 40), 110 + math.random(0, 40), 120),
-			Material = Enum.Material.Coral,
-			CanCollide = false,
-			Shape = Enum.PartType.Ball,
-		})
-	end
-
-	-- Central grassy rise so the isle has a real high point
-	buildHill(model, center, size, topY, biome)
+	-- Carve the organic, biome-specific terrain island (beaches, grass/jungle interior,
+	-- hills / rocky peaks). Seeded per isle so every island's shape is different.
+	generateIslandTerrain(entry.Id, center, topY, size, biome, entry.Theme or "wild")
 
 	scatterVegetation(model, center, size, topY, biome)
 	scatterLooseLoot(model, center, size, topY, entry.Id)
@@ -810,23 +762,23 @@ function IslandService.getWorldCenter(): Vector3
 end
 
 function IslandService.paintTerrain()
+	-- Isle bodies are sculpted ONCE as organic voxel Terrain in buildFlatIsland. Because
+	-- that land lives above the sea surface, the ocean water streamer (which only fills
+	-- below the surface) never touches it. This pass just re-asserts the SUBMERGED sand
+	-- base each stream cycle so the water filler can't leave a hole under an isle. It
+	-- stops well below the surface, so it never flattens the above-water terrain shape.
+	local Terrain = Workspace.Terrain
+	local surfaceY = OceanConfig.SurfaceY
+	local baseTop = surfaceY - 1.5
+	local baseBottom = surfaceY - 40
+	local baseH = baseTop - baseBottom
+	local baseY = (baseTop + baseBottom) * 0.5
 	for _, isle in IslandService._islands do
-		-- Rounded sand body under the isle so the terrain silhouette matches the
-		-- new circular disc coastline (FillCylinder axis follows the CFrame up vector).
-		local sandRadius = isle.size * 0.5 + 12
-		Workspace.Terrain:FillCylinder(
-			CFrame.new(isle.center),
-			isle.thickness + 8,
-			sandRadius,
+		Terrain:FillCylinder(
+			CFrame.new(isle.center.X, baseY, isle.center.Z),
+			baseH,
+			isle.size * 0.5 + 8,
 			Enum.Material.Sand
-		)
-		-- Soft grass cap in the heart for beach / jungle read under fog
-		local grassRadius = isle.size * 0.36
-		Workspace.Terrain:FillCylinder(
-			CFrame.new(isle.center.X, isle.center.Y + 2, isle.center.Z),
-			4,
-			grassRadius,
-			if isle.biome == "jungle" then Enum.Material.LeafyGrass else Enum.Material.Grass
 		)
 	end
 end
@@ -921,11 +873,10 @@ function IslandService.clampRaftPosition(code: string, fromPos: Vector3, toPos: 
 end
 
 local function pointOnIsland(pos: Vector3, isle: IslandRecord): boolean
-	if math.abs(pos.Y - isle.topY) > 18 then
-		-- Allow standing / jumping on the flat
-		if pos.Y < isle.topY - 2 or pos.Y > isle.topY + 20 then
-			return false
-		end
+	-- Anywhere from just below the shore up to the top of the tallest terrain peak counts
+	-- as "on the isle" (peaks can rise well above the walkable plateau at topY).
+	if pos.Y < isle.topY - 8 or pos.Y > isle.topY + 130 then
+		return false
 	end
 	return flatDistance(pos, isle.center) <= isle.size * 0.5 + 3
 end
@@ -1181,7 +1132,7 @@ function IslandService.ensure(): Folder
 	end
 
 	IslandService.paintTerrain()
-	print(`[SurviveAtSea] {#IslandService._islands} massive rounded isles ready (hills, dunes, rocks, driftwood, palms, jungle, loot, visit lockout)`)
+	print(`[SurviveAtSea] {#IslandService._islands} massive voxel-terrain isles ready (organic coastlines, beaches, hills & rocky peaks, jungle, villages/towns, loot, visit lockout)`)
 	return folder
 end
 
