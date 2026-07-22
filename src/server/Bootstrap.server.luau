@@ -20,12 +20,16 @@ local PartyService = require(script.Parent:WaitForChild("PartyService"))
 local PortalService = require(script.Parent:WaitForChild("PortalService"))
 local StarterBaseService = require(script.Parent:WaitForChild("StarterBaseService"))
 local HelmService = require(script.Parent:WaitForChild("HelmService"))
+local OceanTerrainService = require(script.Parent:WaitForChild("OceanTerrainService"))
 
 print(`[SurviveAtSea] Booting {Config.GameName} lobby…`)
 
 -- Build/replicate dock on the server so all players share it
 local lobby = LobbyWorld.ensure()
 LobbyBuilder.enhanceExisting(lobby)
+
+-- Realistic Terrain water streams around the pier and every sailing raft
+OceanTerrainService.start()
 
 local remoteFolder = Remotes.createServerRemotes()
 local CreateParty = remoteFolder:WaitForChild("CreateParty")

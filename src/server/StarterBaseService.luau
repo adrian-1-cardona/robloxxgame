@@ -9,6 +9,7 @@ local Workspace = game:GetService("Workspace")
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
+local OceanConfig = require(Shared:WaitForChild("OceanConfig"))
 local LobbyWorld = require(Shared:WaitForChild("LobbyWorld"))
 
 local RaftStarterKit = require(script.Parent:WaitForChild("RaftStarterKit"))
@@ -138,26 +139,27 @@ function StarterBaseService.ensureBase(code: string, baseSlot: number): Model
 	})
 	model.PrimaryPart = deck
 
-	-- Local water so the raft feels surrounded by open ocean (lobby is far beyond fog)
+	-- Legacy local-sea markers (hidden). Real waves come from OceanTerrainService.
+	-- Kept as large non-colliding parts so older clients / maps still have a sea hint.
 	makePart({
 		Name = "LocalSea",
 		Parent = model,
 		Size = Vector3.new(size + 420, 1.5, size + 420),
-		CFrame = CFrame.new(center.X, 0.35, center.Z),
-		Color = Color3.fromRGB(22, 118, 150),
+		CFrame = CFrame.new(center.X, OceanConfig.SurfaceY, center.Z),
+		Color = OceanConfig.WaterColor,
 		Material = Enum.Material.Glass,
-		Transparency = 0.28,
+		Transparency = 1,
 		CanCollide = false,
 		CastShadow = false,
 	})
 	makePart({
 		Name = "LocalSeaDeep",
 		Parent = model,
-		Size = Vector3.new(size + 420, 28, size + 420),
-		CFrame = CFrame.new(center.X, -14, center.Z),
-		Color = Color3.fromRGB(6, 48, 82),
+		Size = Vector3.new(size + 900, 4, size + 900),
+		CFrame = CFrame.new(center.X, OceanConfig.SurfaceY - OceanConfig.DepthStuds + 2, center.Z),
+		Color = OceanConfig.AbyssColor,
 		Material = Enum.Material.SmoothPlastic,
-		Transparency = 0.06,
+		Transparency = OceanConfig.AbyssTransparency,
 		CanCollide = false,
 		CastShadow = false,
 	})

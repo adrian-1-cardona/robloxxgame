@@ -37,6 +37,7 @@ local Config = {
 		SpacingX = 160,
 		DeckClearance = 3.5,
 		-- Fall into water below this Y → rescue back onto the raft
+		-- Kept slightly above OceanConfig.SurfaceY so swimming terrain water still rescues.
 		WaterRescueY = 1.2,
 	},
 

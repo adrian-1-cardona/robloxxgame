@@ -6,6 +6,7 @@
 local Workspace = game:GetService("Workspace")
 
 local Config = require(script.Parent:WaitForChild("Config"))
+local OceanConfig = require(script.Parent:WaitForChild("OceanConfig"))
 
 local LobbyWorld = {}
 
@@ -996,23 +997,30 @@ end
 function LobbyWorld.polish(root: Folder)
 	stripGlowParts(root)
 
-	-- Ocean should not be a walkable escape route — keep it readable mid-sea
+	-- Flat glass ocean is a fallback only — Terrain water (OceanTerrainService) is the real sea.
+	-- Keep these parts non-colliding and fully hidden so they never fight the wave field.
 	local oceanDeep = root:FindFirstChild("OceanDeep")
 	if oceanDeep and oceanDeep:IsA("BasePart") then
 		oceanDeep.CanCollide = false
-		oceanDeep.Size = Vector3.new(4000, 40, 8000)
-		oceanDeep.CFrame = CFrame.new(0, -20, 2000)
-		oceanDeep.Color = Color3.fromRGB(8, 55, 95)
-		oceanDeep.Transparency = 0.05
+		oceanDeep.CanQuery = false
+		oceanDeep.CanTouch = false
+		oceanDeep.CastShadow = false
+		oceanDeep.Size = Vector3.new(4000, 4, 8000)
+		oceanDeep.CFrame = CFrame.new(0, OceanConfig.SurfaceY - OceanConfig.DepthStuds + 2, 2000)
+		oceanDeep.Color = OceanConfig.AbyssColor
+		oceanDeep.Transparency = 1
 	end
 	local oceanSurface = root:FindFirstChild("OceanSurface")
 	if oceanSurface and oceanSurface:IsA("BasePart") then
 		oceanSurface.CanCollide = false
+		oceanSurface.CanQuery = false
+		oceanSurface.CanTouch = false
+		oceanSurface.CastShadow = false
 		oceanSurface.Size = Vector3.new(4000, 2, 8000)
-		oceanSurface.CFrame = CFrame.new(0, 0.4, 2000)
-		oceanSurface.Color = Color3.fromRGB(28, 130, 165)
-		oceanSurface.Transparency = 0.28
-		oceanSurface.Reflectance = 0.18
+		oceanSurface.CFrame = CFrame.new(0, OceanConfig.SurfaceY, 2000)
+		oceanSurface.Color = OceanConfig.WaterColor
+		oceanSurface.Transparency = 1
+		oceanSurface.Reflectance = 0
 	end
 
 	buildBarriers(root)
@@ -1097,11 +1105,11 @@ function LobbyWorld.ensure(): Folder
 	part({
 		Name = "OceanDeep",
 		Parent = root,
-		Size = Vector3.new(4000, 40, 8000),
-		CFrame = CFrame.new(0, -20, 2000),
-		Color = Color3.fromRGB(8, 55, 95),
+		Size = Vector3.new(4000, 4, 8000),
+		CFrame = CFrame.new(0, OceanConfig.SurfaceY - OceanConfig.DepthStuds + 2, 2000),
+		Color = OceanConfig.AbyssColor,
 		Material = Enum.Material.SmoothPlastic,
-		Transparency = 0.05,
+		Transparency = 1,
 		CanCollide = false,
 	})
 
@@ -1109,11 +1117,11 @@ function LobbyWorld.ensure(): Folder
 		Name = "OceanSurface",
 		Parent = root,
 		Size = Vector3.new(4000, 2, 8000),
-		CFrame = CFrame.new(0, 0.4, 2000),
-		Color = Color3.fromRGB(28, 130, 165),
+		CFrame = CFrame.new(0, OceanConfig.SurfaceY, 2000),
+		Color = OceanConfig.WaterColor,
 		Material = Enum.Material.Glass,
-		Transparency = 0.28,
-		Reflectance = 0.18,
+		Transparency = 1,
+		Reflectance = 0,
 		CanCollide = false,
 	})
 
