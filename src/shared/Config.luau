@@ -155,7 +155,7 @@ local Config = {
 				Abandoned = false,
 				Merchant = false,
 				Villagers = { Passive = 0, Hostile = 0 },
-				Loot = { Weapons = 3, Chests = 1 },
+				Loot = { Weapons = 3, Chests = 1, Armor = 1 },
 			},
 			{
 				Id = "quiet_sand",
@@ -167,7 +167,7 @@ local Config = {
 				Abandoned = false,
 				Merchant = true,
 				Villagers = { Passive = 9, Hostile = 0 },
-				Loot = { Weapons = 5, Chests = 3 },
+				Loot = { Weapons = 5, Chests = 3, Armor = 2 },
 			},
 			{
 				Id = "smuggler_hut",
@@ -179,7 +179,7 @@ local Config = {
 				Abandoned = false,
 				Merchant = true,
 				Villagers = { Passive = 8, Hostile = 3 },
-				Loot = { Weapons = 6, Chests = 4 },
+				Loot = { Weapons = 6, Chests = 4, Armor = 3 },
 			},
 			{
 				Id = "raid_cove",
@@ -191,7 +191,7 @@ local Config = {
 				Abandoned = false,
 				Merchant = true,
 				Villagers = { Passive = 14, Hostile = 7 },
-				Loot = { Weapons = 9, Chests = 6 },
+				Loot = { Weapons = 9, Chests = 6, Armor = 4 },
 			},
 			{
 				Id = "crow_cay",
@@ -203,7 +203,7 @@ local Config = {
 				Abandoned = false,
 				Merchant = true,
 				Villagers = { Passive = 8, Hostile = 9 },
-				Loot = { Weapons = 8, Chests = 6 },
+				Loot = { Weapons = 8, Chests = 6, Armor = 4 },
 			},
 			{
 				Id = "buccaneer_flat",
@@ -215,7 +215,7 @@ local Config = {
 				Abandoned = false,
 				Merchant = false,
 				Villagers = { Passive = 5, Hostile = 11 },
-				Loot = { Weapons = 9, Chests = 6 },
+				Loot = { Weapons = 9, Chests = 6, Armor = 4 },
 			},
 			{
 				Id = "drift_shack",
@@ -229,7 +229,7 @@ local Config = {
 				Abandoned = true,
 				Merchant = false,
 				Villagers = { Passive = 0, Hostile = 3 }, -- feral scavengers
-				Loot = { Weapons = 6, Chests = 5 },
+				Loot = { Weapons = 6, Chests = 5, Armor = 3 },
 			},
 			{
 				Id = "wreck_spit",
@@ -241,7 +241,7 @@ local Config = {
 				Abandoned = true,
 				Merchant = false,
 				Villagers = { Passive = 0, Hostile = 2 },
-				Loot = { Weapons = 5, Chests = 4 },
+				Loot = { Weapons = 5, Chests = 4, Armor = 2 },
 			},
 		},
 	},

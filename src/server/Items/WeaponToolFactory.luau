@@ -13,10 +13,12 @@ local WeaponToolFactory = {}
 local WOOD = Color3.fromRGB(96, 66, 40)
 local WOOD_DARK = Color3.fromRGB(66, 44, 26)
 local WOOD_LIGHT = Color3.fromRGB(150, 112, 70)
-local METAL = Color3.fromRGB(74, 78, 84)
+local METAL = Color3.fromRGB(96, 102, 110)
 local METAL_DARK = Color3.fromRGB(48, 50, 56)
+local BRASS = Color3.fromRGB(196, 156, 84)
 local BONE = Color3.fromRGB(222, 214, 186)
 local ROPE = Color3.fromRGB(158, 120, 72)
+local BOWSTRING = Color3.fromRGB(232, 230, 214)
 
 local function weld(a: BasePart, b: BasePart)
 	local w = Instance.new("WeldConstraint")
@@ -52,6 +54,83 @@ end
 
 -- === Geometry builders (attached to a Tool via its Handle) ===============
 
+local function buildClub(tool: Tool)
+	-- Gnarled driftwood club: wrapped grip, tapering shaft, heavy knotted head with bark nubs.
+	tool.Grip = CFrame.new(0, -0.2, -0.15) * CFrame.Angles(math.rad(15), 0, math.rad(10))
+
+	local handle = part({
+		Name = "Handle",
+		Parent = tool,
+		Size = Vector3.new(0.34, 1.05, 0.34),
+		Color = Color3.fromRGB(96, 72, 42),
+		Material = Enum.Material.Wood,
+	})
+	for i = 0, 2 do
+		local ring = part({
+			Name = `GripWrap_{i}`,
+			Parent = tool,
+			Size = Vector3.new(0.18, 0.42, 0.42),
+			Color = ROPE,
+			Material = Enum.Material.Fabric,
+			Shape = Enum.PartType.Cylinder,
+			CFrame = CFrame.new(0, -0.32 + i * 0.26, 0) * CFrame.Angles(0, 0, math.rad(90)),
+		})
+		weld(handle, ring)
+	end
+
+	local shaft = part({
+		Name = "Shaft",
+		Parent = tool,
+		Size = Vector3.new(2.35, 0.36, 0.36),
+		Color = WOOD,
+		Material = Enum.Material.Wood,
+		Shape = Enum.PartType.Cylinder,
+		CFrame = CFrame.new(0, 1.55, 0) * CFrame.Angles(0, 0, math.rad(90)),
+	})
+	weld(handle, shaft)
+
+	local head = part({
+		Name = "ClubHead",
+		Parent = tool,
+		Size = Vector3.new(1.4, 1.6, 1.4),
+		Color = WOOD_DARK,
+		Material = Enum.Material.Wood,
+		Shape = Enum.PartType.Ball,
+		CFrame = CFrame.new(0, 3.55, 0),
+	})
+	weld(handle, head)
+
+	local nubOffsets = {
+		CFrame.new(0.58, 3.45, 0.22),
+		CFrame.new(-0.52, 3.68, -0.26),
+		CFrame.new(0.16, 3.3, -0.58),
+		CFrame.new(-0.22, 3.9, 0.52),
+	}
+	for i, cf in nubOffsets do
+		local nub = part({
+			Name = `BarkNub_{i}`,
+			Parent = tool,
+			Size = Vector3.new(0.36, 0.42, 0.36),
+			Color = Color3.fromRGB(62, 44, 28),
+			Material = Enum.Material.Wood,
+			Shape = Enum.PartType.Ball,
+			CFrame = cf,
+		})
+		weld(handle, nub)
+	end
+
+	local pommel = part({
+		Name = "Pommel",
+		Parent = tool,
+		Size = Vector3.new(0.5, 0.36, 0.5),
+		Color = WOOD_DARK,
+		Material = Enum.Material.Wood,
+		Shape = Enum.PartType.Ball,
+		CFrame = CFrame.new(0, -0.7, 0),
+	})
+	weld(handle, pommel)
+end
+
 local function buildSpear(tool: Tool)
 	tool.Grip = CFrame.new(0, -0.2, 0.4) * CFrame.Angles(math.rad(90), 0, 0)
 	local handle = part({
@@ -72,6 +151,18 @@ local function buildSpear(tool: Tool)
 		CFrame = CFrame.new(0, 0, -3.4),
 	})
 	weld(handle, tip)
+	-- Barbs swept back from the point so the head reads as a bone fishing spear.
+	for i = -1, 1, 2 do
+		local barb = part({
+			Name = "Barb",
+			Parent = tool,
+			Size = Vector3.new(0.16, 0.16, 0.9),
+			Color = BONE,
+			Material = Enum.Material.Slate,
+			CFrame = CFrame.new(i * 0.3, 0, -3.1) * CFrame.Angles(math.rad(28), math.rad(i * 30), 0),
+		})
+		weld(handle, barb)
+	end
 	for i = -1, 1, 2 do
 		local lash = part({
 			Name = "Lashing",
@@ -110,11 +201,51 @@ local function buildBow(tool: Tool)
 		Name = "String",
 		Parent = tool,
 		Size = Vector3.new(0.06, 4.1, 0.06),
-		Color = Color3.fromRGB(230, 228, 210),
+		Color = BOWSTRING,
 		Material = Enum.Material.Fabric,
 		CFrame = CFrame.new(-0.5, 0, 0),
 	})
 	weld(handle, string_)
+	-- Leather grip wrap on the riser
+	local grip = part({
+		Name = "GripWrap",
+		Parent = tool,
+		Size = Vector3.new(0.42, 0.9, 0.58),
+		Color = Color3.fromRGB(70, 46, 28),
+		Material = Enum.Material.Fabric,
+		CFrame = CFrame.new(0, 0, 0),
+	})
+	weld(handle, grip)
+	-- A nocked arrow so the bow reads clearly in hand.
+	local shaft = part({
+		Name = "ArrowShaft",
+		Parent = tool,
+		Size = Vector3.new(0.1, 0.1, 3.4),
+		Color = Color3.fromRGB(150, 116, 74),
+		Material = Enum.Material.Wood,
+		CFrame = CFrame.new(-0.35, 0, -1.3),
+	})
+	weld(handle, shaft)
+	local arrowTip = part({
+		Name = "ArrowTip",
+		Parent = tool,
+		Size = Vector3.new(0.2, 0.2, 0.5),
+		Color = METAL,
+		Material = Enum.Material.Metal,
+		CFrame = CFrame.new(-0.35, 0, -3.1),
+	})
+	weld(handle, arrowTip)
+	for i = -1, 1, 2 do
+		local fletch = part({
+			Name = "Fletch",
+			Parent = tool,
+			Size = Vector3.new(0.04, 0.34, 0.5),
+			Color = Color3.fromRGB(210, 70, 60),
+			Material = Enum.Material.Fabric,
+			CFrame = CFrame.new(-0.35, 0, 0.3) * CFrame.Angles(0, 0, math.rad(i * 45)),
+		})
+		weld(handle, fletch)
+	end
 end
 
 local function buildFirearm(tool: Tool, kind: string)
@@ -173,7 +304,7 @@ local function buildFirearm(tool: Tool, kind: string)
 		local cyl = part({
 			Name = "Cylinder",
 			Parent = tool,
-			Size = Vector3.new(0.4, 0.4, 0.5),
+			Size = Vector3.new(0.42, 0.42, 0.5),
 			Color = METAL,
 			Material = Enum.Material.Metal,
 			Shape = Enum.PartType.Cylinder,
@@ -181,6 +312,46 @@ local function buildFirearm(tool: Tool, kind: string)
 		})
 		weld(handle, cyl)
 	end
+
+	-- Shared iron/brass furniture so every firearm reads as a real gun, not a block:
+	-- trigger guard, trigger, hammer, and a front-sight bead at the muzzle.
+	local guard = part({
+		Name = "TriggerGuard",
+		Parent = tool,
+		Size = Vector3.new(0.12, 0.42, 0.5),
+		Color = BRASS,
+		Material = Enum.Material.Metal,
+		CFrame = body.CFrame * CFrame.new(0, -0.28, 0.02),
+	})
+	weld(handle, guard)
+	local trigger = part({
+		Name = "Trigger",
+		Parent = tool,
+		Size = Vector3.new(0.08, 0.26, 0.1),
+		Color = METAL_DARK,
+		Material = Enum.Material.Metal,
+		CFrame = body.CFrame * CFrame.new(0, -0.16, 0.02),
+	})
+	weld(handle, trigger)
+	local hammer = part({
+		Name = "Hammer",
+		Parent = tool,
+		Size = Vector3.new(0.12, 0.3, 0.16),
+		Color = METAL_DARK,
+		Material = Enum.Material.Metal,
+		CFrame = body.CFrame * CFrame.new(0, 0.24, 0.36) * CFrame.Angles(math.rad(-24), 0, 0),
+	})
+	weld(handle, hammer)
+	local sight = part({
+		Name = "FrontSight",
+		Parent = tool,
+		Size = Vector3.new(0.06, 0.16, 0.06),
+		Color = BRASS,
+		Material = Enum.Material.Metal,
+		CFrame = barrel.CFrame * CFrame.new(0, 0, barrelLen * 0.42) * CFrame.Angles(0, math.rad(-90), 0)
+			* CFrame.new(0, 0.14, 0),
+	})
+	weld(handle, sight)
 end
 
 -- === Public API ==========================================================
@@ -210,6 +381,8 @@ function WeaponToolFactory.createTool(weaponId: string): Tool?
 		tool:SetAttribute("SwingDuration", def.SwingDuration)
 		if weaponId == "Spear" then
 			buildSpear(tool)
+		elseif weaponId == "Club" then
+			buildClub(tool)
 		else
 			-- fallback melee handle
 			part({ Name = "Handle", Parent = tool, Size = Vector3.new(0.4, 3, 0.4), Color = WOOD })
@@ -278,27 +451,51 @@ function WeaponToolFactory.createWorldPickup(parent: Instance, weaponId: string,
 		display:Destroy()
 	end
 
+	local rarity = Weapons.rarityInfo(def.Rarity)
+
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "PickupTag"
-	billboard.Size = UDim2.fromOffset(150, 30)
+	billboard.Size = UDim2.fromOffset(168, 44)
 	billboard.StudsOffset = Vector3.new(0, 2.6, 0)
 	billboard.AlwaysOnTop = true
-	billboard.MaxDistance = 80
+	billboard.MaxDistance = 90
 	billboard.Adornee = base
 	billboard.Parent = base
 
 	local tag = Instance.new("TextLabel")
-	tag.BackgroundTransparency = 0.35
+	tag.BackgroundTransparency = 0.32
 	tag.BackgroundColor3 = Color3.fromRGB(18, 30, 40)
 	tag.Size = UDim2.fromScale(1, 1)
 	tag.Font = Enum.Font.GothamBold
 	tag.TextScaled = true
-	tag.TextColor3 = Color3.fromRGB(255, 224, 150)
+	tag.TextColor3 = Color3.fromRGB(245, 248, 250)
 	tag.Text = def.Name
 	tag.Parent = billboard
 	local corner = Instance.new("UICorner")
 	corner.CornerRadius = UDim.new(0, 6)
 	corner.Parent = tag
+	-- Rarity-coloured outline + a small tier label so grey/green/blue/etc. read at a glance.
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = rarity.Color
+	stroke.Thickness = 2.5
+	stroke.Parent = tag
+	local tier = Instance.new("TextLabel")
+	tier.Name = "Tier"
+	tier.BackgroundTransparency = 1
+	tier.Size = UDim2.new(1, 0, 0.32, 0)
+	tier.Position = UDim2.fromScale(0, 0.02)
+	tier.Font = Enum.Font.GothamBold
+	tier.TextScaled = true
+	tier.TextColor3 = rarity.Color
+	tier.Text = rarity.Name
+	tier.Parent = tag
+
+	-- A soft rarity glow on the stand so the drop's tier reads even before you see the tag.
+	local glow = Instance.new("PointLight")
+	glow.Color = rarity.Color
+	glow.Brightness = if (def.Rarity or 1) >= 4 then 2.2 else 1.1
+	glow.Range = if (def.Rarity or 1) >= 4 then 16 else 10
+	glow.Parent = base
 
 	return model
 end

@@ -22,6 +22,7 @@ local StarterBaseService = require(script.Parent:WaitForChild("StarterBaseServic
 local HelmService = require(script.Parent:WaitForChild("HelmService"))
 local IslandService = require(script.Parent:WaitForChild("IslandService"))
 local WeaponService = require(script.Parent:WaitForChild("WeaponService"))
+local ArmorService = require(script.Parent:WaitForChild("ArmorService"))
 local MerchantService = require(script.Parent:WaitForChild("MerchantService"))
 local OceanTerrainService = require(script.Parent:WaitForChild("OceanTerrainService"))
 local DayNightService = require(script.Parent:WaitForChild("DayNightService"))
@@ -190,6 +191,12 @@ safeStart("WeaponService", function()
 		Toast = Toast :: RemoteEvent,
 		WeaponFx = WeaponFx :: RemoteEvent,
 	})
+end)
+
+-- Armor: worn damage-reduction gear looted on islands. Started BEFORE IslandService so
+-- armor pickups spawned during island generation wire their prompts correctly.
+safeStart("ArmorService", function()
+	ArmorService.start({ Toast = Toast :: RemoteEvent })
 end)
 
 -- Merchant trading (buy with Doubloons / craft with Scrap). Started BEFORE IslandService

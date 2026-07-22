@@ -13,6 +13,7 @@ local InventoryHUD = {}
 local player = Players.LocalPlayer
 local doubloonLabel: TextLabel? = nil
 local scrapLabel: TextLabel? = nil
+local armorLabel: TextLabel? = nil
 local ammoLabel: TextLabel? = nil
 local equippedRanged: Tool? = nil
 local loadedConn: RBXScriptConnection? = nil
@@ -41,6 +42,22 @@ local function refreshCurrency()
 		local v = player:GetAttribute(Config.Currency.Scrap.Attribute) or 0
 		scrapLabel.Text = `Scrap: {v}`
 	end
+end
+
+local function refreshArmor()
+	if not armorLabel then
+		return
+	end
+	local rating = player:GetAttribute("ArmorRating")
+	rating = if typeof(rating) == "number" then rating else 0
+	-- Only show the armor line once you're actually wearing something.
+	if rating <= 0 then
+		armorLabel.Visible = false
+		armorLabel.Text = ""
+		return
+	end
+	armorLabel.Visible = true
+	armorLabel.Text = `Armor: {math.floor(rating * 100 + 0.5)}%`
 end
 
 local function refreshAmmo()
@@ -120,7 +137,7 @@ function InventoryHUD.start()
 	panel.Name = "Panel"
 	panel.AnchorPoint = Vector2.new(0, 0)
 	panel.Position = UDim2.new(0, 16, 0, 96)
-	panel.Size = UDim2.fromOffset(190, 84)
+	panel.Size = UDim2.fromOffset(190, 108)
 	panel.BackgroundColor3 = Color3.fromRGB(10, 24, 36)
 	panel.BackgroundTransparency = 0.25
 	panel.BorderSizePixel = 0
@@ -138,16 +155,19 @@ function InventoryHUD.start()
 
 	doubloonLabel = makeRow(panel, 1, Color3.fromRGB(255, 214, 120))
 	scrapLabel = makeRow(panel, 2, Color3.fromRGB(190, 200, 210))
-	ammoLabel = makeRow(panel, 3, Color3.fromRGB(150, 205, 255))
+	armorLabel = makeRow(panel, 3, Color3.fromRGB(170, 220, 175))
+	ammoLabel = makeRow(panel, 4, Color3.fromRGB(150, 205, 255))
 
 	-- Currency attribute listeners
 	player:GetAttributeChangedSignal(Config.Currency.Doubloons.Attribute):Connect(refreshCurrency)
 	player:GetAttributeChangedSignal(Config.Currency.Scrap.Attribute):Connect(refreshCurrency)
+	player:GetAttributeChangedSignal("ArmorRating"):Connect(refreshArmor)
 	for _, ammo in Weapons.Ammo do
 		player:GetAttributeChangedSignal(ammo.Attribute):Connect(refreshAmmo)
 	end
 
 	refreshCurrency()
+	refreshArmor()
 	refreshAmmo()
 
 	if player.Character then

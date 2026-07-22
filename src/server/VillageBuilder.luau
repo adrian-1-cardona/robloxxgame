@@ -9,6 +9,7 @@
 
 local Config = require(game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("Config"))
 local Weapons = require(game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("Weapons"))
+local Armor = require(game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("Armor"))
 
 local LootPropFactory = require(script.Parent:WaitForChild("Items"):WaitForChild("LootPropFactory"))
 local WeaponService = require(script.Parent:WaitForChild("WeaponService"))
@@ -23,6 +24,9 @@ local STONE = Color3.fromRGB(128, 130, 132)
 local STONE_DARK = Color3.fromRGB(96, 98, 100)
 local MOSS = Color3.fromRGB(96, 118, 76)
 local ASH = Color3.fromRGB(60, 58, 54)
+local GLASS_WARM = Color3.fromRGB(255, 214, 130)
+local DOOR_WOOD = Color3.fromRGB(64, 42, 26)
+local NET = Color3.fromRGB(196, 188, 150)
 
 local function makePart(props: { [string]: any }): Part
 	local p = Instance.new("Part")
@@ -101,14 +105,42 @@ local function buildHouse(model: Model, cf: CFrame, opts: { [string]: any })
 	end
 
 	if not ruined then
+		-- Pitched roof: two sloped panels meeting at a ridge beam (reads far nicer than a flat slab).
+		for i = -1, 1, 2 do
+			makePart({
+				Name = "RoofSlope",
+				Parent = model,
+				Size = Vector3.new(w * 0.62, 0.5, d + 2.0),
+				CFrame = cf * CFrame.new(i * w * 0.24, wallH + 1.1, 0) * CFrame.Angles(0, 0, math.rad(i * -32)),
+				Color = if cobble then ROOF_WOOD else ROOF_THATCH,
+				Material = if cobble then Enum.Material.Wood else Enum.Material.Grass,
+			})
+		end
 		makePart({
-			Name = "Roof",
+			Name = "RoofRidge",
 			Parent = model,
-			Size = Vector3.new(w + 1.6, 0.7, d + 1.6),
-			CFrame = cf * CFrame.new(0, wallH + 0.4, 0),
-			Color = if cobble then ROOF_WOOD else ROOF_THATCH,
-			Material = if cobble then Enum.Material.Wood else Enum.Material.Grass,
+			Size = Vector3.new(0.6, 0.6, d + 2.1),
+			CFrame = cf * CFrame.new(0, wallH + 2.0, 0),
+			Color = ROOF_WOOD,
+			Material = Enum.Material.Wood,
 		})
+		-- Stone homes get a chimney with a wisp of smoke.
+		if cobble then
+			local chimney = makePart({
+				Name = "Chimney",
+				Parent = model,
+				Size = Vector3.new(1.3, 3.2, 1.3),
+				CFrame = cf * CFrame.new(w * 0.3, wallH + 1.8, -d * 0.3),
+				Color = STONE_DARK,
+				Material = Enum.Material.Cobblestone,
+			})
+			local smoke = Instance.new("Smoke")
+			smoke.Size = 2.4
+			smoke.Opacity = 0.25
+			smoke.RiseVelocity = 4
+			smoke.Color = Color3.fromRGB(180, 180, 180)
+			smoke.Parent = chimney
+		end
 	else
 		-- collapsed beam
 		makePart({
@@ -120,6 +152,40 @@ local function buildHouse(model: Model, cf: CFrame, opts: { [string]: any })
 			Material = Enum.Material.Wood,
 			CanCollide = false,
 		})
+	end
+
+	-- Front door in the gap between the two front wall halves.
+	if not ruined or math.random() < 0.5 then
+		makePart({
+			Name = "Door",
+			Parent = model,
+			Size = Vector3.new(w * 0.28, wallH * 0.72, 0.35),
+			CFrame = cf * CFrame.new(0, wallH * 0.36 + 0.3, d * 0.5),
+			Color = DOOR_WOOD,
+			Material = Enum.Material.Wood,
+			CanCollide = false,
+		})
+	end
+
+	-- Windows on the side walls — warm glowing panes on lit homes, dark on ruins.
+	if not ruined then
+		for i = -1, 1, 2 do
+			local pane = makePart({
+				Name = "Window",
+				Parent = model,
+				Size = Vector3.new(0.3, 1.5, 1.8),
+				CFrame = cf * CFrame.new(i * w * 0.5, wallH * 0.55, d * 0.12),
+				Color = GLASS_WARM,
+				Material = Enum.Material.Neon,
+				CanCollide = false,
+			})
+			pane.Transparency = 0.15
+			local glow = Instance.new("PointLight")
+			glow.Brightness = 0.7
+			glow.Range = 12
+			glow.Color = GLASS_WARM
+			glow.Parent = pane
+		end
 	end
 
 	-- Interior bed (loot) + torch (loot)
@@ -244,10 +310,10 @@ local function buildChest(model: Model, cf: CFrame, islandId: string, deps: { [s
 	end)
 end
 
--- Random chest reward: weapon (+starter ammo), ammo bundle, or currency.
+-- Random chest reward: weapon (+starter ammo), armor, ammo bundle, or currency.
 function VillageBuilder.grantChestLoot(player: Player, deps: { [string]: any })
 	local roll = math.random()
-	if roll < 0.45 then
+	if roll < 0.38 then
 		local weaponId = Weapons.rollLootWeapon(function(a, b)
 			return math.random(a, b)
 		end)
@@ -259,7 +325,17 @@ function VillageBuilder.grantChestLoot(player: Player, deps: { [string]: any })
 		if deps.toast then
 			deps.toast(player, `Looted a {def and def.Name or weaponId}!`, "success")
 		end
-	elseif roll < 0.75 then
+	elseif roll < 0.58 and deps.wearArmor then
+		-- Armor cache — equipped straight away (swaps the slot).
+		local armorId = Armor.rollLootArmor(function(a, b)
+			return math.random(a, b)
+		end)
+		local def = Armor.get(armorId)
+		deps.wearArmor(player, armorId)
+		if deps.toast and def then
+			deps.toast(player, `Looted {def.Name} armor!`, "success")
+		end
+	elseif roll < 0.78 then
 		local types = { "Bullet", "Shell", "Arrow", "Powder" }
 		local ammoId = types[math.random(1, #types)]
 		local amount = (Weapons.AmmoBundle[ammoId] or 6) * math.random(1, 2)
@@ -275,6 +351,144 @@ function VillageBuilder.grantChestLoot(player: Player, deps: { [string]: any })
 		if deps.toast then
 			deps.toast(player, `Found {doubloons} Doubloons & {scrap} Scrap.`, "success")
 		end
+	end
+end
+
+-- A stone well — village centrepiece for stone settlements.
+local function buildWell(model: Model, pos: Vector3)
+	-- Vertical stone ring (cylinder axis is local X, so rotate 90° about Z to stand it up).
+	makePart({
+		Name = "WellRing",
+		Parent = model,
+		Size = Vector3.new(2.4, 4.4, 4.4),
+		CFrame = CFrame.new(pos + Vector3.new(0, 1.2, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = STONE,
+		Material = Enum.Material.Cobblestone,
+		Shape = Enum.PartType.Cylinder,
+		CanCollide = true,
+	})
+	makePart({
+		Name = "WellWater",
+		Parent = model,
+		Size = Vector3.new(3.4, 0.3, 3.4),
+		CFrame = CFrame.new(pos + Vector3.new(0, 2.0, 0)),
+		Color = Color3.fromRGB(40, 96, 120),
+		Material = Enum.Material.Glass,
+		CanCollide = false,
+	})
+	for i = -1, 1, 2 do
+		makePart({
+			Name = "WellPost",
+			Parent = model,
+			Size = Vector3.new(0.4, 3.4, 0.4),
+			CFrame = CFrame.new(pos + Vector3.new(i * 1.9, 3.0, 0)),
+			Color = WOOD_DARK,
+			Material = Enum.Material.Wood,
+		})
+	end
+	makePart({
+		Name = "WellRoof",
+		Parent = model,
+		Size = Vector3.new(5.0, 0.4, 2.4),
+		CFrame = CFrame.new(pos + Vector3.new(0, 4.8, 0)),
+		Color = ROOF_WOOD,
+		Material = Enum.Material.Wood,
+	})
+end
+
+-- A covered market stall with a striped awning — a town square touch.
+local function buildMarketStall(model: Model, cf: CFrame)
+	makePart({
+		Name = "StallCounter",
+		Parent = model,
+		Size = Vector3.new(5, 1.6, 2),
+		CFrame = cf * CFrame.new(0, 0.8, 0),
+		Color = WOOD,
+		Material = Enum.Material.Wood,
+	})
+	for _, sx in { -2.2, 2.2 } do
+		makePart({
+			Name = "StallPost",
+			Parent = model,
+			Size = Vector3.new(0.3, 4.2, 0.3),
+			CFrame = cf * CFrame.new(sx, 2.1, -0.8),
+			Color = WOOD_DARK,
+			Material = Enum.Material.Wood,
+		})
+	end
+	makePart({
+		Name = "StallAwning",
+		Parent = model,
+		Size = Vector3.new(5.6, 0.3, 3),
+		CFrame = cf * CFrame.new(0, 4.2, -0.2) * CFrame.Angles(math.rad(-16), 0, 0),
+		Color = Color3.fromRGB(180, 72, 66),
+		Material = Enum.Material.Fabric,
+	})
+end
+
+-- Fish-drying rack with hanging catch — a fishing-village staple.
+local function buildFishRack(model: Model, cf: CFrame)
+	for _, sx in { -2, 2 } do
+		makePart({
+			Name = "RackPost",
+			Parent = model,
+			Size = Vector3.new(0.3, 3.4, 0.3),
+			CFrame = cf * CFrame.new(sx, 1.7, 0),
+			Color = WOOD_DARK,
+			Material = Enum.Material.Wood,
+		})
+	end
+	makePart({
+		Name = "RackBar",
+		Parent = model,
+		Size = Vector3.new(4.4, 0.25, 0.25),
+		CFrame = cf * CFrame.new(0, 3.2, 0),
+		Color = WOOD,
+		Material = Enum.Material.Wood,
+	})
+	for i = -1, 1 do
+		makePart({
+			Name = "DryingNet",
+			Parent = model,
+			Size = Vector3.new(0.1, 1.6, 1.2),
+			CFrame = cf * CFrame.new(i * 1.3, 2.2, 0),
+			Color = NET,
+			Material = Enum.Material.Fabric,
+			CanCollide = false,
+		})
+	end
+end
+
+-- A stone watchtower — stone-town skyline landmark with a torch on top.
+local function buildWatchtower(model: Model, pos: Vector3)
+	makePart({
+		Name = "TowerBody",
+		Parent = model,
+		Size = Vector3.new(6, 18, 6),
+		CFrame = CFrame.new(pos + Vector3.new(0, 9, 0)),
+		Color = STONE,
+		Material = Enum.Material.Cobblestone,
+		CanCollide = true,
+	})
+	makePart({
+		Name = "TowerCrown",
+		Parent = model,
+		Size = Vector3.new(7, 1.6, 7),
+		CFrame = CFrame.new(pos + Vector3.new(0, 18.5, 0)),
+		Color = STONE_DARK,
+		Material = Enum.Material.Cobblestone,
+	})
+	-- Battlement teeth
+	for i = 0, 3 do
+		local a = math.rad(i * 90)
+		makePart({
+			Name = "Merlon",
+			Parent = model,
+			Size = Vector3.new(1.4, 1.6, 1.4),
+			CFrame = CFrame.new(pos + Vector3.new(math.cos(a) * 2.6, 19.8, math.sin(a) * 2.6)),
+			Color = STONE,
+			Material = Enum.Material.Cobblestone,
+		})
 	end
 end
 
@@ -306,11 +520,11 @@ function VillageBuilder.build(
 	local totalPop = (entry.Villagers and (entry.Villagers.Passive + entry.Villagers.Hostile)) or 0
 	local houseCount
 	if abandoned then
-		houseCount = if isTown then math.random(7, 11) else math.random(3, 6)
+		houseCount = if isTown then math.random(10, 16) else math.random(5, 9)
 	elseif isTown then
-		houseCount = math.clamp(math.floor(totalPop / 2) + 6, 10, 22)
+		houseCount = math.clamp(math.floor(totalPop / 2) + 10, 16, 32)
 	else
-		houseCount = math.clamp(math.floor(totalPop / 2) + 3, 4, 10)
+		houseCount = math.clamp(math.floor(totalPop / 2) + 6, 8, 16)
 	end
 	local villagerSpots: { Vector3 } = {}
 
@@ -347,6 +561,31 @@ function VillageBuilder.build(
 		buildCampfire(villageFolder, Vector3.new(center.X, topY + 0.3, center.Z))
 	end
 
+	-- Theme flavour: each settlement type gets a distinctive landmark so isles feel
+	-- different at a glance (a fishing village reads nothing like a stone town).
+	if not abandoned then
+		if theme == "fishing_village" then
+			for i = 1, 4 do
+				local a = (i / 4) * math.pi * 2 + 0.4
+				local r = villageRadius * 0.6
+				local cf = CFrame.new(center.X + math.cos(a) * r, topY, center.Z + math.sin(a) * r)
+				buildFishRack(villageFolder, cf)
+			end
+		elseif theme == "town" then
+			for i = 1, 3 do
+				local a = (i / 3) * math.pi * 2
+				local r = villageRadius * 0.32
+				local cf = CFrame.new(center.X + math.cos(a) * r, topY, center.Z + math.sin(a) * r)
+				buildMarketStall(villageFolder, cf)
+			end
+		elseif theme == "stone_town" then
+			buildWell(villageFolder, Vector3.new(center.X + villageRadius * 0.22, topY, center.Z))
+			buildWatchtower(villageFolder, Vector3.new(center.X - villageRadius * 0.5, topY, center.Z - villageRadius * 0.4))
+		elseif cobble then
+			buildWell(villageFolder, Vector3.new(center.X + villageRadius * 0.22, topY, center.Z))
+		end
+	end
+
 	-- Torch posts around the village (simple villages "with torches and stuff").
 	local torchPosts = if abandoned then 2 else math.clamp(math.floor(villageRadius / 12), 4, 10)
 	for i = 1, torchPosts do
@@ -380,6 +619,20 @@ function VillageBuilder.build(
 		local cf = CFrame.new(center.X + math.cos(a) * r, topY + 0.5, center.Z + math.sin(a) * r)
 			* CFrame.Angles(0, math.rad(math.random(0, 360)), 0)
 		WeaponService.spawnWeaponPickup(villageFolder, weaponId, cf)
+	end
+
+	-- Armor pickups on display stands scattered through the settlement.
+	local armorCount = (entry.Loot and entry.Loot.Armor) or 0
+	if deps.spawnArmorPickup then
+		for _ = 1, armorCount do
+			local a = math.random() * math.pi * 2
+			local r = villageRadius * (0.2 + math.random() * 0.7)
+			local armorId = Armor.rollLootArmor(function(lo, hi)
+				return math.random(lo, hi)
+			end)
+			local cf = CFrame.new(center.X + math.cos(a) * r, topY + 0.4, center.Z + math.sin(a) * r)
+			deps.spawnArmorPickup(villageFolder, armorId, cf)
+		end
 	end
 
 	-- Lootable chests.
