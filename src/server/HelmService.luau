@@ -380,7 +380,7 @@ function HelmService.start(
 				oldCf.Position.Y,
 				oldCf.Position.Z + move.Z
 			)
-			-- Visit lockout: once a crew leaves an isle ~100m away, the raft can't sail back
+			-- Visit lockout: once a crew leaves an isle far enough away, the raft can't sail back
 			local newPos, blockedIsle = IslandService.clampRaftPosition(session.code, oldCf.Position, desiredPos)
 			if blockedIsle and throttle ~= 0 then
 				local now = os.clock()
