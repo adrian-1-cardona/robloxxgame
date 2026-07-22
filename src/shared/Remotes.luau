@@ -41,8 +41,9 @@ function Remotes.createServerRemotes(): Folder
 		"PortalsUpdated",
 		"Toast",
 		"GetLobbyState",
-		-- Helm: client sends camera look while steering; server pushes mount state
+		-- Helm: client sends camera look + throttle while steering; server pushes mount state
 		"HelmLook",
+		"HelmThrottle",
 		"HelmState",
 		"HelmDismount",
 	}

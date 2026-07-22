@@ -48,10 +48,11 @@ local PortalsUpdated = remoteFolder:WaitForChild("PortalsUpdated")
 local Toast = remoteFolder:WaitForChild("Toast")
 local GetLobbyState = remoteFolder:WaitForChild("GetLobbyState")
 local HelmLook = remoteFolder:WaitForChild("HelmLook")
+local HelmThrottle = remoteFolder:WaitForChild("HelmThrottle")
 local HelmState = remoteFolder:WaitForChild("HelmState")
 local HelmDismount = remoteFolder:WaitForChild("HelmDismount")
 
--- Helm: look-steered raft, jump to unlock
+-- Helm: look-steer + throttle drive, jump to unlock
 StarterBaseService._onBaseBuilt = function(code, model)
 	HelmService.bindBase(code, model)
 end
@@ -75,6 +76,13 @@ HelmLook.OnServerEvent:Connect(function(player, look)
 		return
 	end
 	HelmService.setLook(player, look)
+end)
+
+HelmThrottle.OnServerEvent:Connect(function(player, throttle)
+	if typeof(throttle) ~= "number" then
+		return
+	end
+	HelmService.setThrottle(player, throttle)
 end)
 
 HelmDismount.OnServerEvent:Connect(function(player)

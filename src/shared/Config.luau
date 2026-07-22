@@ -37,7 +37,7 @@ local Config = {
 	},
 
 	-- Starter raft kit: vertical steering column + upright look-steered helm wheel.
-	-- Take the helm → locked standing at the wheel; look steers the raft forever;
+	-- Take the helm → locked standing at the wheel; look steers; W / stick / arrows drive;
 	-- jump / gamepad B to unlock and step away.
 	Helm = {
 		SpeedStudsPerSecond = 48,
@@ -45,6 +45,9 @@ local Config = {
 		-- Stand offset from deck center (aft). Y is ignored — stand sits on deck top.
 		StandLocalOffset = Vector3.new(0, 0, 22),
 		LookSendHz = 20,
+		ThrottleSendHz = 20,
+		-- Deadzone for console left-stick Y (and any analog throttle)
+		StickDeadzone = 0.18,
 		-- Generous for phone / VR laser / console approach
 		PromptDistance = 14,
 		-- Visual: spin the wooden wheel with look yaw (matches helmsman face turn)
