@@ -177,26 +177,28 @@ local function ensureRainRig()
 end
 
 local function restoreLobbyLighting()
-	-- Snap back to day/night so the pier never keeps storm fog / grading.
-	local day = DayNight.getState(Workspace:GetServerTimeNow())
-	local base = DayNight.lightingFor(day.dayAmount)
-	Lighting.FogColor = base.FogColor
-	Lighting.FogStart = base.FogStart
-	Lighting.FogEnd = base.FogEnd
-	Lighting.Brightness = base.Brightness
+	-- Match ClockHUD's midday pier lock — do not leave cycle/storm fog on the lobby.
+	local look = DayNight.lightingFor(1)
+	Lighting.ClockTime = 12
+	Lighting.FogColor = look.FogColor
+	Lighting.FogStart = look.FogStart
+	Lighting.FogEnd = look.FogEnd
+	Lighting.Brightness = look.Brightness
+	Lighting.Ambient = look.Ambient
+	Lighting.OutdoorAmbient = look.OutdoorAmbient
 
 	local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
 	if atmosphere then
-		atmosphere.Density = base.AtmosphereDensity
-		atmosphere.Haze = base.AtmosphereHaze
-		atmosphere.Glare = base.AtmosphereGlare
-		atmosphere.Color = base.AtmosphereColor
-		atmosphere.Decay = base.AtmosphereDecay
+		atmosphere.Density = look.AtmosphereDensity
+		atmosphere.Haze = look.AtmosphereHaze
+		atmosphere.Glare = look.AtmosphereGlare
+		atmosphere.Color = look.AtmosphereColor
+		atmosphere.Decay = look.AtmosphereDecay
 	end
 
 	local sunRays = Lighting:FindFirstChildOfClass("SunRaysEffect")
 	if sunRays then
-		sunRays.Intensity = base.SunRaysIntensity
+		sunRays.Intensity = look.SunRaysIntensity
 	end
 end
 
