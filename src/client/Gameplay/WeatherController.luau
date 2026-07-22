@@ -16,6 +16,8 @@ local Remotes = require(Shared:WaitForChild("Remotes"))
 local Weather = require(Shared:WaitForChild("Weather"))
 local OceanConfig = require(Shared:WaitForChild("OceanConfig"))
 
+local ClockHUD = require(script.Parent.Parent.Lobby.ClockHUD)
+
 local WeatherController = {}
 
 local started = false
@@ -250,7 +252,9 @@ local function applyLightingOverlay(state: Weather.WeatherState)
 		return
 	end
 
-	local day = DayNight.getState(Workspace:GetServerTimeNow())
+	local day = if ClockHUD.isGameplayActive()
+		then ClockHUD.getGameplayState()
+		else DayNight.getState(Workspace:GetServerTimeNow())
 	local base = DayNight.lightingFor(day.dayAmount)
 	local over = Weather.lightingOverlay(state)
 

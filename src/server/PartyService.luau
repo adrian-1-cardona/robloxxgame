@@ -13,6 +13,7 @@
 --   • Concurrent crews use independent baseSlot raft placement (not capped by PortalCount)
 
 local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
@@ -33,6 +34,8 @@ export type PartyRecord = {
 	privacy: PartyPrivacy,
 	portalIndex: number,
 	baseSlot: number,
+	-- Server time when crew was created — voyage day/night starts at 6:00 AM from this origin
+	cycleOrigin: number,
 	memberUserIds: { number },
 	status: "Open",
 }
@@ -89,6 +92,7 @@ local function toSnapshot(party: PartyRecord): PartySnapshot
 		members = members,
 		portalIndex = party.portalIndex,
 		baseSlot = party.baseSlot,
+		cycleOrigin = party.cycleOrigin,
 		status = party.status,
 	}
 end
@@ -242,6 +246,8 @@ function PartyService.createParty(
 		privacy = "Private",
 		portalIndex = portalIndex,
 		baseSlot = baseSlot,
+		-- Day/night elapsed from this origin so every crew wakes at 6:00 AM.
+		cycleOrigin = Workspace:GetServerTimeNow(),
 		memberUserIds = { player.UserId },
 		status = "Open",
 	}

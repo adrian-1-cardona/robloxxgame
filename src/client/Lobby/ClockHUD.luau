@@ -1,5 +1,6 @@
 -- Gameplay clock lives in the crew menu (old Cast Off slot).
 -- Lobby stays daytime with no clock — this module only applies lighting.
+-- While on a crew, lighting follows that crew's cycle (always starts at 6:00 AM).
 
 local Lighting = game:GetService("Lighting")
 local RunService = game:GetService("RunService")
@@ -12,6 +13,8 @@ local ClockHUD = {}
 
 local started = false
 local inGameplay = false
+-- Server time when the local player's crew was created (nil in lobby).
+local cycleOrigin: number? = nil
 
 local atmosphere: Atmosphere? = nil
 local sunRays: SunRaysEffect? = nil
@@ -79,12 +82,13 @@ local function applyLobbyDay()
 end
 
 local function applyGameplayCycle()
-	local state = DayNight.getState(Workspace:GetServerTimeNow())
+	local state = DayNight.getState(Workspace:GetServerTimeNow(), cycleOrigin)
 	applyLook(state.clockTime, state.dayAmount)
 end
 
-function ClockHUD.setGameplayActive(active: boolean)
+function ClockHUD.setGameplayActive(active: boolean, origin: number?)
 	inGameplay = active
+	cycleOrigin = if active then origin else nil
 	if active then
 		applyGameplayCycle()
 	else
@@ -94,6 +98,15 @@ end
 
 function ClockHUD.isGameplayActive(): boolean
 	return inGameplay
+end
+
+function ClockHUD.getCycleOrigin(): number?
+	return cycleOrigin
+end
+
+-- Shared day/night state for ocean fog / weather overlays while at sea.
+function ClockHUD.getGameplayState(): DayNight.CycleState
+	return DayNight.getState(Workspace:GetServerTimeNow(), cycleOrigin)
 end
 
 function ClockHUD.start()
@@ -119,7 +132,7 @@ function ClockHUD.start()
 		end
 	end)
 
-	print("[SurviveAtSea] Lobby daytime lock ready (clock lives in crew menu)")
+	print("[SurviveAtSea] Lobby daytime lock ready (crew clocks start at 6:00 AM)")
 end
 
 return ClockHUD
