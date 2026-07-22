@@ -21,6 +21,7 @@ export type HelmSession = {
 	savedJumpHeight: number,
 	savedAutoRotate: boolean,
 	lockToastAt: number,
+	groundToastAt: number,
 	connections: { RBXScriptConnection },
 }
 
@@ -215,6 +216,7 @@ function HelmService.mount(player: Player, code: string): boolean
 		savedJumpHeight = humanoid.JumpHeight,
 		savedAutoRotate = humanoid.AutoRotate,
 		lockToastAt = 0,
+		groundToastAt = 0,
 		connections = {},
 	}
 
@@ -389,6 +391,21 @@ function HelmService.start(
 					local helmsman = Players:GetPlayerByUserId(userId)
 					if helmsman then
 						toast(helmsman, `{blockedIsle} won't take you back.`, "error")
+					end
+				end
+			end
+
+			-- Solid shoreline: you can't drive onto an isle. Sailing into one runs the raft
+			-- aground and stops it at the beach; steer away to peel off.
+			local groundedIsle
+			newPos, groundedIsle = IslandService.collideRaft(oldCf.Position, newPos)
+			if groundedIsle and throttle ~= 0 then
+				local now = os.clock()
+				if now - session.groundToastAt > 2.5 then
+					session.groundToastAt = now
+					local helmsman = Players:GetPlayerByUserId(userId)
+					if helmsman then
+						toast(helmsman, `Ran aground on {groundedIsle} — steer away.`, "error")
 					end
 				end
 			end

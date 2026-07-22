@@ -290,22 +290,35 @@ function VillageBuilder.build(
 	local theme = entry.Theme or "village"
 	local islandId = entry.Id
 	local abandoned = entry.Abandoned == true
-	local cobble = theme == "stone_village"
+	-- Stone settlements (stone_village / stone_town) get cobblestone houses.
+	local cobble = theme == "stone_village" or theme == "stone_town"
+	-- Towns are larger settlements — more houses spread over a wider heart.
+	local isTown = theme == "town" or theme == "stone_town"
 	local half = size * 0.5
-	local villageRadius = half * 0.5
+	local villageRadius = half * (if isTown then 0.62 else 0.5)
 
 	local villageFolder = Instance.new("Folder")
 	villageFolder.Name = "Village"
 	villageFolder.Parent = model
 
-	-- Ring of houses around the heart.
+	-- Houses laid out around the heart. Towns get many more, spread over two rings so
+	-- the settlement reads as a proper town you can wander through, not a tiny hamlet.
 	local totalPop = (entry.Villagers and (entry.Villagers.Passive + entry.Villagers.Hostile)) or 0
-	local houseCount = if abandoned then math.random(3, 5) else math.clamp(math.floor(totalPop / 2) + 2, 3, 8)
+	local houseCount
+	if abandoned then
+		houseCount = if isTown then math.random(7, 11) else math.random(3, 6)
+	elseif isTown then
+		houseCount = math.clamp(math.floor(totalPop / 2) + 6, 10, 22)
+	else
+		houseCount = math.clamp(math.floor(totalPop / 2) + 3, 4, 10)
+	end
 	local villagerSpots: { Vector3 } = {}
 
 	for i = 1, houseCount do
 		local a = (i / houseCount) * math.pi * 2 + math.random() * 0.3
-		local r = villageRadius * (0.55 + math.random() * 0.4)
+		-- Towns fill an inner + outer ring so streets of houses stretch outward.
+		local ringSpread = if isTown and i % 2 == 0 then 0.9 else 0.55
+		local r = villageRadius * (ringSpread + math.random() * 0.4)
 		local x = center.X + math.cos(a) * r
 		local z = center.Z + math.sin(a) * r
 		-- Face the house toward the village center

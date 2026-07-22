@@ -47,20 +47,26 @@ local function refreshAmmo()
 	if not ammoLabel then
 		return
 	end
+	-- Ammo is only ever shown while a gun is actually equipped. Clubs / spears and an
+	-- empty-handed player show no ammo line at all (it's hidden, not just blank).
 	local tool = equippedRanged
 	if not (tool and tool.Parent) then
+		ammoLabel.Visible = false
 		ammoLabel.Text = ""
 		return
 	end
 	local ammoId = tool:GetAttribute("Ammo")
 	if typeof(ammoId) ~= "string" then
+		ammoLabel.Visible = false
 		ammoLabel.Text = ""
 		return
 	end
+	-- Per-gun ammo: reads the equipped gun's own ammo type + chambered/reserve counts.
 	local ammoDef = Weapons.Ammo[ammoId]
 	local reserve = player:GetAttribute(ammoDef and ammoDef.Attribute) or 0
 	local loaded = tool:GetAttribute("Loaded") or 0
 	local label = ammoDef and ammoDef.Label or ammoId
+	ammoLabel.Visible = true
 	ammoLabel.Text = `{label}: {loaded} / {reserve}`
 end
 
@@ -77,7 +83,10 @@ local function watchEquipped(tool: Tool?)
 end
 
 local function isRanged(tool: Instance?): boolean
-	return tool ~= nil and tool:IsA("Tool") and tool:GetAttribute("Ranged") == true
+	-- Match the gun controller: real ranged weapons (Ranged) and the legacy flintlock.
+	return tool ~= nil
+		and tool:IsA("Tool")
+		and (tool:GetAttribute("Ranged") == true or tool:GetAttribute("SurviveGun") == true)
 end
 
 local function hookCharacter(character: Model)

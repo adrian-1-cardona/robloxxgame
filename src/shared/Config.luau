@@ -78,10 +78,16 @@ local Config = {
 	Islands = {
 		Thickness = 16,
 		TopY = 3.4,
-		-- Distance from isle center after a visit before the isle locks (must clear the huge sand pad)
-		LockoutStuds = 900,
+		-- Distance from isle center after a visit before the isle locks. Must clear the
+		-- whole sand pad of even the largest isle (radius ~1200), so it's set well beyond it.
+		LockoutStuds = 2000,
 		-- Extra pad outside the sand when a locked crew tries to sail back in
-		ApproachPadStuds = 110,
+		ApproachPadStuds = 220,
+		-- Solid-shoreline collision: rafts can NEVER drive up onto an isle. Sailing into
+		-- one stops the raft dead at the sand's edge (you run aground). This is the gap
+		-- kept between the isle's sand radius and the raft's center (raft is ~72 wide, so
+		-- ~40 leaves the hull nosing the beach without clipping through it).
+		RaftCollisionPad = 40,
 
 		-- Legacy hostile "pirate" tuning — kept for back-compat; hostile villagers reuse it.
 		Pirate = {
@@ -133,106 +139,109 @@ local Config = {
 			GreetRange = 14,
 		},
 
-		-- Themed catalog. Bigger footprints so a whole village fits realistically, spread
-		-- far apart so sailing between them is a real open-ocean trip. Abandoned isles are
-		-- rarer (2 of 8). Every inhabited & abandoned isle carries loot.
-		--   Theme: "wild" | "fishing_village" | "village" | "stone_village" | "abandoned"
+		-- Themed catalog. HUGE footprints (1500–2400 studs across) so each isle is a real
+		-- place you can walk end-to-end — full villages, sprawling towns, thick jungles,
+		-- and quiet abandoned ruins. Spread far apart so sailing between them is a genuine
+		-- open-ocean voyage. Abandoned isles are rarer (2 of 8). Every isle carries loot.
+		--   Theme: "wild" | "fishing_village" | "village" | "town" | "stone_town" | "abandoned"
 		Catalog = {
 			{
 				Id = "tide_flat",
 				Name = "Tide Flat",
-				Offset = Vector3.new(1200, 0, -1480),
-				SizeStuds = 520,
+				Offset = Vector3.new(2800, 0, -3200),
+				SizeStuds = 1500,
 				Biome = "beach",
 				Theme = "wild",
 				Abandoned = false,
 				Merchant = false,
 				Villagers = { Passive = 0, Hostile = 0 },
-				Loot = { Weapons = 1, Chests = 0 },
+				Loot = { Weapons = 3, Chests = 1 },
 			},
 			{
 				Id = "quiet_sand",
 				Name = "Quiet Sand",
-				Offset = Vector3.new(4020, 0, -960),
-				SizeStuds = 540,
+				Offset = Vector3.new(8200, 0, -2200),
+				SizeStuds = 1700,
 				Biome = "beach",
 				Theme = "fishing_village",
 				Abandoned = false,
 				Merchant = true,
-				Villagers = { Passive = 6, Hostile = 0 },
-				Loot = { Weapons = 3, Chests = 2 },
+				Villagers = { Passive = 9, Hostile = 0 },
+				Loot = { Weapons = 5, Chests = 3 },
 			},
 			{
 				Id = "smuggler_hut",
 				Name = "Smuggler Hollow",
-				Offset = Vector3.new(560, 0, -5800),
-				SizeStuds = 580,
+				Offset = Vector3.new(1000, 0, -10200),
+				SizeStuds = 1900,
 				Biome = "palm",
 				Theme = "village",
 				Abandoned = false,
 				Merchant = true,
-				Villagers = { Passive = 5, Hostile = 2 },
-				Loot = { Weapons = 4, Chests = 3 },
+				Villagers = { Passive = 8, Hostile = 3 },
+				Loot = { Weapons = 6, Chests = 4 },
 			},
 			{
 				Id = "raid_cove",
 				Name = "Raid Cove",
-				Offset = Vector3.new(-1080, 0, -4300),
-				SizeStuds = 640,
+				Offset = Vector3.new(-3000, 0, -8000),
+				SizeStuds = 2400,
 				Biome = "jungle",
-				Theme = "village",
+				Theme = "town",
 				Abandoned = false,
 				Merchant = true,
-				Villagers = { Passive = 7, Hostile = 4 },
-				Loot = { Weapons = 5, Chests = 3 },
+				Villagers = { Passive = 14, Hostile = 7 },
+				Loot = { Weapons = 9, Chests = 6 },
 			},
 			{
 				Id = "crow_cay",
 				Name = "Crow Cay",
-				Offset = Vector3.new(3120, 0, -3120),
-				SizeStuds = 600,
+				Offset = Vector3.new(6400, 0, -6800),
+				SizeStuds = 2200,
 				Biome = "jungle",
-				Theme = "stone_village",
+				Theme = "stone_town",
 				Abandoned = false,
-				Merchant = false,
-				Villagers = { Passive = 4, Hostile = 6 },
-				Loot = { Weapons = 5, Chests = 4 },
+				Merchant = true,
+				Villagers = { Passive = 8, Hostile = 9 },
+				Loot = { Weapons = 8, Chests = 6 },
 			},
 			{
 				Id = "buccaneer_flat",
 				Name = "Bastion Reach",
-				Offset = Vector3.new(-3700, 0, -1660),
-				SizeStuds = 620,
+				Offset = Vector3.new(-7800, 0, -3400),
+				SizeStuds = 2300,
 				Biome = "jungle",
-				Theme = "stone_village",
+				Theme = "stone_town",
 				Abandoned = false,
 				Merchant = false,
-				Villagers = { Passive = 3, Hostile = 8 },
-				Loot = { Weapons = 6, Chests = 4 },
+				Villagers = { Passive = 5, Hostile = 11 },
+				Loot = { Weapons = 9, Chests = 6 },
 			},
 			{
 				Id = "drift_shack",
 				Name = "Drift Shack",
-				Offset = Vector3.new(-2540, 0, -2280),
-				SizeStuds = 560,
-				Biome = "palm",
-				Theme = "abandoned",
+				Offset = Vector3.new(-6000, 0, -8400),
+				SizeStuds = 1800,
+				Biome = "jungle",
+				-- A whole town, long abandoned and reclaimed by the jungle (ruined houses,
+				-- cold pits, only a few feral scavengers left).
+				Theme = "town",
 				Abandoned = true,
 				Merchant = false,
-				Villagers = { Passive = 0, Hostile = 2 }, -- feral scavengers
-				Loot = { Weapons = 4, Chests = 3 },
+				Villagers = { Passive = 0, Hostile = 3 }, -- feral scavengers
+				Loot = { Weapons = 6, Chests = 5 },
 			},
 			{
 				Id = "wreck_spit",
 				Name = "Wreck Spit",
-				Offset = Vector3.new(2260, 0, -5100),
-				SizeStuds = 540,
+				Offset = Vector3.new(4400, 0, -10800),
+				SizeStuds = 1600,
 				Biome = "palm",
 				Theme = "abandoned",
 				Abandoned = true,
 				Merchant = false,
-				Villagers = { Passive = 0, Hostile = 1 },
-				Loot = { Weapons = 3, Chests = 2 },
+				Villagers = { Passive = 0, Hostile = 2 },
+				Loot = { Weapons = 5, Chests = 4 },
 			},
 		},
 	},

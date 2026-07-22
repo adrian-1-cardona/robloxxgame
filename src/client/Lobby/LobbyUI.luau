@@ -595,12 +595,13 @@ local function buildGui()
 		end,
 	})
 
-	-- Toast
+	-- Toast — pinned to the top-center of the screen so pop-up messages read clearly.
 	toastFrame = Instance.new("CanvasGroup")
 	toastFrame.Name = "Toast"
 	toastFrame.BackgroundColor3 = Config.Theme.UIPanel
 	toastFrame.Size = UDim2.new(0.5, 0, 0, 48)
-	toastFrame.Position = UDim2.new(0.25, 0, 0.08, 0)
+	toastFrame.AnchorPoint = Vector2.new(0.5, 0)
+	toastFrame.Position = UDim2.new(0.5, 0, 0.12, 0)
 	toastFrame.Visible = false
 	toastFrame.GroupTransparency = 1
 	toastFrame.Parent = root
@@ -620,14 +621,14 @@ local function buildGui()
 		MaxTextSize = 20,
 	})
 
-	-- Objective directions (top-left, one line, fades out after an adequate read)
+	-- Objective directions (top-center, one line, fades out after an adequate read)
 	objectiveFrame = Instance.new("CanvasGroup")
 	objectiveFrame.Name = "ObjectiveHint"
 	objectiveFrame.BackgroundColor3 = Config.Theme.UIPanel
 	objectiveFrame.BackgroundTransparency = 0.18
 	objectiveFrame.Size = UDim2.new(0, 340, 0, 40)
-	objectiveFrame.Position = UDim2.new(0, 0, 0, 4)
-	objectiveFrame.AnchorPoint = Vector2.new(0, 0)
+	objectiveFrame.AnchorPoint = Vector2.new(0.5, 0)
+	objectiveFrame.Position = UDim2.new(0.5, 0, 0.03, 0)
 	objectiveFrame.Visible = false
 	objectiveFrame.GroupTransparency = 1
 	objectiveFrame.Parent = root
@@ -653,9 +654,9 @@ local function buildGui()
 		Name = "Message",
 		Parent = objectiveFrame,
 		Text = "",
-		TextXAlignment = Enum.TextXAlignment.Left,
-		Size = UDim2.new(1, -24, 1, -8),
-		Position = UDim2.new(0, 18, 0, 4),
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Size = UDim2.new(1, -28, 1, -8),
+		Position = UDim2.new(0, 14, 0, 4),
 		MaxTextSize = 15,
 	})
 	-- Keep every direction on a single line; TextScaled shrinks to fit instead of wrapping.
