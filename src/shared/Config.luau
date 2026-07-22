@@ -74,14 +74,16 @@ local Config = {
 	},
 
 	-- Stationary open-sea isles. Visit → leave on the raft → sail far enough away → locked forever for that crew.
-	-- Huge beach-vibe flats: sand ring → grass → jungle heart, palms everywhere, widely spaced.
+	-- Huge beach-vibe flats: sand ring → grass → jungle/village heart, palms everywhere, widely spaced.
 	Islands = {
-		Thickness = 12,
+		Thickness = 16,
 		TopY = 3.4,
 		-- Distance from isle center after a visit before the isle locks (must clear the huge sand pad)
-		LockoutStuds = 700,
+		LockoutStuds = 900,
 		-- Extra pad outside the sand when a locked crew tries to sail back in
-		ApproachPadStuds = 95,
+		ApproachPadStuds = 110,
+
+		-- Legacy hostile "pirate" tuning — kept for back-compat; hostile villagers reuse it.
 		Pirate = {
 			Health = 40,
 			Damage = 5,
@@ -94,81 +96,143 @@ local Config = {
 			Range = 220,
 			Cooldown = 0.9,
 		},
-		-- Massive beach / jungle flats, spread far apart so sailing between them is a real trip.
-		-- Islands are ~2.2x their old footprint and pushed ~1.9x further out — the fast helm makes
-		-- the longer crossings feel like an open-ocean sprint instead of a slog.
+
+		-- Villagers: tribal islanders. Passive ones (blue eyes) mind their own business
+		-- until struck, then defend their home. Aggressive ones (red eyes) hunt trespassers
+		-- on sight. Abandoned isles have only a few feral scavengers, if any.
+		Villager = {
+			Passive = {
+				Health = 55,
+				WanderSpeed = 5.5,
+				WanderRadiusFrac = 0.34, -- of island half-size
+				-- When a passive villager is attacked it turns hostile to defend the isle.
+				DefendOnAttack = true,
+			},
+			Hostile = {
+				Health = 70,
+				Damage = 8,
+				AttackCooldown = 1.1,
+				ChaseSpeed = 12,
+				AggroRange = 82,
+			},
+			-- Feral scavengers that linger on abandoned isles (rare, weak, hostile).
+			Scavenger = {
+				Health = 45,
+				Damage = 6,
+				AttackCooldown = 1.25,
+				ChaseSpeed = 10,
+				AggroRange = 70,
+			},
+		},
+
+		-- Merchant: blue-hatted tribal trader. NEVER hostile. Can be dragged onto and
+		-- welded to your raft (reuses the loot drag/weld system) so you can carry a
+		-- shop between voyages. Trade with looted Doubloons / crafting Scrap.
+		Merchant = {
+			Health = 120, -- cosmetic; the merchant is never targeted by combat
+			GreetRange = 14,
+		},
+
+		-- Themed catalog. Bigger footprints so a whole village fits realistically, spread
+		-- far apart so sailing between them is a real open-ocean trip. Abandoned isles are
+		-- rarer (2 of 8). Every inhabited & abandoned isle carries loot.
+		--   Theme: "wild" | "fishing_village" | "village" | "stone_village" | "abandoned"
 		Catalog = {
 			{
 				Id = "tide_flat",
 				Name = "Tide Flat",
-				Offset = Vector3.new(1060, 0, -1300),
-				SizeStuds = 380,
-				HasHouse = false,
-				Pirates = 0,
+				Offset = Vector3.new(1200, 0, -1480),
+				SizeStuds = 520,
 				Biome = "beach",
-			},
-			{
-				Id = "drift_shack",
-				Name = "Drift Shack",
-				Offset = Vector3.new(-2240, 0, -2020),
-				SizeStuds = 420,
-				HasHouse = true,
-				Pirates = 0,
-				Biome = "palm",
-			},
-			{
-				Id = "crow_cay",
-				Name = "Crow Cay",
-				Offset = Vector3.new(2780, 0, -2780),
-				SizeStuds = 400,
-				HasHouse = false,
-				Pirates = 4,
-				Biome = "jungle",
-			},
-			{
-				Id = "raid_cove",
-				Name = "Raid Cove",
-				Offset = Vector3.new(-960, 0, -3840),
-				SizeStuds = 440,
-				HasHouse = true,
-				Pirates = 3,
-				Biome = "jungle",
+				Theme = "wild",
+				Abandoned = false,
+				Merchant = false,
+				Villagers = { Passive = 0, Hostile = 0 },
+				Loot = { Weapons = 1, Chests = 0 },
 			},
 			{
 				Id = "quiet_sand",
 				Name = "Quiet Sand",
-				Offset = Vector3.new(3620, 0, -860),
-				SizeStuds = 360,
-				HasHouse = false,
-				Pirates = 0,
+				Offset = Vector3.new(4020, 0, -960),
+				SizeStuds = 540,
 				Biome = "beach",
+				Theme = "fishing_village",
+				Abandoned = false,
+				Merchant = true,
+				Villagers = { Passive = 6, Hostile = 0 },
+				Loot = { Weapons = 3, Chests = 2 },
 			},
 			{
 				Id = "smuggler_hut",
-				Name = "Smuggler Hut",
-				Offset = Vector3.new(480, 0, -5200),
-				SizeStuds = 400,
-				HasHouse = true,
-				Pirates = 0,
+				Name = "Smuggler Hollow",
+				Offset = Vector3.new(560, 0, -5800),
+				SizeStuds = 580,
 				Biome = "palm",
+				Theme = "village",
+				Abandoned = false,
+				Merchant = true,
+				Villagers = { Passive = 5, Hostile = 2 },
+				Loot = { Weapons = 4, Chests = 3 },
+			},
+			{
+				Id = "raid_cove",
+				Name = "Raid Cove",
+				Offset = Vector3.new(-1080, 0, -4300),
+				SizeStuds = 640,
+				Biome = "jungle",
+				Theme = "village",
+				Abandoned = false,
+				Merchant = true,
+				Villagers = { Passive = 7, Hostile = 4 },
+				Loot = { Weapons = 5, Chests = 3 },
+			},
+			{
+				Id = "crow_cay",
+				Name = "Crow Cay",
+				Offset = Vector3.new(3120, 0, -3120),
+				SizeStuds = 600,
+				Biome = "jungle",
+				Theme = "stone_village",
+				Abandoned = false,
+				Merchant = false,
+				Villagers = { Passive = 4, Hostile = 6 },
+				Loot = { Weapons = 5, Chests = 4 },
 			},
 			{
 				Id = "buccaneer_flat",
-				Name = "Buccaneer Flat",
-				Offset = Vector3.new(-3300, 0, -1480),
-				SizeStuds = 420,
-				HasHouse = false,
-				Pirates = 5,
+				Name = "Bastion Reach",
+				Offset = Vector3.new(-3700, 0, -1660),
+				SizeStuds = 620,
 				Biome = "jungle",
+				Theme = "stone_village",
+				Abandoned = false,
+				Merchant = false,
+				Villagers = { Passive = 3, Hostile = 8 },
+				Loot = { Weapons = 6, Chests = 4 },
+			},
+			{
+				Id = "drift_shack",
+				Name = "Drift Shack",
+				Offset = Vector3.new(-2540, 0, -2280),
+				SizeStuds = 560,
+				Biome = "palm",
+				Theme = "abandoned",
+				Abandoned = true,
+				Merchant = false,
+				Villagers = { Passive = 0, Hostile = 2 }, -- feral scavengers
+				Loot = { Weapons = 4, Chests = 3 },
 			},
 			{
 				Id = "wreck_spit",
 				Name = "Wreck Spit",
-				Offset = Vector3.new(2020, 0, -4580),
-				SizeStuds = 380,
-				HasHouse = true,
-				Pirates = 2,
+				Offset = Vector3.new(2260, 0, -5100),
+				SizeStuds = 540,
 				Biome = "palm",
+				Theme = "abandoned",
+				Abandoned = true,
+				Merchant = false,
+				Villagers = { Passive = 0, Hostile = 1 },
+				Loot = { Weapons = 3, Chests = 2 },
 			},
 		},
 	},
@@ -181,6 +245,14 @@ local Config = {
 		MaxHeldProps = 1,
 		-- Inventory pickup via ProximityPrompt (optional alongside drag)
 		PickupPromptDistance = 10,
+	},
+
+	-- Player-carried currencies (tracked as Player attributes so they replicate to the
+	-- owning client for the HUD). Doubloons buy finished goods from the merchant; Scrap
+	-- is the crafting material you convert into ammo at the merchant.
+	Currency = {
+		Doubloons = { Attribute = "Doubloons", Label = "Doubloons", StartAmount = 25 },
+		Scrap = { Attribute = "Scrap", Label = "Scrap", StartAmount = 10 },
 	},
 
 	-- Portal / berth accent (solid purple — no half-and-half overlays)

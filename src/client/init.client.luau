@@ -18,6 +18,8 @@ local WeatherController = require(script:WaitForChild("Gameplay"):WaitForChild("
 local GunController = require(script:WaitForChild("Gameplay"):WaitForChild("GunController"))
 local MeleeController = require(script:WaitForChild("Gameplay"):WaitForChild("MeleeController"))
 local DragController = require(script:WaitForChild("Gameplay"):WaitForChild("DragController"))
+local InventoryHUD = require(script:WaitForChild("Gameplay"):WaitForChild("InventoryHUD"))
+local MerchantController = require(script:WaitForChild("Gameplay"):WaitForChild("MerchantController"))
 
 print(`[SurviveAtSea] Client hello — welcome aboard {Config.GameName}`)
 
@@ -49,6 +51,8 @@ safeStart("HelmController", HelmController.start)
 safeStart("GunController", GunController.start)
 safeStart("MeleeController", MeleeController.start)
 safeStart("DragController", DragController.start)
+safeStart("InventoryHUD", InventoryHUD.start)
+safeStart("MerchantController", MerchantController.start)
 
 local player = Players.LocalPlayer
 

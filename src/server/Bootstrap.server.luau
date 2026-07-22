@@ -21,7 +21,8 @@ local PortalService = require(script.Parent:WaitForChild("PortalService"))
 local StarterBaseService = require(script.Parent:WaitForChild("StarterBaseService"))
 local HelmService = require(script.Parent:WaitForChild("HelmService"))
 local IslandService = require(script.Parent:WaitForChild("IslandService"))
-local GunService = require(script.Parent:WaitForChild("GunService"))
+local WeaponService = require(script.Parent:WaitForChild("WeaponService"))
+local MerchantService = require(script.Parent:WaitForChild("MerchantService"))
 local OceanTerrainService = require(script.Parent:WaitForChild("OceanTerrainService"))
 local DayNightService = require(script.Parent:WaitForChild("DayNightService"))
 local WeatherService = require(script.Parent:WaitForChild("WeatherService"))
@@ -59,6 +60,8 @@ local HelmThrottle = remoteFolder:WaitForChild("HelmThrottle")
 local HelmState = remoteFolder:WaitForChild("HelmState")
 local HelmDismount = remoteFolder:WaitForChild("HelmDismount")
 local ShootGun = remoteFolder:WaitForChild("ShootGun")
+local WeaponReload = remoteFolder:WaitForChild("WeaponReload")
+local WeaponFx = remoteFolder:WaitForChild("WeaponFx")
 local MeleeAttack = remoteFolder:WaitForChild("MeleeAttack")
 local MeleeSwingFx = remoteFolder:WaitForChild("MeleeSwingFx")
 local LootDragStart = remoteFolder:WaitForChild("LootDragStart")
@@ -67,6 +70,8 @@ local LootDragEnd = remoteFolder:WaitForChild("LootDragEnd")
 local LootWeld = remoteFolder:WaitForChild("LootWeld")
 local LootUnweld = remoteFolder:WaitForChild("LootUnweld")
 local LootPlace = remoteFolder:WaitForChild("LootPlace")
+local MerchantTrade = remoteFolder:WaitForChild("MerchantTrade")
+local MerchantShop = remoteFolder:WaitForChild("MerchantShop")
 
 -- Shared accessors used by several services below.
 local function getPartyCode(player: Player): string?
@@ -178,8 +183,25 @@ Players.PlayerAdded:Connect(onPlayerReady)
 -- never break the boarding pier / crew creation wired above. ===
 safeStart("DayNightService", DayNightService.start)
 safeStart("WeatherService", WeatherService.start)
-safeStart("GunService", function()
-	GunService.start(Toast :: RemoteEvent)
+
+-- Weapons: ranged fire, ammo reserves, player currency, weapon/ammo grants + pickups.
+safeStart("WeaponService", function()
+	WeaponService.start({
+		Toast = Toast :: RemoteEvent,
+		WeaponFx = WeaponFx :: RemoteEvent,
+	})
+end)
+
+-- Merchant trading (buy with Doubloons / craft with Scrap). Started BEFORE IslandService
+-- so merchants spawned during island generation register + wire correctly.
+safeStart("MerchantService", function()
+	MerchantService.start({
+		Toast = Toast :: RemoteEvent,
+		Shop = MerchantShop :: RemoteEvent,
+		Trade = MerchantTrade :: RemoteFunction,
+	}, function(model)
+		LootPropService.registerExisting(model)
+	end)
 end)
 
 -- Helm: look-steer + throttle drive, jump to unlock
@@ -211,7 +233,11 @@ ShootGun.OnServerEvent:Connect(function(player, look)
 	if typeof(look) ~= "Vector3" then
 		return
 	end
-	GunService.tryShoot(player, look)
+	WeaponService.tryShoot(player, look)
+end)
+
+WeaponReload.OnServerEvent:Connect(function(player)
+	WeaponService.reload(player)
 end)
 
 -- Starter club + melee (RMB / RT / mobile tap). Drop uses default Tool backpack.

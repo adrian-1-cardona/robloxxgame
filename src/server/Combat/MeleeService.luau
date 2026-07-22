@@ -46,9 +46,13 @@ local function humanoidOf(model: Model): Humanoid?
 	return nil
 end
 
-local function findDamageTarget(attacker: Player, origin: Vector3, look: Vector3): (Humanoid?, Model?)
-	local range = Config.Club.Range
-	local radius = Config.Club.HitRadius
+local function findDamageTarget(
+	attacker: Player,
+	origin: Vector3,
+	look: Vector3,
+	range: number,
+	radius: number
+): (Humanoid?, Model?)
 	local forward = look.Unit
 	local probe = origin + forward * (range * 0.55)
 
@@ -74,9 +78,11 @@ local function findDamageTarget(attacker: Player, origin: Vector3, look: Vector3
 		if not humanoid then
 			continue
 		end
-		-- Only hit player characters for now (crew combat / future NPCs can widen this)
-		local victimPlayer = Players:GetPlayerFromCharacter(model)
-		if not victimPlayer then
+		-- Hit island NPCs (villagers / hostile defenders / scavengers). Passive villagers
+		-- flip to defenders on damage via IslandService's health watcher. The merchant has
+		-- no Humanoid, so it's naturally never a valid target.
+		local isNpc = model:GetAttribute("IsNpc") == true or model:GetAttribute("IsPirate") == true
+		if not isNpc then
 			continue
 		end
 
@@ -121,9 +127,20 @@ function MeleeService.tryAttack(player: Player): boolean
 		return false
 	end
 
+	-- Per-weapon tuning (spear reaches further / hits harder than the club); fall back to
+	-- the club config for the starter club and any tool missing attributes.
+	local function attr(name: string, fallback: number): number
+		local v = tool:GetAttribute(name)
+		return if typeof(v) == "number" then v else fallback
+	end
+	local cooldown = attr("Cooldown", Config.Club.SwingCooldown)
+	local range = attr("Range", Config.Club.Range)
+	local radius = attr("HitRadius", Config.Club.HitRadius)
+	local hitWindow = attr("HitWindow", Config.Club.HitWindow)
+
 	local now = Workspace:GetServerTimeNow()
 	local last = lastSwingAt[player.UserId] or 0
-	if now - last < Config.Club.SwingCooldown then
+	if now - last < cooldown then
 		return false
 	end
 	lastSwingAt[player.UserId] = now
@@ -134,7 +151,7 @@ function MeleeService.tryAttack(player: Player): boolean
 	end
 
 	-- Brief hit window so the swing feels intentional, not instant sniper
-	task.delay(Config.Club.HitWindow * 0.35, function()
+	task.delay(hitWindow * 0.35, function()
 		if not player.Parent then
 			return
 		end
@@ -147,7 +164,7 @@ function MeleeService.tryAttack(player: Player): boolean
 		end
 		local look = liveRoot.CFrame.LookVector
 		local origin = liveRoot.Position + Vector3.new(0, 1.2, 0)
-		local victimHumanoid = findDamageTarget(player, origin, look)
+		local victimHumanoid = findDamageTarget(player, origin, look, range, radius)
 		if victimHumanoid then
 			local damage = tool:GetAttribute("Damage")
 			if typeof(damage) ~= "number" then

@@ -1,0 +1,306 @@
+-- Builds weapon Tools (melee + ranged) and their world-loot pickup models from the
+-- shared Weapons catalog. One factory so the tool a player picks up is always the same
+-- one the merchant sells and the loot roller drops.
+--
+-- Tool attributes contract (read by MeleeService / WeaponService / client controllers):
+--   Melee : MeleeWeapon=true, WeaponId, Damage, Range, HitRadius, HitWindow, SwingDuration
+--   Ranged: Ranged=true, WeaponId, Ammo, MagSize, Loaded (current chamber/mag count)
+
+local Weapons = require(game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("Weapons"))
+
+local WeaponToolFactory = {}
+
+local WOOD = Color3.fromRGB(96, 66, 40)
+local WOOD_DARK = Color3.fromRGB(66, 44, 26)
+local WOOD_LIGHT = Color3.fromRGB(150, 112, 70)
+local METAL = Color3.fromRGB(74, 78, 84)
+local METAL_DARK = Color3.fromRGB(48, 50, 56)
+local BONE = Color3.fromRGB(222, 214, 186)
+local ROPE = Color3.fromRGB(158, 120, 72)
+
+local function weld(a: BasePart, b: BasePart)
+	local w = Instance.new("WeldConstraint")
+	w.Part0 = a
+	w.Part1 = b
+	w.Parent = a
+end
+
+local function part(props: { [string]: any }): Part
+	local p = Instance.new("Part")
+	p.Name = props.Name or "Part"
+	p.Anchored = if props.Anchored == nil then false else props.Anchored
+	p.CanCollide = if props.CanCollide == nil then false else props.CanCollide
+	p.CanQuery = if props.CanQuery == nil then true else props.CanQuery
+	p.CanTouch = false
+	p.Massless = if props.Massless == nil then true else props.Massless
+	p.Material = props.Material or Enum.Material.Wood
+	p.Color = props.Color or WOOD
+	p.Size = props.Size or Vector3.new(1, 1, 1)
+	p.CFrame = props.CFrame or CFrame.new()
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Smooth
+	p.CastShadow = if props.CastShadow == nil then true else props.CastShadow
+	if props.Shape then
+		p.Shape = props.Shape
+	end
+	if props.Transparency then
+		p.Transparency = props.Transparency
+	end
+	p.Parent = props.Parent
+	return p
+end
+
+-- === Geometry builders (attached to a Tool via its Handle) ===============
+
+local function buildSpear(tool: Tool)
+	tool.Grip = CFrame.new(0, -0.2, 0.4) * CFrame.Angles(math.rad(90), 0, 0)
+	local handle = part({
+		Name = "Handle",
+		Parent = tool,
+		Size = Vector3.new(0.28, 0.28, 6.2),
+		Color = WOOD,
+		Material = Enum.Material.Wood,
+		Shape = Enum.PartType.Cylinder,
+		CFrame = CFrame.Angles(0, math.rad(90), 0),
+	})
+	local tip = part({
+		Name = "Tip",
+		Parent = tool,
+		Size = Vector3.new(0.5, 0.5, 1.5),
+		Color = BONE,
+		Material = Enum.Material.Slate,
+		CFrame = CFrame.new(0, 0, -3.4),
+	})
+	weld(handle, tip)
+	for i = -1, 1, 2 do
+		local lash = part({
+			Name = "Lashing",
+			Parent = tool,
+			Size = Vector3.new(0.34, 0.34, 0.18),
+			Color = ROPE,
+			Material = Enum.Material.Fabric,
+			Shape = Enum.PartType.Cylinder,
+			CFrame = CFrame.new(0, 0, -2.5 + i * 0.35) * CFrame.Angles(0, math.rad(90), 0),
+		})
+		weld(handle, lash)
+	end
+end
+
+local function buildBow(tool: Tool)
+	tool.Grip = CFrame.new(0, 0, 0.2) * CFrame.Angles(0, math.rad(90), math.rad(90))
+	local handle = part({
+		Name = "Handle",
+		Parent = tool,
+		Size = Vector3.new(0.35, 1.4, 0.5),
+		Color = WOOD_DARK,
+		Material = Enum.Material.Wood,
+	})
+	for i = -1, 1, 2 do
+		local limb = part({
+			Name = "Limb",
+			Parent = tool,
+			Size = Vector3.new(0.3, 1.7, 0.4),
+			Color = WOOD_LIGHT,
+			Material = Enum.Material.Wood,
+			CFrame = CFrame.new(0, i * 1.4, 0) * CFrame.Angles(math.rad(i * 26), 0, 0),
+		})
+		weld(handle, limb)
+	end
+	local string_ = part({
+		Name = "String",
+		Parent = tool,
+		Size = Vector3.new(0.06, 4.1, 0.06),
+		Color = Color3.fromRGB(230, 228, 210),
+		Material = Enum.Material.Fabric,
+		CFrame = CFrame.new(-0.5, 0, 0),
+	})
+	weld(handle, string_)
+end
+
+local function buildFirearm(tool: Tool, kind: string)
+	tool.Grip = CFrame.new(0, -0.3, -0.2) * CFrame.Angles(0, math.rad(0), 0)
+
+	local stockLen = if kind == "Rifle" or kind == "Musket" then 2.1 elseif kind == "Shotgun" then 1.6 else 0.0
+	local barrelLen = if kind == "Rifle" then 2.6
+		elseif kind == "Musket" then 2.8
+		elseif kind == "Shotgun" then 1.9
+		elseif kind == "Revolver" then 0.9
+		else 1.1
+
+	local handle = part({
+		Name = "Handle",
+		Parent = tool,
+		Size = Vector3.new(0.34, 0.9, 0.45),
+		Color = WOOD_DARK,
+		Material = Enum.Material.Wood,
+		CFrame = CFrame.Angles(math.rad(18), 0, 0),
+	})
+
+	local body = part({
+		Name = "Body",
+		Parent = tool,
+		Size = Vector3.new(0.3, 0.42, 1.0),
+		Color = METAL_DARK,
+		Material = Enum.Material.Metal,
+		CFrame = handle.CFrame * CFrame.new(0, 0.55, -0.45),
+	})
+	weld(handle, body)
+
+	local barrel = part({
+		Name = "Barrel",
+		Parent = tool,
+		Size = Vector3.new(0.24, 0.24, barrelLen),
+		Color = METAL,
+		Material = Enum.Material.Metal,
+		Shape = Enum.PartType.Cylinder,
+		CFrame = body.CFrame * CFrame.new(0, 0.06, -(barrelLen * 0.5 + 0.4)) * CFrame.Angles(0, math.rad(90), 0),
+	})
+	weld(handle, barrel)
+
+	if stockLen > 0 then
+		local stock = part({
+			Name = "Stock",
+			Parent = tool,
+			Size = Vector3.new(0.3, 0.55, stockLen),
+			Color = WOOD,
+			Material = Enum.Material.Wood,
+			CFrame = body.CFrame * CFrame.new(0, -0.05, stockLen * 0.5 + 0.3),
+		})
+		weld(handle, stock)
+	end
+
+	if kind == "Revolver" then
+		local cyl = part({
+			Name = "Cylinder",
+			Parent = tool,
+			Size = Vector3.new(0.4, 0.4, 0.5),
+			Color = METAL,
+			Material = Enum.Material.Metal,
+			Shape = Enum.PartType.Cylinder,
+			CFrame = body.CFrame * CFrame.new(0, 0.05, -0.2) * CFrame.Angles(0, math.rad(90), 0),
+		})
+		weld(handle, cyl)
+	end
+end
+
+-- === Public API ==========================================================
+
+function WeaponToolFactory.createTool(weaponId: string): Tool?
+	local def = Weapons.get(weaponId)
+	if not def then
+		return nil
+	end
+
+	local tool = Instance.new("Tool")
+	tool.Name = def.Name
+	tool.ToolTip = def.ToolTip
+	tool.RequiresHandle = true
+	tool.CanBeDropped = true
+	tool:SetAttribute("WeaponId", weaponId)
+	tool:SetAttribute("ItemId", "Weapon_" .. weaponId)
+
+	if def.Class == "melee" then
+		tool.ManualActivationOnly = true -- custom melee input owns activation
+		tool:SetAttribute("MeleeWeapon", true)
+		tool:SetAttribute("Damage", def.Damage)
+		tool:SetAttribute("Range", def.Range)
+		tool:SetAttribute("HitRadius", def.HitRadius)
+		tool:SetAttribute("HitWindow", def.HitWindow)
+		tool:SetAttribute("Cooldown", def.Cooldown)
+		tool:SetAttribute("SwingDuration", def.SwingDuration)
+		if weaponId == "Spear" then
+			buildSpear(tool)
+		else
+			-- fallback melee handle
+			part({ Name = "Handle", Parent = tool, Size = Vector3.new(0.4, 3, 0.4), Color = WOOD })
+		end
+	else
+		tool:SetAttribute("Ranged", true)
+		tool:SetAttribute("Ammo", def.Ammo)
+		tool:SetAttribute("MagSize", def.MagSize)
+		tool:SetAttribute("Loaded", def.MagSize) -- starts loaded
+		if weaponId == "Bow" then
+			buildBow(tool)
+		else
+			buildFirearm(tool, weaponId)
+		end
+	end
+
+	return tool
+end
+
+-- A world pickup: an anchored model resting in the world with a floating name tag.
+-- WeaponService attaches the "Pick Up" ProximityPrompt and handles the grant.
+function WeaponToolFactory.createWorldPickup(parent: Instance, weaponId: string, cf: CFrame): Model?
+	local def = Weapons.get(weaponId)
+	if not def then
+		return nil
+	end
+
+	local model = Instance.new("Model")
+	model.Name = "WeaponPickup_" .. weaponId
+	model:SetAttribute("WeaponPickup", true)
+	model:SetAttribute("WeaponId", weaponId)
+	model.Parent = parent
+
+	-- A small display stand so the weapon reads as lootable, not scenery.
+	local base = part({
+		Name = "Primary",
+		Parent = model,
+		Anchored = true,
+		CanCollide = false,
+		Massless = false,
+		Size = Vector3.new(2.6, 0.4, 1.2),
+		Color = WOOD_DARK,
+		Material = Enum.Material.WoodPlanks,
+		CFrame = cf,
+	})
+	model.PrimaryPart = base
+
+	-- Build the weapon tool geometry into a throwaway tool, then reparent + anchor its
+	-- parts onto the stand so we don't duplicate all the geometry code.
+	local display = WeaponToolFactory.createTool(weaponId)
+	if display then
+		local handle = display:FindFirstChild("Handle")
+		local rest = cf * CFrame.new(0, 0.55, 0) * CFrame.Angles(0, 0, math.rad(90))
+		if handle and handle:IsA("BasePart") then
+			local delta = rest * handle.CFrame:Inverse()
+			for _, d in display:GetChildren() do
+				if d:IsA("BasePart") then
+					d.CFrame = delta * d.CFrame
+					d.Anchored = true
+					d.CanCollide = false
+					d.Massless = false
+					d.Parent = model
+				end
+			end
+		end
+		display:Destroy()
+	end
+
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "PickupTag"
+	billboard.Size = UDim2.fromOffset(150, 30)
+	billboard.StudsOffset = Vector3.new(0, 2.6, 0)
+	billboard.AlwaysOnTop = true
+	billboard.MaxDistance = 80
+	billboard.Adornee = base
+	billboard.Parent = base
+
+	local tag = Instance.new("TextLabel")
+	tag.BackgroundTransparency = 0.35
+	tag.BackgroundColor3 = Color3.fromRGB(18, 30, 40)
+	tag.Size = UDim2.fromScale(1, 1)
+	tag.Font = Enum.Font.GothamBold
+	tag.TextScaled = true
+	tag.TextColor3 = Color3.fromRGB(255, 224, 150)
+	tag.Text = def.Name
+	tag.Parent = billboard
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 6)
+	corner.Parent = tag
+
+	return model
+end
+
+return WeaponToolFactory

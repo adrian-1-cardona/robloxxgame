@@ -10,10 +10,14 @@ local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
 local OceanConfig = require(Shared:WaitForChild("OceanConfig"))
 local LobbyWorld = require(Shared:WaitForChild("LobbyWorld"))
+local Weapons = require(Shared:WaitForChild("Weapons"))
 
-local GunService = require(script.Parent:WaitForChild("GunService"))
 local StarterBaseService = require(script.Parent:WaitForChild("StarterBaseService"))
 local LootPropFactory = require(script.Parent:WaitForChild("Items"):WaitForChild("LootPropFactory"))
+local NpcFactory = require(script.Parent:WaitForChild("Items"):WaitForChild("NpcFactory"))
+local VillageBuilder = require(script.Parent:WaitForChild("VillageBuilder"))
+local MerchantService = require(script.Parent:WaitForChild("MerchantService"))
+local WeaponService = require(script.Parent:WaitForChild("WeaponService"))
 
 export type IslandRecord = {
 	id: string,
@@ -22,12 +26,12 @@ export type IslandRecord = {
 	size: number,
 	topY: number,
 	thickness: number,
-	hasHouse: boolean,
-	pirateCount: number,
+	theme: string,
+	abandoned: boolean,
 	biome: string,
 	model: Model,
 	label: TextLabel?,
-	pirates: { Model },
+	npcs: { Model },
 }
 
 type CrewIslandState = {
@@ -37,10 +41,15 @@ type CrewIslandState = {
 	notifiedVisit: boolean,
 }
 
-type PirateRuntime = {
+type NpcRuntime = {
 	model: Model,
+	humanoid: Humanoid?,
 	islandId: string,
+	hostile: boolean,
 	attackAccum: number,
+	wanderAccum: number,
+	homePos: Vector3,
+	targetPos: Vector3?,
 	alive: boolean,
 }
 
@@ -49,7 +58,7 @@ local IslandService = {}
 IslandService._islands = {} :: { IslandRecord }
 IslandService._byId = {} :: { [string]: IslandRecord }
 IslandService._crewState = {} :: { [string]: { [string]: CrewIslandState } }
-IslandService._pirates = {} :: { PirateRuntime }
+IslandService._npcs = {} :: { NpcRuntime }
 IslandService._Toast = nil :: RemoteEvent?
 IslandService._getPartyCode = nil :: ((Player) -> string?)?
 IslandService._getMemberUserIds = nil :: ((string) -> { number })?
@@ -474,219 +483,70 @@ local function scatterLooseLoot(model: Model, center: Vector3, size: number, top
 	end
 end
 
-local function buildHouse(model: Model, center: Vector3, topY: number, islandId: string)
-	local houseCf = CFrame.new(center.X + 6, topY, center.Z - 4)
-	local floor = makePart({
-		Name = "HouseFloor",
-		Parent = model,
-		Size = Vector3.new(16, 0.6, 14),
-		CFrame = houseCf * CFrame.new(0, 0.3, 0),
-		Color = Color3.fromRGB(110, 78, 48),
-		Material = Enum.Material.WoodPlanks,
-	})
-
-	local wallH = 7
-	local wallY = topY + wallH * 0.5
-	local wallsFolder = Instance.new("Folder")
-	wallsFolder.Name = "SalvageWalls"
-	wallsFolder.Parent = model
-
-	-- Detachable walls — drag onto your boat for a mini shelter
-	for _, spec in {
-		{ Name = "WallBack", Size = Vector3.new(16, wallH, 0.7), Offset = Vector3.new(0, 0, -6.65) },
-		{ Name = "WallLeft", Size = Vector3.new(0.7, wallH, 13), Offset = Vector3.new(-7.65, 0, 0) },
-		{ Name = "WallRight", Size = Vector3.new(0.7, wallH, 13), Offset = Vector3.new(7.65, 0, 0) },
-		{ Name = "WallFrontL", Size = Vector3.new(5.2, wallH, 0.7), Offset = Vector3.new(-5.4, 0, 6.65) },
-		{ Name = "WallFrontR", Size = Vector3.new(5.2, wallH, 0.7), Offset = Vector3.new(5.4, 0, 6.65) },
-	} do
-		local wallCf = CFrame.new(floor.Position + Vector3.new(spec.Offset.X, wallY - topY - 0.3, spec.Offset.Z))
-		local wall = LootPropFactory.createWallWorld(wallsFolder, spec.Size, wallCf)
-		wall.Name = spec.Name
-		wall:SetAttribute("IslandId", islandId)
-		wall:SetAttribute("FromHouse", true)
+-- When any villager on an isle is attacked, the whole village turns out to defend it:
+-- passive islanders flip to red-eyed hostile defenders and hunt the attacker.
+local function defendIsland(islandId: string)
+	for _, rt in IslandService._npcs do
+		if rt.islandId == islandId and rt.alive and not rt.hostile then
+			rt.hostile = true
+			rt.model:SetAttribute("Hostile", true)
+			rt.model:SetAttribute("IsPirate", true)
+			NpcFactory.makeHostileLook(rt.model)
+		end
 	end
-
-	-- Roof stays fixed (not loot) so the shack still reads as a ruin after walls leave
-	makePart({
-		Name = "Roof",
-		Parent = model,
-		Size = Vector3.new(17.5, 0.7, 15.5),
-		CFrame = CFrame.new(floor.Position + Vector3.new(0, wallH + 0.2, 0)),
-		Color = Color3.fromRGB(78, 52, 30),
-		Material = Enum.Material.Wood,
-	})
-
-	-- Interior torch (loot)
-	local torch = LootPropFactory.createTorchWorld(
-		model,
-		CFrame.new(floor.Position + Vector3.new(4, 1.7, -3))
-	)
-	torch:SetAttribute("IslandId", islandId)
-
-	-- Raid chest
-	local chest = makePart({
-		Name = "RaidChest",
-		Parent = model,
-		Size = Vector3.new(2.4, 1.6, 1.5),
-		CFrame = CFrame.new(floor.Position + Vector3.new(-2, 1.1, -2)),
-		Color = Color3.fromRGB(96, 68, 36),
-		Material = Enum.Material.Wood,
-	})
-	chest:SetAttribute("IslandId", islandId)
-	chest:SetAttribute("LootedBy", "")
-
-	local anchor = makePart({
-		Name = "ChestPromptAnchor",
-		Parent = model,
-		Size = Vector3.new(1, 1, 1),
-		CFrame = chest.CFrame * CFrame.new(0, 1.2, 0),
-		Transparency = 1,
-		CanCollide = false,
-		CastShadow = false,
-	})
-
-	local prompt = Instance.new("ProximityPrompt")
-	prompt.Name = "RaidPrompt"
-	prompt.ActionText = "Raid Chest"
-	prompt.ObjectText = "Hidden Cache"
-	prompt.HoldDuration = 0.35
-	prompt.MaxActivationDistance = 10
-	prompt.RequiresLineOfSight = false
-	prompt.Parent = anchor
-
-	prompt.Triggered:Connect(function(player: Player)
-		local code = IslandService._getPartyCode and IslandService._getPartyCode(player)
-		if not code then
-			return
-		end
-		local state = ensureCrewState(code, islandId)
-		if state.locked then
-			if IslandService._Toast then
-				IslandService._Toast:FireClient(player, "This isle is closed to your crew.", "error")
-			end
-			return
-		end
-		local lootedAttr = chest:GetAttribute("Looted_" .. player.UserId)
-		if lootedAttr == true then
-			if IslandService._Toast then
-				IslandService._Toast:FireClient(player, "You already raided this chest.", "info")
-			end
-			return
-		end
-		if GunService.giveFlintlock(player) then
-			chest:SetAttribute("Looted_" .. player.UserId, true)
-		end
-	end)
 end
 
-local function spawnPirate(island: IslandRecord, index: number): Model
-	local cfg = Config.Islands.Pirate
-	local angle = (index / math.max(island.pirateCount, 1)) * math.pi * 2
-	local radius = island.size * 0.22
-	local spawnPos = Vector3.new(
-		island.center.X + math.cos(angle) * radius,
-		island.topY + 2.5,
-		island.center.Z + math.sin(angle) * radius
-	)
+-- Spawn a single villager NPC. kind: "passive" | "hostile" | "scavenger".
+local function spawnVillager(island: IslandRecord, cf: CFrame, kind: string): Model
+	local cfg = Config.Islands.Villager
+	local hostile = kind ~= "passive"
+	local health = cfg.Passive.Health
+	if kind == "hostile" then
+		health = cfg.Hostile.Health
+	elseif kind == "scavenger" then
+		health = cfg.Scavenger.Health
+	end
 
-	local model = Instance.new("Model")
-	model.Name = `Pirate_{island.id}_{index}`
-	model:SetAttribute("IsPirate", true)
-	model:SetAttribute("IslandId", island.id)
-	model.Parent = island.model
-
-	local root = makePart({
-		Name = "HumanoidRootPart",
-		Parent = model,
-		Size = Vector3.new(2, 2, 1),
-		CFrame = CFrame.new(spawnPos),
-		Color = Color3.fromRGB(70, 52, 40),
-		Material = Enum.Material.Fabric,
-		CanCollide = true,
-	})
-	model.PrimaryPart = root
-
-	makePart({
-		Name = "Torso",
-		Parent = model,
-		Size = Vector3.new(2.1, 2.1, 1.1),
-		CFrame = root.CFrame * CFrame.new(0, 0.1, 0),
-		Color = Color3.fromRGB(48, 72, 88),
-		Material = Enum.Material.Fabric,
-		CanCollide = false,
-	})
-	makePart({
-		Name = "Head",
-		Parent = model,
-		Size = Vector3.new(1.2, 1.2, 1.2),
-		CFrame = root.CFrame * CFrame.new(0, 1.7, 0),
-		Color = Color3.fromRGB(210, 180, 145),
-		Material = Enum.Material.SmoothPlastic,
-		CanCollide = false,
-		Shape = Enum.PartType.Ball,
-	})
-	makePart({
-		Name = "Bandana",
-		Parent = model,
-		Size = Vector3.new(1.35, 0.35, 1.35),
-		CFrame = root.CFrame * CFrame.new(0, 2.15, 0),
-		Color = Color3.fromRGB(160, 40, 40),
-		Material = Enum.Material.Fabric,
-		CanCollide = false,
+	local model, humanoid = NpcFactory.createVillager(island.model, cf, {
+		hostile = hostile,
+		scavenger = kind == "scavenger",
+		islandId = island.id,
+		health = health,
 	})
 
-	local humanoid = Instance.new("Humanoid")
-	humanoid.Name = "Humanoid"
-	humanoid.MaxHealth = cfg.Health
-	humanoid.Health = cfg.Health
-	humanoid.WalkSpeed = 0
-	humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Subject
-	humanoid.HealthDisplayType = Enum.HumanoidHealthDisplayType.DisplayWhenDamaged
-	humanoid.Parent = model
+	local runtime: NpcRuntime = {
+		model = model,
+		humanoid = humanoid,
+		islandId = island.id,
+		hostile = hostile,
+		attackAccum = 0,
+		wanderAccum = math.random() * 2,
+		homePos = cf.Position,
+		targetPos = nil,
+		alive = true,
+	}
 
-	local billboard = Instance.new("BillboardGui")
-	billboard.Name = "PirateTag"
-	billboard.Size = UDim2.fromOffset(80, 24)
-	billboard.StudsOffset = Vector3.new(0, 3.2, 0)
-	billboard.AlwaysOnTop = false
-	billboard.MaxDistance = 90
-	billboard.Adornee = root
-	billboard.Parent = root
-
-	local tag = Instance.new("TextLabel")
-	tag.BackgroundTransparency = 1
-	tag.Size = UDim2.fromScale(1, 1)
-	tag.Font = Enum.Font.GothamBold
-	tag.TextScaled = true
-	tag.TextColor3 = Config.Theme.DangerRed
-	tag.Text = "Pirate"
-	tag.Parent = billboard
+	-- Passive villagers defend their home the moment they take a hit.
+	if kind == "passive" and cfg.Passive.DefendOnAttack then
+		local prevHealth = humanoid.Health
+		humanoid.HealthChanged:Connect(function(h)
+			if h < prevHealth and runtime.alive then
+				defendIsland(island.id)
+			end
+			prevHealth = h
+		end)
+	end
 
 	humanoid.Died:Connect(function()
-		for _, part in model:GetDescendants() do
-			if part:IsA("BasePart") then
-				part.CanCollide = false
-			end
-		end
-		task.delay(2.5, function()
-			if model.Parent then
-				model:Destroy()
-			end
-		end)
+		runtime.alive = false
 	end)
 
+	table.insert(island.npcs, model)
+	table.insert(IslandService._npcs, runtime)
 	return model
 end
 
-local function buildFlatIsland(entry: {
-	Id: string,
-	Name: string,
-	Offset: Vector3,
-	SizeStuds: number,
-	HasHouse: boolean,
-	Pirates: number,
-	Biome: string?,
-}, folder: Folder): IslandRecord
+local function buildFlatIsland(entry: { [string]: any }, folder: Folder): IslandRecord
 	local thickness = Config.Islands.Thickness
 	local topY = Config.Islands.TopY
 	local size = entry.SizeStuds
@@ -713,46 +573,53 @@ local function buildFlatIsland(entry: {
 	})
 	model.PrimaryPart = deck
 
-	-- Sloping beach shelf — wider, lower rounded sand that eases down into the surf
+	-- Sloping beach shelf — wider, lower rounded sand that eases down into the surf.
+	-- COLLIDABLE so you can actually walk the outer coastline instead of sinking through
+	-- the sand fringe that sits beyond the solid deck disc.
 	makeDisc({
 		Name = "BeachShelf",
 		Parent = model,
 		Diameter = size + 46,
-		Thickness = 1.8,
-		CFrame = CFrame.new(center.X, topY - 0.7, center.Z),
+		Thickness = 2.6,
+		-- Top sits ~0.1 below the deck top so the outer sand fringe is walkable (no falling
+		-- through past the deck edge) without forming a lip above the interior.
+		CFrame = CFrame.new(center.X, topY - 1.4, center.Z),
 		Color = Color3.fromRGB(236, 218, 178),
 		Material = Enum.Material.Sand,
-		CanCollide = false,
+		CanCollide = true,
 		CastShadow = false,
 	})
 
-	-- Tide-wet sand band near the shoreline (darker, damp ring just above the deck)
+	-- Tide-wet sand band near the shoreline (darker, damp ring). Sits ~flush with the deck
+	-- top so it's a thin cosmetic skin, never a lip you sink into.
 	makeDisc({
 		Name = "WetSandRing",
 		Parent = model,
 		Diameter = size * 0.98,
 		Thickness = 0.35,
-		CFrame = CFrame.new(center.X, topY + 0.08, center.Z),
+		CFrame = CFrame.new(center.X, topY - 0.1, center.Z),
 		Color = Color3.fromRGB(198, 178, 142),
 		Material = Enum.Material.Sand,
 		CanCollide = false,
 		CastShadow = false,
 	})
 
-	-- Rounded grass meadow (sand rim → green heart) laid on top of the deck
+	-- Rounded grass meadow (sand rim → green heart) laid flush on top of the deck.
+	-- Top is essentially level with the sand deck (topY) so players stand on a single
+	-- clean surface — no sinking into the "first layer" of grass/sand.
 	local grassSize = size * 0.74
 	makeDisc({
 		Name = "GrassHeart",
 		Parent = model,
 		Diameter = grassSize,
-		Thickness = 0.6,
-		CFrame = CFrame.new(center.X, topY + 0.28, center.Z),
+		Thickness = 0.5,
+		CFrame = CFrame.new(center.X, topY - 0.2, center.Z),
 		Color = if biome == "jungle" then Color3.fromRGB(46, 102, 52) else Color3.fromRGB(72, 138, 68),
 		Material = Enum.Material.Grass,
 		CanCollide = false,
 	})
 
-	-- Jungle undergrowth: a darker leafy patch toward the center
+	-- Jungle undergrowth: a darker leafy patch toward the center (flush cosmetic skin)
 	if biome == "jungle" or biome == "palm" then
 		local jungleSize = size * (if biome == "jungle" then 0.44 else 0.3)
 		makeDisc({
@@ -760,7 +627,7 @@ local function buildFlatIsland(entry: {
 			Parent = model,
 			Diameter = jungleSize,
 			Thickness = 0.5,
-			CFrame = CFrame.new(center.X + size * 0.03, topY + 0.42, center.Z - size * 0.02),
+			CFrame = CFrame.new(center.X + size * 0.03, topY - 0.14, center.Z - size * 0.02),
 			Color = Color3.fromRGB(34, 82, 40),
 			Material = Enum.Material.LeafyGrass,
 			CanCollide = false,
@@ -803,10 +670,6 @@ local function buildFlatIsland(entry: {
 	scatterVegetation(model, center, size, topY, biome)
 	scatterLooseLoot(model, center, size, topY, entry.Id)
 
-	if entry.HasHouse then
-		buildHouse(model, center, topY, entry.Id)
-	end
-
 	local marker = makePart({
 		Name = "IsleMarker",
 		Parent = model,
@@ -839,6 +702,7 @@ local function buildFlatIsland(entry: {
 	corner.CornerRadius = UDim.new(0, 8)
 	corner.Parent = label
 
+	local theme = entry.Theme or "wild"
 	local record: IslandRecord = {
 		id = entry.Id,
 		name = entry.Name,
@@ -846,23 +710,74 @@ local function buildFlatIsland(entry: {
 		size = size,
 		topY = topY,
 		thickness = thickness,
-		hasHouse = entry.HasHouse == true,
-		pirateCount = entry.Pirates or 0,
+		theme = theme,
+		abandoned = entry.Abandoned == true,
 		biome = biome,
 		model = model,
 		label = label,
-		pirates = {},
+		npcs = {},
 	}
 
-	for i = 1, record.pirateCount do
-		local pirate = spawnPirate(record, i)
-		table.insert(record.pirates, pirate)
-		table.insert(IslandService._pirates, {
-			model = pirate,
-			islandId = record.id,
-			attackAccum = 0,
-			alive = true,
-		})
+	local villagerCfg = entry.Villagers or { Passive = 0, Hostile = 0 }
+
+	if theme == "wild" then
+		-- No village — just a little scattered weapon loot on the wild isle.
+		local weaponCount = (entry.Loot and entry.Loot.Weapons) or 0
+		for _ = 1, weaponCount do
+			local a = math.random() * math.pi * 2
+			local r = size * (0.2 + math.random() * 0.24)
+			local weaponId = Weapons.rollLootWeapon(function(lo, hi)
+				return math.random(lo, hi)
+			end)
+			local cf = CFrame.new(center.X + math.cos(a) * r, topY + 0.5, center.Z + math.sin(a) * r)
+				* CFrame.Angles(0, math.rad(math.random(0, 360)), 0)
+			WeaponService.spawnWeaponPickup(model, weaponId, cf)
+		end
+	else
+		-- Build the themed village (houses, beds, torches, fences, campfire, chests, loot).
+		local deps = {
+			toast = function(player: Player, message: string, kind: string)
+				if IslandService._Toast then
+					IslandService._Toast:FireClient(player, message, kind)
+				end
+			end,
+			getPartyCode = function(player: Player)
+				return IslandService._getPartyCode and IslandService._getPartyCode(player)
+			end,
+			isLocked = function(code: string, islandId: string)
+				return IslandService.isLockedForCrew(code, islandId)
+			end,
+		}
+		local layout = VillageBuilder.build(model, center, size, topY, entry, deps)
+		local spots = layout.villagerSpots
+		local spotCount = math.max(#spots, 1)
+
+		local function spotAt(i: number): CFrame
+			local base = spots[((i - 1) % spotCount) + 1] or Vector3.new(center.X, topY + 2.5, center.Z)
+			local jitter = Vector3.new((math.random() - 0.5) * 8, 0, (math.random() - 0.5) * 8)
+			local pos = base + jitter
+			return CFrame.new(Vector3.new(pos.X, topY + 2.5, pos.Z))
+		end
+
+		if record.abandoned then
+			-- Rare feral scavengers only.
+			for i = 1, (villagerCfg.Hostile or 0) do
+				spawnVillager(record, spotAt(i), "scavenger")
+			end
+		else
+			for i = 1, (villagerCfg.Passive or 0) do
+				spawnVillager(record, spotAt(i), "passive")
+			end
+			for i = 1, (villagerCfg.Hostile or 0) do
+				spawnVillager(record, spotAt(i + 3), "hostile")
+			end
+		end
+
+		-- The blue-hatted merchant (never hostile, draggable / weldable to your raft).
+		if entry.Merchant == true then
+			local m = layout.merchantSpot
+			MerchantService.spawnMerchant(model, CFrame.new(m), entry.Id)
+		end
 	end
 
 	return record
@@ -1063,9 +978,20 @@ local function updateVisitLockouts()
 	end
 end
 
-local function updatePirates(dt: number)
-	local cfg = Config.Islands.Pirate
-	for _, runtime in IslandService._pirates do
+-- Rigid-move an anchored NPC model so its root lands at `nextPos` facing `lookAt`.
+local function moveNpc(model: Model, root: BasePart, nextPos: Vector3, lookAt: Vector3)
+	local newCf = CFrame.lookAt(nextPos, Vector3.new(lookAt.X, nextPos.Y, lookAt.Z))
+	local delta = newCf * root.CFrame:Inverse()
+	for _, desc in model:GetDescendants() do
+		if desc:IsA("BasePart") then
+			desc.CFrame = delta * desc.CFrame
+		end
+	end
+end
+
+local function updateNpcs(dt: number)
+	local vcfg = Config.Islands.Villager
+	for _, runtime in IslandService._npcs do
 		if not runtime.alive then
 			continue
 		end
@@ -1074,7 +1000,7 @@ local function updatePirates(dt: number)
 			runtime.alive = false
 			continue
 		end
-		local humanoid = model:FindFirstChildOfClass("Humanoid")
+		local humanoid = runtime.humanoid or model:FindFirstChildOfClass("Humanoid")
 		local root = model.PrimaryPart or model:FindFirstChild("HumanoidRootPart")
 		if not (humanoid and root and root:IsA("BasePart")) then
 			runtime.alive = false
@@ -1090,64 +1016,79 @@ local function updatePirates(dt: number)
 			continue
 		end
 
-		-- Nearest living player on this island (or within aggro of the sand)
-		local bestPlayer: Player? = nil
-		local bestDist = cfg.AggroRange
-		local bestPos: Vector3? = nil
-		for _, plr in Players:GetPlayers() do
-			local character = plr.Character
-			local hrp = character and character:FindFirstChild("HumanoidRootPart")
-			local hum = character and character:FindFirstChildOfClass("Humanoid")
-			if not (hrp and hrp:IsA("BasePart") and hum and hum.Health > 0) then
-				continue
-			end
-			-- Stay bound to island waters — only chase people near this isle
-			if flatDistance(hrp.Position, isle.center) > isle.size * 0.5 + 18 then
-				continue
-			end
-			local d = flatDistance(hrp.Position, root.Position)
-			if d < bestDist then
-				bestDist = d
-				bestPlayer = plr
-				bestPos = hrp.Position
-			end
-		end
+		if runtime.hostile then
+			-- Aggressive defender: chase the nearest player near the isle, then strike.
+			local combat = if runtime.model:GetAttribute("NpcKind") == "villager"
+					and runtime.model.Name == "Scavenger"
+				then vcfg.Scavenger
+				else vcfg.Hostile
 
-		if not (bestPlayer and bestPos) then
-			continue
-		end
-
-		local toTarget = Vector3.new(bestPos.X - root.Position.X, 0, bestPos.Z - root.Position.Z)
-		if toTarget.Magnitude > 0.15 then
-			local step = math.min(cfg.ChaseSpeed * dt, toTarget.Magnitude)
-			local nextPos = root.Position + toTarget.Unit * step
-			-- Keep pirates on the flat
-			local fromCenter = Vector3.new(nextPos.X - isle.center.X, 0, nextPos.Z - isle.center.Z)
-			local maxR = isle.size * 0.48
-			if fromCenter.Magnitude > maxR then
-				fromCenter = fromCenter.Unit * maxR
-				nextPos = Vector3.new(isle.center.X + fromCenter.X, isle.topY + 2.5, isle.center.Z + fromCenter.Z)
-			else
-				nextPos = Vector3.new(nextPos.X, isle.topY + 2.5, nextPos.Z)
-			end
-			local lookAt = Vector3.new(bestPos.X, nextPos.Y, bestPos.Z)
-			local newCf = CFrame.lookAt(nextPos, lookAt)
-			local oldCf = root.CFrame
-			local delta = newCf * oldCf:Inverse()
-			for _, desc in model:GetDescendants() do
-				if desc:IsA("BasePart") then
-					desc.CFrame = delta * desc.CFrame
+			local bestPlayer: Player? = nil
+			local bestDist = combat.AggroRange
+			local bestPos: Vector3? = nil
+			for _, plr in Players:GetPlayers() do
+				local character = plr.Character
+				local hrp = character and character:FindFirstChild("HumanoidRootPart")
+				local hum = character and character:FindFirstChildOfClass("Humanoid")
+				if not (hrp and hrp:IsA("BasePart") and hum and hum.Health > 0) then
+					continue
+				end
+				if flatDistance(hrp.Position, isle.center) > isle.size * 0.5 + 18 then
+					continue
+				end
+				local d = flatDistance(hrp.Position, root.Position)
+				if d < bestDist then
+					bestDist = d
+					bestPlayer = plr
+					bestPos = hrp.Position
 				end
 			end
-		end
 
-		runtime.attackAccum += dt
-		if runtime.attackAccum >= cfg.AttackCooldown and bestDist <= 3.6 then
-			runtime.attackAccum = 0
-			local character = bestPlayer.Character
-			local hum = character and character:FindFirstChildOfClass("Humanoid")
-			if hum and hum.Health > 0 then
-				hum:TakeDamage(cfg.Damage)
+			if not (bestPlayer and bestPos) then
+				continue
+			end
+
+			local toTarget = Vector3.new(bestPos.X - root.Position.X, 0, bestPos.Z - root.Position.Z)
+			if toTarget.Magnitude > 0.15 then
+				local step = math.min(combat.ChaseSpeed * dt, toTarget.Magnitude)
+				local nextPos = root.Position + toTarget.Unit * step
+				local fromCenter = Vector3.new(nextPos.X - isle.center.X, 0, nextPos.Z - isle.center.Z)
+				local maxR = isle.size * 0.48
+				if fromCenter.Magnitude > maxR then
+					fromCenter = fromCenter.Unit * maxR
+					nextPos = Vector3.new(isle.center.X + fromCenter.X, isle.topY + 2.5, isle.center.Z + fromCenter.Z)
+				else
+					nextPos = Vector3.new(nextPos.X, isle.topY + 2.5, nextPos.Z)
+				end
+				moveNpc(model, root, nextPos, bestPos)
+			end
+
+			runtime.attackAccum += dt
+			if runtime.attackAccum >= combat.AttackCooldown and bestDist <= 3.8 then
+				runtime.attackAccum = 0
+				local character = bestPlayer.Character
+				local hum = character and character:FindFirstChildOfClass("Humanoid")
+				if hum and hum.Health > 0 then
+					hum:TakeDamage(combat.Damage)
+				end
+			end
+		else
+			-- Passive islander: idle wander around their home within the village.
+			runtime.wanderAccum -= dt
+			if runtime.wanderAccum <= 0 or not runtime.targetPos then
+				runtime.wanderAccum = 2.5 + math.random() * 3.5
+				local wr = isle.size * 0.5 * vcfg.Passive.WanderRadiusFrac
+				local a = math.random() * math.pi * 2
+				local r = math.random() * wr
+				runtime.targetPos = runtime.homePos + Vector3.new(math.cos(a) * r, 0, math.sin(a) * r)
+			end
+			local target = runtime.targetPos :: Vector3
+			local toTarget = Vector3.new(target.X - root.Position.X, 0, target.Z - root.Position.Z)
+			if toTarget.Magnitude > 0.6 then
+				local step = math.min(vcfg.Passive.WanderSpeed * dt, toTarget.Magnitude)
+				local nextPos = root.Position + toTarget.Unit * step
+				nextPos = Vector3.new(nextPos.X, isle.topY + 2.5, nextPos.Z)
+				moveNpc(model, root, nextPos, target)
 			end
 		end
 	end
@@ -1173,7 +1114,7 @@ function IslandService.ensure(): Folder
 
 	table.clear(IslandService._islands)
 	table.clear(IslandService._byId)
-	table.clear(IslandService._pirates)
+	table.clear(IslandService._npcs)
 
 	for i, entry in Config.Islands.Catalog do
 		local record = buildFlatIsland(entry, folder)
@@ -1217,7 +1158,7 @@ function IslandService.start(
 
 	local accum = 0
 	RunService.Heartbeat:Connect(function(dt)
-		updatePirates(dt)
+		updateNpcs(dt)
 		accum += dt
 		if accum < 0.2 then
 			return
