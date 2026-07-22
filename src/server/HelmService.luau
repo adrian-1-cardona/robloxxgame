@@ -8,6 +8,7 @@ local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
 
 local StarterBaseService = require(script.Parent:WaitForChild("StarterBaseService"))
+local IslandService = require(script.Parent:WaitForChild("IslandService"))
 
 export type HelmSession = {
 	userId: number,
@@ -19,6 +20,7 @@ export type HelmSession = {
 	savedWalkSpeed: number,
 	savedJumpHeight: number,
 	savedAutoRotate: boolean,
+	lockToastAt: number,
 	connections: { RBXScriptConnection },
 }
 
@@ -212,6 +214,7 @@ function HelmService.mount(player: Player, code: string): boolean
 		savedWalkSpeed = humanoid.WalkSpeed,
 		savedJumpHeight = humanoid.JumpHeight,
 		savedAutoRotate = humanoid.AutoRotate,
+		lockToastAt = 0,
 		connections = {},
 	}
 
@@ -259,7 +262,7 @@ function HelmService.mount(player: Player, code: string): boolean
 	)
 
 	fireState(player, true)
-	toast(player, "At the helm — look to steer, W/S to sail to the Tiny Isle, jump / B to leave.", "success")
+	toast(player, "At the helm — look to steer, W/S to sail the isles, jump / B to leave.", "success")
 	return true
 end
 
@@ -372,11 +375,23 @@ function HelmService.start(
 			local move = look * (speed * throttle * dt)
 
 			local oldCf = deck.CFrame
-			local newPos = Vector3.new(
+			local desiredPos = Vector3.new(
 				oldCf.Position.X + move.X,
 				oldCf.Position.Y,
 				oldCf.Position.Z + move.Z
 			)
+			-- Visit lockout: once a crew leaves an isle ~100m away, the raft can't sail back
+			local newPos, blockedIsle = IslandService.clampRaftPosition(session.code, oldCf.Position, desiredPos)
+			if blockedIsle and throttle ~= 0 then
+				local now = os.clock()
+				if now - session.lockToastAt > 2.5 then
+					session.lockToastAt = now
+					local helmsman = Players:GetPlayerByUserId(userId)
+					if helmsman then
+						toast(helmsman, `{blockedIsle} won't take you back.`, "error")
+					end
+				end
+			end
 			-- Keep deck level; yaw toward look (steer), not velocity (so reverse faces forward)
 			local targetCf = CFrame.lookAt(newPos, newPos + look)
 			local alpha = math.clamp(Config.Helm.TurnLerp * dt, 0, 1)

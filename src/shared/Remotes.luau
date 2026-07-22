@@ -46,6 +46,8 @@ function Remotes.createServerRemotes(): Folder
 		"HelmThrottle",
 		"HelmState",
 		"HelmDismount",
+		-- Flintlock fire from island raid loot
+		"ShootGun",
 		-- Melee: client requests a swing; server validates + damages; SwingFx for other clients
 		"MeleeAttack",
 		"MeleeSwingFx",

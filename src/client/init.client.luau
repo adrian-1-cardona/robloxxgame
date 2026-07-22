@@ -15,6 +15,7 @@ local HelmController = require(script:WaitForChild("Lobby"):WaitForChild("HelmCo
 local OceanController = require(script:WaitForChild("Lobby"):WaitForChild("OceanController"))
 local ClockHUD = require(script:WaitForChild("Lobby"):WaitForChild("ClockHUD"))
 local WeatherController = require(script:WaitForChild("Gameplay"):WaitForChild("WeatherController"))
+local GunController = require(script:WaitForChild("Gameplay"):WaitForChild("GunController"))
 local MeleeController = require(script:WaitForChild("Gameplay"):WaitForChild("MeleeController"))
 
 print(`[SurviveAtSea] Client hello — welcome aboard {Config.GameName}`)
@@ -35,6 +36,7 @@ end
 ClockHUD.start()
 LobbyUI.start()
 HelmController.start()
+GunController.start()
 MeleeController.start()
 
 local player = Players.LocalPlayer
