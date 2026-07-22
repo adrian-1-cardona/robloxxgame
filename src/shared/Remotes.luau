@@ -48,6 +48,9 @@ function Remotes.createServerRemotes(): Folder
 		"HelmDismount",
 		-- Flintlock fire from island raid loot
 		"ShootGun",
+		-- Melee: client requests a swing; server validates + damages; SwingFx for other clients
+		"MeleeAttack",
+		"MeleeSwingFx",
 	}
 
 	for _, name in names do
