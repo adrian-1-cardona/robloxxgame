@@ -28,6 +28,8 @@ export type CycleState = {
 	displayTime: string,
 	-- 1 = full daylight, 0 = deep night (smooth across dawn/dusk)
 	dayAmount: number,
+	-- Whole voyage day counter — starts at 1 (6:00 AM) and increments each cycle
+	dayNumber: number,
 }
 
 -- Timer advances one game hour at a time (minutes always show :00).
@@ -65,6 +67,13 @@ function DayNight.getState(serverTime: number, cycleOrigin: number?): CycleState
 		cycleSeconds += DayNight.CycleSeconds
 	end
 
+	-- Voyage day counter: every full cycle (starting at 6:00 AM) is one day.
+	-- Day 1 covers the first cycle; negative elapsed (shouldn't happen) clamps to 1.
+	local dayNumber = math.floor(elapsed / DayNight.CycleSeconds) + 1
+	if dayNumber < 1 then
+		dayNumber = 1
+	end
+
 	local phase: Phase
 	local phaseAlpha: number
 	local clockTime: number
@@ -89,7 +98,17 @@ function DayNight.getState(serverTime: number, cycleOrigin: number?): CycleState
 		clockTime = clockTime,
 		displayTime = formatClock(clockTime),
 		dayAmount = dayAmountFromClock(clockTime),
+		dayNumber = dayNumber,
 	}
+end
+
+-- Whole voyage day number (1-based) for a given server time / crew origin.
+function DayNight.getDayNumber(serverTime: number, cycleOrigin: number?): number
+	local elapsed = serverTime
+	if cycleOrigin ~= nil then
+		elapsed = serverTime - cycleOrigin
+	end
+	return math.max(1, math.floor(elapsed / DayNight.CycleSeconds) + 1)
 end
 
 function DayNight.formatClock(clockTime: number): string
