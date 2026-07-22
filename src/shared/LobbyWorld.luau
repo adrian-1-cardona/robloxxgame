@@ -1,7 +1,8 @@
--- Builds and polishes the Survive at Sea boarding dock.
+-- Builds and polishes the Survive at Sea boarding ship.
 -- Safe to call from server (replicates) or client (local fallback).
--- Theme: sunny pier with palm trees & boats. No neon portal glows.
--- Players stay on the initial pier (invisible barriers).
+-- Theme: a moored pirate galleon (hull, bulwarks, masts + sails, transom
+-- stern, ship's wheel) that players board from. No neon portal glows.
+-- Players stay on the ship's deck (invisible barriers).
 
 local Workspace = game:GetService("Workspace")
 
@@ -772,31 +773,47 @@ local function buildFloatie(parent: Instance, position: Vector3, yawDegrees: num
 	return model
 end
 
--- Thin, slightly reflective standing-water puddle sitting on the deck planks.
+-- Realistic standing-water puddle: a mirror-still sheet flush with the planks,
+-- ringed by a darker "damp" halo so the surrounding wood reads as wet.
 local function buildPuddle(parent: Instance, center: Vector3, radius: number)
 	local model = Instance.new("Model")
 	model.Name = "Puddle"
 	model.Parent = parent
 
-	-- A few overlapping flat blobs give an irregular, natural puddle outline
+	-- A few overlapping flat blobs give an irregular, natural puddle outline.
 	local blobs = {
 		{ Vector3.new(0, 0, 0), 1.0 },
-		{ Vector3.new(radius * 0.55, 0, radius * 0.25), 0.6 },
-		{ Vector3.new(-radius * 0.45, 0, radius * 0.4), 0.55 },
+		{ Vector3.new(radius * 0.55, 0, radius * 0.25), 0.62 },
+		{ Vector3.new(-radius * 0.45, 0, radius * 0.4), 0.56 },
 		{ Vector3.new(radius * 0.15, 0, -radius * 0.5), 0.5 },
 	}
 	for i, blob in blobs do
 		local off = blob[1] :: Vector3
 		local scale = blob[2] :: number
+
+		-- Damp halo: slightly larger dark wet-plank patch beneath the water.
+		part({
+			Name = "Damp" .. i,
+			Parent = model,
+			Size = Vector3.new(radius * 2.35 * scale, 0.05, radius * 2.0 * scale),
+			CFrame = CFrame.new(center + off + Vector3.new(0, 0.02, 0)),
+			Color = Color3.fromRGB(58, 40, 26),
+			Material = Enum.Material.WoodPlanks,
+			Transparency = 0.4,
+			CanCollide = false,
+			CastShadow = false,
+		})
+
+		-- The water sheet itself: dark, glassy, highly reflective (mirrors the sky).
 		part({
 			Name = "Water" .. i,
 			Parent = model,
-			Size = Vector3.new(radius * 2 * scale, 0.08, radius * 1.7 * scale),
-			CFrame = CFrame.new(center + off + Vector3.new(0, 0.06, 0)),
-			Color = Color3.fromRGB(60, 82, 92),
+			Size = Vector3.new(radius * 2 * scale, 0.06, radius * 1.7 * scale),
+			CFrame = CFrame.new(center + off + Vector3.new(0, 0.05, 0)),
+			Color = Color3.fromRGB(40, 58, 66),
 			Material = Enum.Material.Glass,
-			Transparency = 0.32,
-			Reflectance = 0.45,
+			Transparency = 0.18,
+			Reflectance = 0.62,
 			CanCollide = false,
 			CastShadow = false,
 		})
@@ -1130,90 +1147,464 @@ local function buildDock(root: Folder)
 	dock.Name = "Dock"
 	dock.Parent = root
 
+	-- ============================================================
+	--  Pirate galleon "Sea Wraith" — the boarding ship.
+	--  Replaces the old flat pier. The walkable deck top stays at
+	--  PIER.DeckY (3.5) so spawn, portals and barriers still line up;
+	--  everything else (hull, bulwarks, masts, stern) is dressed around it.
+	--  Bow points toward -Z, transom (stern) toward +Z.
+	-- ============================================================
+	local DECK_TOP = PIER.DeckY
+
+	-- Weathered-wood + canvas palette
+	local hullWood = Color3.fromRGB(84, 56, 36)
+	local hullDark = Color3.fromRGB(58, 38, 24)
+	local plankWood = Color3.fromRGB(122, 86, 52)
+	local plankDark = Color3.fromRGB(96, 66, 40)
+	local trimWood = Color3.fromRGB(74, 50, 30)
+	local sailCanvas = Color3.fromRGB(234, 226, 206)
+	local sailShade = Color3.fromRGB(206, 196, 174)
+	local goldCol = Color3.fromRGB(206, 168, 92)
+	local ironCol = Color3.fromRGB(38, 34, 32)
+	local ropeCol = Config.Theme.Rope
+
+	local Z_BOW, Z_STERN = -58, 90
+
+	-- Half-beam (hull half-width) as a function of length: point at the bow,
+	-- full amidships, narrowing again toward the transom.
+	local function halfBeamAt(z: number): number
+		if z <= -50 then
+			local a = math.clamp((z + 58) / 8, 0, 1)
+			return 5 + a * 34
+		elseif z >= 68 then
+			local a = math.clamp((z - 68) / 22, 0, 1)
+			return 39 - a * 15
+		end
+		return 39
+	end
+
+	-- Vertical cylinder helper (default cylinder axis is +X, tip it upright).
+	local function cylV(name: string, pos: Vector3, height: number, dia: number, color: Color3, mat: Enum.Material, collide: boolean?)
+		part({
+			Name = name,
+			Parent = dock,
+			Size = Vector3.new(height, dia, dia),
+			CFrame = CFrame.new(pos) * CFrame.Angles(0, 0, math.rad(90)),
+			Color = color,
+			Material = mat,
+			CanCollide = collide or false,
+			Shape = Enum.PartType.Cylinder,
+		})
+	end
+
+	-- Straight rope/spar segment between two world points (square section).
+	local function ropeSeg(name: string, p0: Vector3, p1: Vector3, dia: number, color: Color3?)
+		local dir = p1 - p0
+		local len = dir.Magnitude
+		if len < 0.05 then
+			return
+		end
+		part({
+			Name = name,
+			Parent = dock,
+			Size = Vector3.new(dia, dia, len),
+			CFrame = CFrame.lookAt((p0 + p1) * 0.5, p1),
+			Color = color or ropeCol,
+			Material = Enum.Material.Fabric,
+			CanCollide = false,
+			CastShadow = false,
+		})
+	end
+
+	-- Main walkable deck (kept named "PierDeck" for downstream polish logic).
 	part({
 		Name = "PierDeck",
 		Parent = dock,
 		Size = Vector3.new(80, 3, 140),
 		CFrame = CFrame.new(0, 2, 20),
-		Color = Color3.fromRGB(118, 80, 48),
+		Color = plankWood,
 		Material = Enum.Material.WoodPlanks,
 	})
-
-	for _, x in { -38, 38 } do
+	-- Deck seam lines for a finished, planked look.
+	for _, sx in { -30, -18, -6, 6, 18, 30 } do
 		part({
-			Name = "Rail",
+			Name = "DeckSeam",
 			Parent = dock,
-			Size = Vector3.new(1.5, 4, 140),
-			CFrame = CFrame.new(x, 5, 20),
-			Color = Color3.fromRGB(90, 60, 35),
+			Size = Vector3.new(0.35, 0.15, 136),
+			CFrame = CFrame.new(sx, 3.55, 20),
+			Color = plankDark,
 			Material = Enum.Material.Wood,
+			CanCollide = false,
+			CastShadow = false,
 		})
 	end
 
-	for z = -40, 80, 20 do
-		for _, x in { -30, 30 } do
+	-- Hull: tapered planked sides + rub-rail wales, curving in plan.
+	for z = Z_BOW, Z_STERN, 6 do
+		local hb = halfBeamAt(z)
+		local hbNext = halfBeamAt(z + 6)
+		for _, s in { -1, 1 } do
+			local yaw = math.atan2((hbNext - hb) * s, 6)
+			-- upper strake (slight tumblehome — top leans inboard)
 			part({
-				Name = "Pillar",
+				Name = "HullUpper",
 				Parent = dock,
-				Size = Vector3.new(4, 18, 4),
-				CFrame = CFrame.new(x, -5, z),
-				Color = Color3.fromRGB(70, 48, 28),
+				Size = Vector3.new(2.4, 7.5, 7),
+				CFrame = CFrame.new(s * hb, 0.2, z) * CFrame.Angles(0, yaw, 0) * CFrame.Angles(0, 0, math.rad(7) * s),
+				Color = hullWood,
 				Material = Enum.Material.Wood,
+				CanCollide = false,
+			})
+			-- lower strake / turn of the bilge (rolls in toward the keel)
+			part({
+				Name = "HullLower",
+				Parent = dock,
+				Size = Vector3.new(2.2, 8, 7),
+				CFrame = CFrame.new(s * hb * 0.7, -6.2, z) * CFrame.Angles(0, yaw, 0) * CFrame.Angles(0, 0, math.rad(32) * s),
+				Color = hullDark,
+				Material = Enum.Material.Wood,
+				CanCollide = false,
+			})
+			-- upper + lower wales (horizontal rub rails)
+			part({
+				Name = "Wale",
+				Parent = dock,
+				Size = Vector3.new(0.9, 1.1, 7),
+				CFrame = CFrame.new(s * (hb + 0.4), 2.4, z) * CFrame.Angles(0, yaw, 0),
+				Color = trimWood,
+				Material = Enum.Material.Wood,
+				CanCollide = false,
+			})
+			part({
+				Name = "Wale",
+				Parent = dock,
+				Size = Vector3.new(0.8, 0.9, 7),
+				CFrame = CFrame.new(s * (hb + 0.2), -1.6, z) * CFrame.Angles(0, yaw, 0),
+				Color = trimWood,
+				Material = Enum.Material.Wood,
+				CanCollide = false,
 			})
 		end
 	end
 
 	part({
-		Name = "Lighthouse",
+		Name = "Keel",
 		Parent = dock,
-		Size = Vector3.new(12, 48, 12),
-		CFrame = CFrame.new(-55, 25, -20),
-		Color = Color3.fromRGB(240, 240, 235),
-		Material = Enum.Material.SmoothPlastic,
+		Size = Vector3.new(2.6, 2.4, 150),
+		CFrame = CFrame.new(0, -10.5, 16),
+		Color = hullDark,
+		Material = Enum.Material.Wood,
+		CanCollide = false,
+	})
+
+	-- Bulwarks (ship sides above the deck) + cap rail, hugging the hull curve.
+	for z = Z_BOW + 2, 66, 6 do
+		local hb = halfBeamAt(z)
+		local hbNext = halfBeamAt(z + 6)
+		for _, s in { -1, 1 } do
+			local yaw = math.atan2((hbNext - hb) * s, 6)
+			part({
+				Name = "Bulwark",
+				Parent = dock,
+				Size = Vector3.new(1.3, 5.2, 7),
+				CFrame = CFrame.new(s * (hb - 0.6), 6.1, z) * CFrame.Angles(0, yaw, 0),
+				Color = plankWood,
+				Material = Enum.Material.WoodPlanks,
+				CanCollide = true,
+			})
+			part({
+				Name = "CapRail",
+				Parent = dock,
+				Size = Vector3.new(2.1, 0.6, 7),
+				CFrame = CFrame.new(s * (hb - 0.6), 8.9, z) * CFrame.Angles(0, yaw, 0),
+				Color = trimWood,
+				Material = Enum.Material.Wood,
+				CanCollide = false,
+			})
+		end
+	end
+
+	-- Open gun ports along the sides, lined up with the deck cannons.
+	for _, gz in { 8, 42 } do
+		local hb = halfBeamAt(gz)
+		for _, s in { -1, 1 } do
+			part({
+				Name = "GunPort",
+				Parent = dock,
+				Size = Vector3.new(0.7, 2.2, 2.6),
+				CFrame = CFrame.new(s * (hb + 0.2), 6.0, gz),
+				Color = ironCol,
+				Material = Enum.Material.Wood,
+				CanCollide = false,
+			})
+		end
+	end
+
+	-- Bow: stem post, converging prow planks, gilded figurehead, bowsprit + jib.
+	part({
+		Name = "Stem",
+		Parent = dock,
+		Size = Vector3.new(2.6, 15, 6),
+		CFrame = CFrame.new(0, 1.5, -59) * CFrame.Angles(math.rad(-18), 0, 0),
+		Color = hullDark,
+		Material = Enum.Material.Wood,
+		CanCollide = false,
+	})
+	for _, s in { -1, 1 } do
+		local p0 = Vector3.new(s * 33, 6, -50)
+		local p1 = Vector3.new(0, 6, -60)
+		part({
+			Name = "BowPlank",
+			Parent = dock,
+			Size = Vector3.new(1.4, 6, (p1 - p0).Magnitude + 1),
+			CFrame = CFrame.lookAt((p0 + p1) * 0.5, p1),
+			Color = plankWood,
+			Material = Enum.Material.WoodPlanks,
+			CanCollide = false,
+		})
+	end
+	part({
+		Name = "FigureBody",
+		Parent = dock,
+		Size = Vector3.new(2.2, 3.2, 2.2),
+		CFrame = CFrame.new(0, 2.6, -62) * CFrame.Angles(math.rad(22), 0, 0),
+		Color = goldCol,
+		Material = Enum.Material.Metal,
+		CanCollide = false,
 	})
 	part({
-		Name = "LighthouseStripe",
+		Name = "FigureHead",
 		Parent = dock,
-		Size = Vector3.new(12.4, 5, 12.4),
-		CFrame = CFrame.new(-55, 18, -20),
-		Color = Color3.fromRGB(170, 75, 65),
-		Material = Enum.Material.SmoothPlastic,
+		Size = Vector3.new(1.4, 1.4, 1.4),
+		CFrame = CFrame.new(0, 4.6, -63),
+		Color = goldCol,
+		Material = Enum.Material.Metal,
+		CanCollide = false,
+		Shape = Enum.PartType.Ball,
+	})
+	for _, s in { -1, 1 } do
+		part({
+			Name = "FigureWing",
+			Parent = dock,
+			Size = Vector3.new(0.4, 1.6, 3.2),
+			CFrame = CFrame.new(s * 1.3, 3.0, -62) * CFrame.Angles(0, math.rad(s * 30), math.rad(s * 18)),
+			Color = goldCol,
+			Material = Enum.Material.Metal,
+			CanCollide = false,
+		})
+	end
+	local bowspritBase = Vector3.new(0, 7, -56)
+	local bowspritTip = Vector3.new(0, 13, -74)
+	part({
+		Name = "Bowsprit",
+		Parent = dock,
+		Size = Vector3.new(1.2, 1.2, (bowspritTip - bowspritBase).Magnitude),
+		CFrame = CFrame.lookAt((bowspritBase + bowspritTip) * 0.5, bowspritTip),
+		Color = trimWood,
+		Material = Enum.Material.Wood,
+		CanCollide = false,
 	})
 	part({
-		Name = "LighthouseLamp",
+		Name = "JibSail",
 		Parent = dock,
-		Size = Vector3.new(10, 8, 10),
-		CFrame = CFrame.new(-55, 52, -20),
-		Color = Color3.fromRGB(245, 220, 160),
+		Size = Vector3.new(0.3, 8, 10),
+		CFrame = CFrame.new(0, 10, -66) * CFrame.Angles(0, math.rad(90), math.rad(20)),
+		Color = sailCanvas,
+		Material = Enum.Material.Fabric,
+		CanCollide = false,
+	})
+
+	-- Masts: fore + main, each with square sails, a cap, and shroud rigging.
+	local function buildMast(zPos: number, mastHeight: number, yards, withNest: boolean?): number
+		local baseY = DECK_TOP
+		local topY = baseY + mastHeight
+		cylV("Mast", Vector3.new(0, baseY + mastHeight * 0.34, zPos), mastHeight * 0.68, 2.3, trimWood, Enum.Material.Wood, true)
+		cylV("MastTopSeg", Vector3.new(0, baseY + mastHeight * 0.78, zPos), mastHeight * 0.48, 1.5, trimWood, Enum.Material.Wood, true)
+		part({
+			Name = "MastCap",
+			Parent = dock,
+			Size = Vector3.new(1.3, 1.3, 1.3),
+			CFrame = CFrame.new(0, topY, zPos),
+			Color = goldCol,
+			Material = Enum.Material.Metal,
+			CanCollide = false,
+			Shape = Enum.PartType.Ball,
+		})
+
+		if withNest then
+			local nestY = baseY + mastHeight * 0.72
+			part({ Name = "CrowsNest", Parent = dock, Size = Vector3.new(6, 0.6, 6), CFrame = CFrame.new(0, nestY, zPos), Color = trimWood, Material = Enum.Material.Wood, CanCollide = false })
+			for _, dz in { -3, 3 } do
+				part({ Name = "CrowsNestRail", Parent = dock, Size = Vector3.new(6.2, 1.6, 0.4), CFrame = CFrame.new(0, nestY + 0.9, zPos + dz), Color = trimWood, Material = Enum.Material.Wood, CanCollide = false })
+			end
+		end
+
+		for _, y in yards do
+			local yardY = baseY + y.h
+			part({ Name = "Yard", Parent = dock, Size = Vector3.new(y.len, 0.9, 0.9), CFrame = CFrame.new(0, yardY, zPos), Color = trimWood, Material = Enum.Material.Wood, CanCollide = false, Shape = Enum.PartType.Cylinder })
+			part({ Name = "Sail", Parent = dock, Size = Vector3.new(y.sailW, y.sailH, 0.35), CFrame = CFrame.new(0, yardY - y.sailH / 2 - 0.5, zPos + 0.4) * CFrame.Angles(math.rad(-3), 0, 0), Color = sailCanvas, Material = Enum.Material.Fabric, CanCollide = false })
+			part({ Name = "SailBand", Parent = dock, Size = Vector3.new(y.sailW, 1.1, 0.4), CFrame = CFrame.new(0, yardY - y.sailH + 0.6, zPos + 0.45), Color = sailShade, Material = Enum.Material.Fabric, CanCollide = false })
+		end
+
+		local hb = halfBeamAt(zPos)
+		for _, s in { -1, 1 } do
+			for _, dz in { -6, 0, 6 } do
+				ropeSeg("Shroud", Vector3.new(0, topY - 5, zPos), Vector3.new(s * (hb - 0.8), 9, zPos + dz), 0.2)
+			end
+		end
+		return topY
+	end
+
+	local foreTop = buildMast(-18, 42, { { h = 20, len = 34, sailW = 30, sailH = 13 }, { h = 32, len = 24, sailW = 21, sailH = 9 } }, false)
+	local mainTop = buildMast(28, 50, { { h = 22, len = 40, sailW = 36, sailH = 15 }, { h = 37, len = 28, sailW = 25, sailH = 11 } }, true)
+
+	-- Standing rigging tying bow → foremast → mainmast → stern.
+	ropeSeg("Forestay", bowspritTip, Vector3.new(0, foreTop - 3, -18), 0.22)
+	ropeSeg("Stay", Vector3.new(0, foreTop - 3, -18), Vector3.new(0, mainTop - 4, 28), 0.22)
+	ropeSeg("Backstay", Vector3.new(0, mainTop - 4, 28), Vector3.new(0, 12, 84), 0.22)
+
+	-- Jolly Roger flying beside the mainmast head.
+	part({
+		Name = "JollyRoger",
+		Parent = dock,
+		Size = Vector3.new(0.2, 3.6, 6),
+		CFrame = CFrame.new(3.2, mainTop - 2, 28) * CFrame.Angles(0, math.rad(90), 0),
+		Color = Color3.fromRGB(20, 20, 22),
+		Material = Enum.Material.Fabric,
+		CanCollide = false,
+	})
+	part({
+		Name = "JollySkull",
+		Parent = dock,
+		Size = Vector3.new(0.25, 1.4, 1.4),
+		CFrame = CFrame.new(3.3, mainTop - 2, 28),
+		Color = Color3.fromRGB(232, 230, 224),
 		Material = Enum.Material.SmoothPlastic,
 		CanCollide = false,
 	})
 
-	for i = 1, 6 do
+	-- Transom stern with gallery windows, name board and quarter lanterns.
+	part({
+		Name = "Transom",
+		Parent = dock,
+		Size = Vector3.new(50, 13, 3),
+		CFrame = CFrame.new(0, 6.5, 90) * CFrame.Angles(math.rad(-12), 0, 0),
+		Color = hullDark,
+		Material = Enum.Material.Wood,
+		CanCollide = false,
+	})
+	part({
+		Name = "TransomTrim",
+		Parent = dock,
+		Size = Vector3.new(52, 1.2, 3.4),
+		CFrame = CFrame.new(0, 12.4, 89) * CFrame.Angles(math.rad(-12), 0, 0),
+		Color = goldCol,
+		Material = Enum.Material.Metal,
+		CanCollide = false,
+	})
+	for i = -2, 2 do
 		part({
-			Name = "Crate" .. i,
+			Name = "SternWindow",
 			Parent = dock,
-			Size = Vector3.new(4.5, 4.5, 4.5),
-			CFrame = CFrame.new(-20 + i * 5.5, 6.2, -32 + (i % 3) * 4) * CFrame.Angles(0, math.rad(i * 15), 0),
-			Color = Color3.fromRGB(130, 90, 50),
-			Material = Enum.Material.Wood,
+			Size = Vector3.new(4.5, 4, 0.6),
+			CFrame = CFrame.new(i * 7, 8, 91.2) * CFrame.Angles(math.rad(-12), 0, 0),
+			Color = Color3.fromRGB(150, 205, 220),
+			Material = Enum.Material.Glass,
+			Reflectance = 0.35,
+			Transparency = 0.25,
+			CanCollide = false,
 		})
 	end
+	local sternName = part({
+		Name = "SternName",
+		Parent = dock,
+		Size = Vector3.new(1, 1, 1),
+		CFrame = CFrame.new(0, 11.6, 92),
+		Transparency = 1,
+		CanCollide = false,
+		CastShadow = false,
+	})
+	billboard(sternName, "SEA WRAITH", goldCol, UDim2.fromOffset(220, 40), 0, 20)
+	for _, s in { -1, 1 } do
+		cylV("LanternPost", Vector3.new(s * 21, 12, 88), 4, 0.5, trimWood, Enum.Material.Wood)
+		part({ Name = "Lantern", Parent = dock, Size = Vector3.new(2, 3, 2), CFrame = CFrame.new(s * 21, 15, 88), Color = Config.Theme.Lantern, Material = Enum.Material.SmoothPlastic, CanCollide = false })
+		part({ Name = "LanternCap", Parent = dock, Size = Vector3.new(2.4, 0.8, 2.4), CFrame = CFrame.new(s * 21, 16.6, 88), Color = ironCol, Material = Enum.Material.Metal, CanCollide = false })
+	end
 
-	-- Barrel stacks for boaty flavor (cylinder default axis is +X, so tip upright)
-	for i = 1, 4 do
+	-- Raised quarterdeck (poop) behind the portals, with the ship's wheel.
+	part({
+		Name = "PoopDeck",
+		Parent = dock,
+		Size = Vector3.new(50, 1.4, 16),
+		CFrame = CFrame.new(0, 5.5, 80),
+		Color = plankWood,
+		Material = Enum.Material.WoodPlanks,
+		CanCollide = true,
+	})
+	part({
+		Name = "PoopStep",
+		Parent = dock,
+		Size = Vector3.new(16, 1.2, 3),
+		CFrame = CFrame.new(0, 4.5, 71.5),
+		Color = plankDark,
+		Material = Enum.Material.WoodPlanks,
+		CanCollide = true,
+	})
+
+	local function buildWheel(center: Vector3)
+		local r = 2.2
+		part({ Name = "Binnacle", Parent = dock, Size = Vector3.new(2.4, 3.2, 2.4), CFrame = CFrame.new(center - Vector3.new(0, 3.4, -0.8)), Color = trimWood, Material = Enum.Material.Wood, CanCollide = false })
+		-- Hub (axis along the fore-aft Z so the wheel faces forward)
+		part({ Name = "WheelHub", Parent = dock, Size = Vector3.new(1.1, 1.1, 1.4), CFrame = CFrame.new(center) * CFrame.Angles(0, math.rad(90), 0), Color = trimWood, Material = Enum.Material.Wood, CanCollide = false, Shape = Enum.PartType.Cylinder })
+		local seg = 10
+		for i = 0, seg - 1 do
+			local a0 = (i / seg) * math.pi * 2
+			local a1 = ((i + 1) / seg) * math.pi * 2
+			local p0 = center + Vector3.new(math.cos(a0) * r, math.sin(a0) * r, 0)
+			local p1 = center + Vector3.new(math.cos(a1) * r, math.sin(a1) * r, 0)
+			part({ Name = "WheelRim", Parent = dock, Size = Vector3.new(0.4, 0.4, (p1 - p0).Magnitude), CFrame = CFrame.lookAt((p0 + p1) * 0.5, p1), Color = trimWood, Material = Enum.Material.Wood, CanCollide = false })
+		end
+		for i = 0, 5 do
+			local a = (i / 6) * math.pi * 2
+			local rim = center + Vector3.new(math.cos(a) * r, math.sin(a) * r, 0)
+			part({ Name = "WheelSpoke", Parent = dock, Size = Vector3.new(0.35, 0.35, (rim - center).Magnitude + 0.6), CFrame = CFrame.lookAt((center + rim) * 0.5, rim), Color = trimWood, Material = Enum.Material.Wood, CanCollide = false })
+			local handle = center + Vector3.new(math.cos(a) * (r + 0.8), math.sin(a) * (r + 0.8), 0)
+			part({ Name = "WheelHandle", Parent = dock, Size = Vector3.new(0.35, 0.35, 1.4), CFrame = CFrame.new(handle) * CFrame.Angles(0, 0, a), Color = goldCol, Material = Enum.Material.Wood, CanCollide = false })
+		end
+	end
+	buildWheel(Vector3.new(0, 8.4, 76))
+
+	-- Working deck dressing (replaces the old floating crate cubes).
+	cylV("Capstan", Vector3.new(0, 4.6, 50), 2.6, 3, trimWood, Enum.Material.Wood, true)
+	for i = 0, 3 do
+		local a = (i / 4) * math.pi * 2
+		part({ Name = "CapstanBar", Parent = dock, Size = Vector3.new(0.4, 0.4, 6), CFrame = CFrame.new(0, 5.4, 50) * CFrame.Angles(0, a, 0) * CFrame.new(0, 0, 3), Color = trimWood, Material = Enum.Material.Wood, CanCollide = false })
+	end
+	-- Cargo hatch grating
+	part({ Name = "Hatch", Parent = dock, Size = Vector3.new(8, 0.5, 8), CFrame = CFrame.new(-2, 3.75, 10), Color = plankDark, Material = Enum.Material.WoodPlanks, CanCollide = false })
+	for i = -3, 3, 2 do
+		part({ Name = "HatchBar", Parent = dock, Size = Vector3.new(0.4, 0.7, 8), CFrame = CFrame.new(-2 + i, 3.9, 10), Color = trimWood, Material = Enum.Material.Wood, CanCollide = false })
+		part({ Name = "HatchBar", Parent = dock, Size = Vector3.new(8, 0.7, 0.4), CFrame = CFrame.new(-2, 3.9, 10 + i), Color = trimWood, Material = Enum.Material.Wood, CanCollide = false })
+	end
+	-- Barrels lashed neatly against the starboard bulwark
+	for i = 1, 3 do
 		part({
 			Name = "Barrel" .. i,
 			Parent = dock,
-			Size = Vector3.new(4, 3.2, 3.2),
-			CFrame = CFrame.new(18 + (i % 2) * 4, 5.8, -25 + i * 4) * CFrame.Angles(0, 0, math.rad(90)),
-			Color = Color3.fromRGB(100, 70, 40),
+			Size = Vector3.new(3.4, 2.8, 2.8),
+			CFrame = CFrame.new(30, 5.2, -34 + i * 4) * CFrame.Angles(0, 0, math.rad(90)),
+			Color = Color3.fromRGB(104, 72, 42),
 			Material = Enum.Material.Wood,
+			CanCollide = false,
 			Shape = Enum.PartType.Cylinder,
 		})
 	end
-
-	-- No red buoy blocks near berths — keep the pier clear
+	-- Coiled ropes stowed on the planks
+	for _, cpos in { Vector3.new(-28, 3.9, 44), Vector3.new(26, 3.9, -6) } do
+		for ring = 1, 3 do
+			cylV("RopeCoil", cpos + Vector3.new(0, ring * 0.25, 0), 0.5, 2.4 - ring * 0.4, ropeCol, Enum.Material.Fabric)
+		end
+	end
 
 	local title = part({
 		Name = "TitleBanner",
@@ -1224,7 +1615,7 @@ local function buildDock(root: Folder)
 		CanCollide = false,
 		CastShadow = false,
 	})
-	billboard(title, "SURVIVE AT SEA\nBoarding pier", Config.Theme.Foam, UDim2.fromOffset(280, 64), 0, 22)
+	billboard(title, "SURVIVE AT SEA\nBoarding ship", Config.Theme.Foam, UDim2.fromOffset(280, 64), 0, 22)
 end
 
 function LobbyWorld.getLobbySpawnCFrame(): CFrame
@@ -1337,7 +1728,7 @@ function LobbyWorld.polish(root: Folder)
 			CanCollide = false,
 			CastShadow = false,
 		})
-		billboard(titleAnchor, "SURVIVE AT SEA\nBoarding pier", Config.Theme.Foam, UDim2.fromOffset(280, 64), 0, 22)
+		billboard(titleAnchor, "SURVIVE AT SEA\nBoarding ship", Config.Theme.Foam, UDim2.fromOffset(280, 64), 0, 22)
 	end
 
 	print("[SurviveAtSea] Lobby polished — realistic cannons/islands, no path, no staging boat")
