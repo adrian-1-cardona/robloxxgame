@@ -837,6 +837,47 @@ function IslandService.isLockedForCrew(code: string, islandId: string): boolean
 	return state ~= nil and state.locked == true
 end
 
+-- Solid-shoreline collision. Rafts can NEVER drive up onto an isle: sailing into one
+-- runs the hull aground at the sand's edge (forward progress into the isle is stopped).
+-- You can still slide along the coast and steer away, but you can't climb aboard.
+-- Applies to EVERY isle, visited or not — separate from the visit-lockout clamp below.
+function IslandService.collideRaft(fromPos: Vector3, toPos: Vector3): (Vector3, string?)
+	local result = toPos
+	local grounded: string? = nil
+
+	for _, isle in IslandService._islands do
+		local minDist = isle.size * 0.5 + Config.Islands.RaftCollisionPad
+		local toDist = flatDistance(result, isle.center)
+		if toDist >= minDist then
+			continue
+		end
+
+		-- Destination is inside the shoreline ring — push it back out to the ring so the
+		-- raft stops at the beach instead of driving over it.
+		local outward = Vector3.new(result.X - isle.center.X, 0, result.Z - isle.center.Z)
+		if outward.Magnitude < 0.05 then
+			outward = Vector3.new(fromPos.X - isle.center.X, 0, fromPos.Z - isle.center.Z)
+		end
+		if outward.Magnitude < 0.05 then
+			outward = Vector3.new(1, 0, 0)
+		end
+		outward = outward.Unit
+		result = Vector3.new(
+			isle.center.X + outward.X * minDist,
+			result.Y,
+			isle.center.Z + outward.Z * minDist
+		)
+
+		-- Only report "ran aground" when actually pushing toward the isle (approaching),
+		-- so idling against a coast doesn't spam feedback.
+		if toDist < flatDistance(fromPos, isle.center) then
+			grounded = isle.name
+		end
+	end
+
+	return result, grounded
+end
+
 -- Keep rafts outside locked isles (can't sail back after leaving far enough away).
 function IslandService.clampRaftPosition(code: string, fromPos: Vector3, toPos: Vector3): (Vector3, string?)
 	local result = toPos

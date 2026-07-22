@@ -83,6 +83,11 @@ local Config = {
 		LockoutStuds = 2000,
 		-- Extra pad outside the sand when a locked crew tries to sail back in
 		ApproachPadStuds = 220,
+		-- Solid-shoreline collision: rafts can NEVER drive up onto an isle. Sailing into
+		-- one stops the raft dead at the sand's edge (you run aground). This is the gap
+		-- kept between the isle's sand radius and the raft's center (raft is ~72 wide, so
+		-- ~40 leaves the hull nosing the beach without clipping through it).
+		RaftCollisionPad = 40,
 
 		-- Legacy hostile "pirate" tuning — kept for back-compat; hostile villagers reuse it.
 		Pirate = {
@@ -218,7 +223,9 @@ local Config = {
 				Offset = Vector3.new(-6000, 0, -8400),
 				SizeStuds = 1800,
 				Biome = "jungle",
-				Theme = "abandoned",
+				-- A whole town, long abandoned and reclaimed by the jungle (ruined houses,
+				-- cold pits, only a few feral scavengers left).
+				Theme = "town",
 				Abandoned = true,
 				Merchant = false,
 				Villagers = { Passive = 0, Hostile = 3 }, -- feral scavengers
