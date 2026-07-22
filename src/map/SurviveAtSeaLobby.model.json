@@ -837,9 +837,9 @@
                   18
                 ],
                 "Position": [
-                  -36.0,
+                  -24.0,
                   3.5,
-                  70.0
+                  68.0
                 ],
                 "Color": [
                   0.31,
@@ -864,9 +864,9 @@
                   2.5
                 ],
                 "Position": [
-                  -43.0,
+                  -31.0,
                   13.5,
-                  70.0
+                  68.0
                 ],
                 "Color": [
                   0.37,
@@ -891,9 +891,9 @@
                   2.5
                 ],
                 "Position": [
-                  -29.0,
+                  -17.0,
                   13.5,
-                  70.0
+                  68.0
                 ],
                 "Color": [
                   0.37,
@@ -918,9 +918,9 @@
                   2.5
                 ],
                 "Position": [
-                  -36.0,
+                  -24.0,
                   23.5,
-                  70.0
+                  68.0
                 ],
                 "Color": [
                   0.37,
@@ -945,9 +945,9 @@
                   1.4
                 ],
                 "Position": [
-                  -36.0,
+                  -24.0,
                   12.5,
-                  70.0
+                  68.0
                 ],
                 "Color": [
                   0.86,
@@ -972,9 +972,9 @@
                   6
                 ],
                 "Position": [
-                  -36.0,
+                  -24.0,
                   6.5,
-                  76.0
+                  74.0
                 ],
                 "Transparency": 1,
                 "CanCollide": false,
@@ -1018,9 +1018,9 @@
                   18
                 ],
                 "Position": [
-                  -12.0,
+                  0.0,
                   3.5,
-                  70.0
+                  68.0
                 ],
                 "Color": [
                   0.31,
@@ -1045,9 +1045,9 @@
                   2.5
                 ],
                 "Position": [
-                  -19.0,
+                  -7.0,
                   13.5,
-                  70.0
+                  68.0
                 ],
                 "Color": [
                   0.37,
@@ -1072,9 +1072,9 @@
                   2.5
                 ],
                 "Position": [
-                  -5.0,
+                  7.0,
                   13.5,
-                  70.0
+                  68.0
                 ],
                 "Color": [
                   0.37,
@@ -1099,9 +1099,9 @@
                   2.5
                 ],
                 "Position": [
-                  -12.0,
+                  0.0,
                   23.5,
-                  70.0
+                  68.0
                 ],
                 "Color": [
                   0.37,
@@ -1126,9 +1126,9 @@
                   1.4
                 ],
                 "Position": [
-                  -12.0,
+                  0.0,
                   12.5,
-                  70.0
+                  68.0
                 ],
                 "Color": [
                   0.86,
@@ -1153,9 +1153,9 @@
                   6
                 ],
                 "Position": [
-                  -12.0,
+                  0.0,
                   6.5,
-                  76.0
+                  74.0
                 ],
                 "Transparency": 1,
                 "CanCollide": false,
@@ -1199,9 +1199,9 @@
                   18
                 ],
                 "Position": [
-                  12.0,
+                  24.0,
                   3.5,
-                  70.0
+                  68.0
                 ],
                 "Color": [
                   0.31,
@@ -1226,9 +1226,9 @@
                   2.5
                 ],
                 "Position": [
-                  5.0,
+                  17.0,
                   13.5,
-                  70.0
+                  68.0
                 ],
                 "Color": [
                   0.37,
@@ -1253,9 +1253,9 @@
                   2.5
                 ],
                 "Position": [
-                  19.0,
+                  31.0,
                   13.5,
-                  70.0
+                  68.0
                 ],
                 "Color": [
                   0.37,
@@ -1280,9 +1280,9 @@
                   2.5
                 ],
                 "Position": [
-                  12.0,
+                  24.0,
                   23.5,
-                  70.0
+                  68.0
                 ],
                 "Color": [
                   0.37,
@@ -1307,9 +1307,9 @@
                   1.4
                 ],
                 "Position": [
-                  12.0,
+                  24.0,
                   12.5,
-                  70.0
+                  68.0
                 ],
                 "Color": [
                   0.86,
@@ -1334,9 +1334,9 @@
                   6
                 ],
                 "Position": [
-                  12.0,
+                  24.0,
                   6.5,
-                  76.0
+                  74.0
                 ],
                 "Transparency": 1,
                 "CanCollide": false,
@@ -1361,187 +1361,6 @@
               "ClassName": "IntValue",
               "Properties": {
                 "Value": 3
-              }
-            }
-          ]
-        },
-        {
-          "Name": "Portal_4",
-          "ClassName": "Model",
-          "Children": [
-            {
-              "Name": "Pad",
-              "ClassName": "Part",
-              "Properties": {
-                "Anchored": true,
-                "Size": [
-                  18,
-                  1.5,
-                  18
-                ],
-                "Position": [
-                  36.0,
-                  3.5,
-                  70.0
-                ],
-                "Color": [
-                  0.31,
-                  0.23,
-                  0.14
-                ],
-                "Material": "WoodPlanks",
-                "Transparency": 0,
-                "CanCollide": true,
-                "TopSurface": "Smooth",
-                "BottomSurface": "Smooth"
-              }
-            },
-            {
-              "Name": "ArchLegL",
-              "ClassName": "Part",
-              "Properties": {
-                "Anchored": true,
-                "Size": [
-                  2.5,
-                  18,
-                  2.5
-                ],
-                "Position": [
-                  29.0,
-                  13.5,
-                  70.0
-                ],
-                "Color": [
-                  0.37,
-                  0.25,
-                  0.16
-                ],
-                "Material": "Wood",
-                "Transparency": 0,
-                "CanCollide": true,
-                "TopSurface": "Smooth",
-                "BottomSurface": "Smooth"
-              }
-            },
-            {
-              "Name": "ArchLegR",
-              "ClassName": "Part",
-              "Properties": {
-                "Anchored": true,
-                "Size": [
-                  2.5,
-                  18,
-                  2.5
-                ],
-                "Position": [
-                  43.0,
-                  13.5,
-                  70.0
-                ],
-                "Color": [
-                  0.37,
-                  0.25,
-                  0.16
-                ],
-                "Material": "Wood",
-                "Transparency": 0,
-                "CanCollide": true,
-                "TopSurface": "Smooth",
-                "BottomSurface": "Smooth"
-              }
-            },
-            {
-              "Name": "ArchTop",
-              "ClassName": "Part",
-              "Properties": {
-                "Anchored": true,
-                "Size": [
-                  18,
-                  2.5,
-                  2.5
-                ],
-                "Position": [
-                  36.0,
-                  23.5,
-                  70.0
-                ],
-                "Color": [
-                  0.37,
-                  0.25,
-                  0.16
-                ],
-                "Material": "Wood",
-                "Transparency": 0,
-                "CanCollide": true,
-                "TopSurface": "Smooth",
-                "BottomSurface": "Smooth"
-              }
-            },
-            {
-              "Name": "Gate",
-              "ClassName": "Part",
-              "Properties": {
-                "Anchored": true,
-                "Size": [
-                  11,
-                  15,
-                  1.4
-                ],
-                "Position": [
-                  36.0,
-                  12.5,
-                  70.0
-                ],
-                "Color": [
-                  0.86,
-                  0.82,
-                  0.73
-                ],
-                "Material": "Fabric",
-                "Transparency": 0.08,
-                "CanCollide": false,
-                "TopSurface": "Smooth",
-                "BottomSurface": "Smooth"
-              }
-            },
-            {
-              "Name": "PromptAnchor",
-              "ClassName": "Part",
-              "Properties": {
-                "Anchored": true,
-                "Size": [
-                  6,
-                  6,
-                  6
-                ],
-                "Position": [
-                  36.0,
-                  6.5,
-                  76.0
-                ],
-                "Transparency": 1,
-                "CanCollide": false,
-                "CastShadow": false
-              },
-              "Children": [
-                {
-                  "Name": "BoardPrompt",
-                  "ClassName": "ProximityPrompt",
-                  "Properties": {
-                    "ObjectText": "Voyage Portal 4",
-                    "ActionText": "Create Crew",
-                    "HoldDuration": 0.25,
-                    "MaxActivationDistance": 16,
-                    "RequiresLineOfSight": false
-                  }
-                }
-              ]
-            },
-            {
-              "Name": "PortalIndex",
-              "ClassName": "IntValue",
-              "Properties": {
-                "Value": 4
               }
             }
           ]

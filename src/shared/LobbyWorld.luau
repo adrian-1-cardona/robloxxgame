@@ -755,7 +755,7 @@ local function buildScenery(root: Folder)
 		buildCannon(scenery, c[1] :: Vector3, c[2] :: number)
 	end
 
-	-- Boats well clear of the berth row (z≈70) — especially berth 4 at x≈36
+	-- Boats well clear of the berth row (z≈68) — three centered portals
 	local boats = {
 		{ Vector3.new(-70, 1.4, 5), 25, Color3.fromRGB(160, 90, 50) },
 		{ Vector3.new(-78, 1.2, 40), -15, Color3.fromRGB(70, 95, 120) },
