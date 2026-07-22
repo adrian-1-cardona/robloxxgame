@@ -259,7 +259,7 @@ function HelmService.mount(player: Player, code: string): boolean
 	)
 
 	fireState(player, true)
-	toast(player, "At the helm — look to steer, drive to sail, jump / B to leave.", "success")
+	toast(player, "At the helm — look to steer, W/S to sail to the Tiny Isle, jump / B to leave.", "success")
 	return true
 end
 
@@ -363,6 +363,10 @@ function HelmService.start(
 
 			local look = session.lookFlat
 			local throttle = session.throttle
+			-- Treat near-zero stick noise as stop so idle stays planted
+			if math.abs(throttle) < 0.04 then
+				throttle = 0
+			end
 			local speed = Config.Helm.SpeedStudsPerSecond
 			-- Positive throttle sails along look; negative reverses while still facing look
 			local move = look * (speed * throttle * dt)

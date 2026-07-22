@@ -20,6 +20,7 @@ local PartyService = require(script.Parent:WaitForChild("PartyService"))
 local PortalService = require(script.Parent:WaitForChild("PortalService"))
 local StarterBaseService = require(script.Parent:WaitForChild("StarterBaseService"))
 local HelmService = require(script.Parent:WaitForChild("HelmService"))
+local IslandService = require(script.Parent:WaitForChild("IslandService"))
 local OceanTerrainService = require(script.Parent:WaitForChild("OceanTerrainService"))
 local DayNightService = require(script.Parent:WaitForChild("DayNightService"))
 local WeatherService = require(script.Parent:WaitForChild("WeatherService"))
@@ -35,6 +36,9 @@ DayNightService.start()
 
 -- Cosmetic open-sea weather schedule (clients apply FX only while in a crew)
 WeatherService.start()
+
+-- Tiny flat isle near raft spawn — a sail destination before ocean streaming
+IslandService.ensure()
 
 -- Realistic Terrain water streams around the pier and every sailing raft
 OceanTerrainService.start()

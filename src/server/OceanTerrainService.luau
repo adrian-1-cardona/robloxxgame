@@ -9,6 +9,7 @@ local Config = require(Shared:WaitForChild("Config"))
 local OceanConfig = require(Shared:WaitForChild("OceanConfig"))
 
 local StarterBaseService = require(script.Parent:WaitForChild("StarterBaseService"))
+local IslandService = require(script.Parent:WaitForChild("IslandService"))
 
 local OceanTerrainService = {}
 
@@ -92,6 +93,7 @@ local function collectFocusPoints(): { Vector3 }
 	local points = {
 		Vector3.new(0, SURFACE_Y, 40), -- boarding pier
 		Config.StarterBase.Origin,
+		IslandService.getWorldCenter(), -- tiny drive-to isle
 	}
 
 	for _, model in StarterBaseService._basesByCode do
@@ -122,6 +124,9 @@ local function streamOnce()
 			clearChunk(tonumber(cxStr) :: number, tonumber(czStr) :: number)
 		end
 	end
+
+	-- Re-paint sand after water fills so the isle stays land
+	IslandService.paintTerrain()
 end
 
 -- Hide legacy flat-glass ocean parts so Terrain water is the visible sea.

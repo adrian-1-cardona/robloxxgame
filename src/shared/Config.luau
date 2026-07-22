@@ -40,12 +40,13 @@ local Config = {
 	-- Take the helm → locked standing at the wheel; look steers; W / stick / arrows drive;
 	-- jump / gamepad B to unlock and step away.
 	Helm = {
-		SpeedStudsPerSecond = 48,
+		-- Fast enough that a short sail to the nearby isle clearly reads as motion
+		SpeedStudsPerSecond = 56,
 		TurnLerp = 6,
 		-- Stand offset from deck center (aft). Y is ignored — stand sits on deck top.
 		StandLocalOffset = Vector3.new(0, 0, 22),
 		LookSendHz = 20,
-		ThrottleSendHz = 20,
+		ThrottleSendHz = 30,
 		-- Deadzone for console left-stick Y (and any analog throttle)
 		StickDeadzone = 0.18,
 		-- Generous for phone / VR laser / console approach
@@ -54,6 +55,17 @@ local Config = {
 		WheelLookGain = 1.35,
 		WheelMaxRadians = math.rad(85),
 		WheelSpinLerp = 10,
+	},
+
+	-- Tiny flat isle off the first raft spawn — a real sail destination (not lobby scenery).
+	-- Offset is from StarterBase.Origin on XZ; top sits near deck height so you can beach.
+	DriveIsland = {
+		OffsetFromOrigin = Vector3.new(160, 0, -220),
+		-- Small footprint — quick to reach, easy to circle
+		SizeStuds = 40,
+		Thickness = 5,
+		-- Walkable top Y (world) — roughly raft deck height
+		TopY = 2.8,
 	},
 
 	-- Portal / berth accent (solid purple — no half-and-half overlays)

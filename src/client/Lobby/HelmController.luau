@@ -61,13 +61,13 @@ end
 local function leaveHintText(): string
 	local kind = PlatformInput.getDeviceKind()
 	if kind == "Console" then
-		return "Look to steer  ·  Stick to drive  ·  B / Jump to leave"
+		return "Look to steer  ·  Stick forward/back to sail  ·  B / Jump to leave"
 	elseif kind == "VR" then
-		return "Look to steer  ·  Stick to drive  ·  Jump / B to leave"
+		return "Look to steer  ·  Stick to sail  ·  Jump / B to leave"
 	elseif kind == "Phone" or kind == "Tablet" then
-		return "Look to steer  ·  Arrows to drive  ·  Jump to leave"
+		return "Look to steer  ·  Arrows to sail  ·  Jump to leave"
 	end
-	return "Look to steer  ·  W / S to drive  ·  Jump to leave"
+	return "Look to steer  ·  Hold W / S to sail  ·  Jump to leave"
 end
 
 local function showTip()
@@ -281,17 +281,35 @@ local function readStickThrottle(): number
 	return best
 end
 
-local function currentThrottle(): number
-	-- Digital holds (keyboard W/S or mobile arrows) win when pressed
+local function keyboardThrottle(): number
+	-- Poll keys every tick so focus/chat glitches can't leave us stuck at 0
+	local forward = forwardHeld
+		or UserInputService:IsKeyDown(Enum.KeyCode.W)
+		or UserInputService:IsKeyDown(Enum.KeyCode.Up)
+	local backward = backwardHeld
+		or UserInputService:IsKeyDown(Enum.KeyCode.S)
+		or UserInputService:IsKeyDown(Enum.KeyCode.Down)
 	local digital = 0
-	if forwardHeld or mobileForward then
+	if forward then
 		digital += 1
 	end
-	if backwardHeld or mobileBackward then
+	if backward then
 		digital -= 1
 	end
+	return math.clamp(digital, -1, 1)
+end
+
+local function currentThrottle(): number
+	-- Digital holds (keyboard W/S or mobile arrows) win when pressed
+	local digital = keyboardThrottle()
+	if mobileForward then
+		digital = math.clamp(digital + 1, -1, 1)
+	end
+	if mobileBackward then
+		digital = math.clamp(digital - 1, -1, 1)
+	end
 	if digital ~= 0 then
-		return math.clamp(digital, -1, 1)
+		return digital
 	end
 
 	-- Console / gamepad analog when no digital hold
