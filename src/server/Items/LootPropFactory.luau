@@ -7,7 +7,11 @@ local Config = require(game:GetService("ReplicatedStorage"):WaitForChild("Shared
 
 local LootPropFactory = {}
 
-export type LootKind = "Wall" | "Torch" | "Plank" | "Crate"
+export type LootKind = "Wall" | "Torch" | "Plank" | "Crate" | "Bed"
+
+local BED_FRAME = Color3.fromRGB(96, 66, 40)
+local BED_SHEET = Color3.fromRGB(206, 198, 176)
+local BED_PILLOW = Color3.fromRGB(224, 220, 206)
 
 local WOOD = Color3.fromRGB(128, 92, 58)
 local WOOD_DARK = Color3.fromRGB(78, 52, 30)
@@ -56,6 +60,24 @@ local function tagProp(model: Model, kind: LootKind, propId: string?)
 	model:SetAttribute("Weldable", true)
 	model:SetAttribute("Welded", false)
 	model:SetAttribute("GrabbedBy", 0)
+	return id
+end
+
+-- Tag an externally-built model (e.g. the merchant NPC) as a draggable / weldable loot
+-- prop so it flows through the existing drag / weld system. `opts.noPickup` blocks the
+-- backpack pickup prompt (you can't pocket a person).
+function LootPropFactory.tagAsProp(model: Model, kind: string, opts: { [string]: any }?): string
+	local id = (opts and opts.propId) or HttpService:GenerateGUID(false)
+	model:SetAttribute("IsLootProp", true)
+	model:SetAttribute("LootKind", kind)
+	model:SetAttribute("PropId", id)
+	model:SetAttribute("Draggable", true)
+	model:SetAttribute("Weldable", true)
+	model:SetAttribute("Welded", false)
+	model:SetAttribute("GrabbedBy", 0)
+	if opts and opts.noPickup then
+		model:SetAttribute("NoPickup", true)
+	end
 	return id
 end
 
@@ -197,6 +219,52 @@ function LootPropFactory.createCrateWorld(parent: Instance, cf: CFrame, propId: 
 	return model
 end
 
+function LootPropFactory.createBedWorld(parent: Instance, cf: CFrame, propId: string?): Model
+	local model = Instance.new("Model")
+	model.Name = "LootBed"
+	model.Parent = parent
+
+	local frame = makePart({
+		Name = "Primary",
+		Parent = model,
+		Size = Vector3.new(3.4, 0.7, 6.4),
+		CFrame = cf,
+		Color = BED_FRAME,
+		Material = Enum.Material.Wood,
+	})
+	model.PrimaryPart = frame
+
+	makePart({
+		Name = "Mattress",
+		Parent = model,
+		Size = Vector3.new(3.1, 0.6, 5.6),
+		CFrame = cf * CFrame.new(0, 0.6, 0),
+		Color = BED_SHEET,
+		Material = Enum.Material.Fabric,
+		CanCollide = false,
+	})
+	makePart({
+		Name = "Pillow",
+		Parent = model,
+		Size = Vector3.new(2.6, 0.5, 1.2),
+		CFrame = cf * CFrame.new(0, 1.0, -2.2),
+		Color = BED_PILLOW,
+		Material = Enum.Material.Fabric,
+		CanCollide = false,
+	})
+	makePart({
+		Name = "Headboard",
+		Parent = model,
+		Size = Vector3.new(3.4, 1.6, 0.4),
+		CFrame = cf * CFrame.new(0, 0.8, -3.1),
+		Color = WOOD_DARK,
+		Material = Enum.Material.Wood,
+		CanCollide = false,
+	})
+	tagProp(model, "Bed", propId)
+	return model
+end
+
 local function toolPart(props: { [string]: any }): Part
 	props.Anchored = false
 	props.CanCollide = false
@@ -278,6 +346,27 @@ function LootPropFactory.createTool(kind: LootKind): Tool
 			Material = Enum.Material.WoodPlanks,
 		})
 		weld(handle, plank)
+	elseif kind == "Bed" then
+		tool.Name = "Bed Roll"
+		tool.ToolTip = "Villager bed — drag / place it on your raft to rest"
+		tool.Grip = CFrame.new(0, -0.4, 0)
+		local handle = toolPart({
+			Name = "Handle",
+			Parent = tool,
+			Size = Vector3.new(1.4, 0.5, 2.6),
+			CFrame = CFrame.new(),
+			Color = BED_FRAME,
+			Material = Enum.Material.Wood,
+		})
+		local roll = toolPart({
+			Name = "Roll",
+			Parent = tool,
+			Size = Vector3.new(1.3, 0.5, 2.4),
+			CFrame = CFrame.new(0, 0.5, 0),
+			Color = BED_SHEET,
+			Material = Enum.Material.Fabric,
+		})
+		weld(handle, roll)
 	else
 		tool.Name = "Crate"
 		tool.ToolTip = "Salvage crate"
@@ -311,11 +400,17 @@ function LootPropFactory.spawnFromKind(kind: LootKind, parent: Instance, cf: CFr
 		return LootPropFactory.createWallWorld(parent, Vector3.new(8, 7, 0.7), cf, propId)
 	elseif kind == "Plank" then
 		return LootPropFactory.createPlankWorld(parent, cf, propId)
+	elseif kind == "Bed" then
+		return LootPropFactory.createBedWorld(parent, cf, propId)
 	end
 	return LootPropFactory.createCrateWorld(parent, cf, propId)
 end
 
 function LootPropFactory.attachPickupPrompt(model: Model)
+	-- Some draggable props (the merchant) can never be pocketed into a backpack.
+	if model:GetAttribute("NoPickup") == true then
+		return
+	end
 	local primary = model.PrimaryPart
 	if not primary then
 		return

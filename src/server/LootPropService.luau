@@ -185,6 +185,10 @@ function LootPropService.tryPickup(player: Player, model: Model): boolean
 	if model:GetAttribute("IsLootProp") ~= true then
 		return false
 	end
+	-- The merchant (and any NoPickup prop) can be dragged / welded but never pocketed.
+	if model:GetAttribute("NoPickup") == true then
+		return false
+	end
 	if model:GetAttribute("GrabbedBy") ~= 0 and model:GetAttribute("GrabbedBy") ~= player.UserId then
 		toast(player, "Someone else has that.", "error")
 		return false

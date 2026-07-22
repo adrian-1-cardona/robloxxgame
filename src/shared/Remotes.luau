@@ -46,18 +46,27 @@ function Remotes.createServerRemotes(): Folder
 		"HelmThrottle",
 		"HelmState",
 		"HelmDismount",
-		-- Flintlock fire from island raid loot
+		-- Ranged weapon fire (pistol / revolver / rifle / shotgun / musket / bow / flintlock).
+		-- Client sends aim look vector; server validates ammo + raycasts + damages.
 		"ShootGun",
+		-- Reload the equipped ranged weapon from carried ammo reserve.
+		"WeaponReload",
+		-- Fired by the server to broadcast a weapon shot so all clients can play the FX.
+		"WeaponFx",
 		-- Melee: client requests a swing; server validates + damages; SwingFx for other clients
 		"MeleeAttack",
 		"MeleeSwingFx",
-		-- Loot drag / weld / place (walls, torches, planks)
+		-- Loot drag / weld / place (walls, torches, planks, beds, merchant)
 		"LootDragStart",
 		"LootDragUpdate",
 		"LootDragEnd",
 		"LootWeld",
 		"LootUnweld",
 		"LootPlace",
+		-- Merchant trading: RemoteFunction the client invokes to buy / craft; server
+		-- validates currency and grants the item. MerchantShop pushes the catalog to open UI.
+		"MerchantTrade",
+		"MerchantShop",
 	}
 
 	for _, name in names do
@@ -65,7 +74,7 @@ function Remotes.createServerRemotes(): Folder
 			continue
 		end
 		local remote: Instance
-		if name == "GetLobbyState" then
+		if name == "GetLobbyState" or name == "MerchantTrade" then
 			remote = Instance.new("RemoteFunction")
 		else
 			remote = Instance.new("RemoteEvent")
