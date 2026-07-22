@@ -56,9 +56,9 @@ local Config = {
 	-- Take the helm → locked standing at the wheel; look steers; W / stick / arrows drive;
 	-- jump / gamepad B to unlock and step away.
 	Helm = {
-		-- Open-ocean sprint — islands are huge and far; the raft needs to feel snappy
-		SpeedStudsPerSecond = 165,
-		TurnLerp = 6,
+		-- Open-ocean sprint — islands are huge and far; the raft needs to feel FAST
+		SpeedStudsPerSecond = 340,
+		TurnLerp = 7.5,
 		-- Stand offset from deck center (aft). Y is ignored — stand sits on deck top.
 		StandLocalOffset = Vector3.new(0, 0, 22),
 		LookSendHz = 20,
@@ -76,12 +76,12 @@ local Config = {
 	-- Stationary open-sea isles. Visit → leave on the raft → sail far enough away → locked forever for that crew.
 	-- Huge beach-vibe flats: sand ring → grass → jungle heart, palms everywhere, widely spaced.
 	Islands = {
-		Thickness = 8,
+		Thickness = 12,
 		TopY = 3.4,
 		-- Distance from isle center after a visit before the isle locks (must clear the huge sand pad)
-		LockoutStuds = 320,
+		LockoutStuds = 700,
 		-- Extra pad outside the sand when a locked crew tries to sail back in
-		ApproachPadStuds = 55,
+		ApproachPadStuds = 95,
 		Pirate = {
 			Health = 40,
 			Damage = 5,
@@ -94,13 +94,15 @@ local Config = {
 			Range = 220,
 			Cooldown = 0.9,
 		},
-		-- Huge beach / jungle flats, spread far apart so sailing between them is a real trip
+		-- Massive beach / jungle flats, spread far apart so sailing between them is a real trip.
+		-- Islands are ~2.2x their old footprint and pushed ~1.9x further out — the fast helm makes
+		-- the longer crossings feel like an open-ocean sprint instead of a slog.
 		Catalog = {
 			{
 				Id = "tide_flat",
 				Name = "Tide Flat",
-				Offset = Vector3.new(560, 0, -680),
-				SizeStuds = 168,
+				Offset = Vector3.new(1060, 0, -1300),
+				SizeStuds = 380,
 				HasHouse = false,
 				Pirates = 0,
 				Biome = "beach",
@@ -108,8 +110,8 @@ local Config = {
 			{
 				Id = "drift_shack",
 				Name = "Drift Shack",
-				Offset = Vector3.new(-1180, 0, -1060),
-				SizeStuds = 188,
+				Offset = Vector3.new(-2240, 0, -2020),
+				SizeStuds = 420,
 				HasHouse = true,
 				Pirates = 0,
 				Biome = "palm",
@@ -117,8 +119,8 @@ local Config = {
 			{
 				Id = "crow_cay",
 				Name = "Crow Cay",
-				Offset = Vector3.new(1460, 0, -1460),
-				SizeStuds = 180,
+				Offset = Vector3.new(2780, 0, -2780),
+				SizeStuds = 400,
 				HasHouse = false,
 				Pirates = 4,
 				Biome = "jungle",
@@ -126,8 +128,8 @@ local Config = {
 			{
 				Id = "raid_cove",
 				Name = "Raid Cove",
-				Offset = Vector3.new(-500, 0, -2020),
-				SizeStuds = 196,
+				Offset = Vector3.new(-960, 0, -3840),
+				SizeStuds = 440,
 				HasHouse = true,
 				Pirates = 3,
 				Biome = "jungle",
@@ -135,8 +137,8 @@ local Config = {
 			{
 				Id = "quiet_sand",
 				Name = "Quiet Sand",
-				Offset = Vector3.new(1900, 0, -450),
-				SizeStuds = 160,
+				Offset = Vector3.new(3620, 0, -860),
+				SizeStuds = 360,
 				HasHouse = false,
 				Pirates = 0,
 				Biome = "beach",
@@ -144,8 +146,8 @@ local Config = {
 			{
 				Id = "smuggler_hut",
 				Name = "Smuggler Hut",
-				Offset = Vector3.new(250, 0, -2740),
-				SizeStuds = 180,
+				Offset = Vector3.new(480, 0, -5200),
+				SizeStuds = 400,
 				HasHouse = true,
 				Pirates = 0,
 				Biome = "palm",
@@ -153,8 +155,8 @@ local Config = {
 			{
 				Id = "buccaneer_flat",
 				Name = "Buccaneer Flat",
-				Offset = Vector3.new(-1740, 0, -780),
-				SizeStuds = 188,
+				Offset = Vector3.new(-3300, 0, -1480),
+				SizeStuds = 420,
 				HasHouse = false,
 				Pirates = 5,
 				Biome = "jungle",
@@ -162,8 +164,8 @@ local Config = {
 			{
 				Id = "wreck_spit",
 				Name = "Wreck Spit",
-				Offset = Vector3.new(1060, 0, -2410),
-				SizeStuds = 172,
+				Offset = Vector3.new(2020, 0, -4580),
+				SizeStuds = 380,
 				HasHouse = true,
 				Pirates = 2,
 				Biome = "palm",
