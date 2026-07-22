@@ -93,8 +93,11 @@ local function collectFocusPoints(): { Vector3 }
 	local points = {
 		Vector3.new(0, SURFACE_Y, 40), -- boarding pier
 		Config.StarterBase.Origin,
-		IslandService.getWorldCenter(), -- tiny drive-to isle
 	}
+
+	for _, center in IslandService.getWorldCenters() do
+		table.insert(points, center)
+	end
 
 	for _, model in StarterBaseService._basesByCode do
 		local deck = model.PrimaryPart or model:FindFirstChild("Deck")

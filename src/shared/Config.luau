@@ -57,15 +57,93 @@ local Config = {
 		WheelSpinLerp = 10,
 	},
 
-	-- Tiny flat isle off the first raft spawn — a real sail destination (not lobby scenery).
-	-- Offset is from StarterBase.Origin on XZ; top sits near deck height so you can beach.
-	DriveIsland = {
-		OffsetFromOrigin = Vector3.new(160, 0, -220),
-		-- Small footprint — quick to reach, easy to circle
-		SizeStuds = 40,
+	-- Stationary open-sea isles. Visit → leave on the raft → sail ~100 studs away → locked forever for that crew.
+	Islands = {
 		Thickness = 5,
-		-- Walkable top Y (world) — roughly raft deck height
 		TopY = 2.8,
+		-- Game "meters" ≈ studs here — once this far after a visit, the isle won't take you back
+		LockoutStuds = 100,
+		-- Extra pad outside the sand when a locked crew tries to sail back in
+		ApproachPadStuds = 30,
+		Pirate = {
+			Health = 40,
+			Damage = 5,
+			AttackCooldown = 1.15,
+			ChaseSpeed = 11,
+			AggroRange = 52,
+		},
+		Gun = {
+			Damage = 28,
+			Range = 180,
+			Cooldown = 0.9,
+		},
+		-- Spread well apart so sailing between them is a real trip
+		Catalog = {
+			{
+				Id = "tide_flat",
+				Name = "Tide Flat",
+				Offset = Vector3.new(200, 0, -240),
+				SizeStuds = 40,
+				HasHouse = false,
+				Pirates = 0,
+			},
+			{
+				Id = "drift_shack",
+				Name = "Drift Shack",
+				Offset = Vector3.new(-420, 0, -380),
+				SizeStuds = 46,
+				HasHouse = true,
+				Pirates = 0,
+			},
+			{
+				Id = "crow_cay",
+				Name = "Crow Cay",
+				Offset = Vector3.new(520, 0, -520),
+				SizeStuds = 44,
+				HasHouse = false,
+				Pirates = 3,
+			},
+			{
+				Id = "raid_cove",
+				Name = "Raid Cove",
+				Offset = Vector3.new(-180, 0, -720),
+				SizeStuds = 48,
+				HasHouse = true,
+				Pirates = 2,
+			},
+			{
+				Id = "quiet_sand",
+				Name = "Quiet Sand",
+				Offset = Vector3.new(680, 0, -160),
+				SizeStuds = 38,
+				HasHouse = false,
+				Pirates = 0,
+			},
+			{
+				Id = "smuggler_hut",
+				Name = "Smuggler Hut",
+				Offset = Vector3.new(90, 0, -980),
+				SizeStuds = 44,
+				HasHouse = true,
+				Pirates = 0,
+			},
+			{
+				Id = "buccaneer_flat",
+				Name = "Buccaneer Flat",
+				Offset = Vector3.new(-620, 0, -280),
+				SizeStuds = 46,
+				HasHouse = false,
+				Pirates = 4,
+			},
+			{
+				Id = "wreck_spit",
+				Name = "Wreck Spit",
+				Offset = Vector3.new(380, 0, -860),
+				SizeStuds = 42,
+				HasHouse = true,
+				Pirates = 1,
+			},
+		},
 	},
 
 	-- Portal / berth accent (solid purple — no half-and-half overlays)

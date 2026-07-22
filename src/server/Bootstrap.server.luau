@@ -21,6 +21,7 @@ local PortalService = require(script.Parent:WaitForChild("PortalService"))
 local StarterBaseService = require(script.Parent:WaitForChild("StarterBaseService"))
 local HelmService = require(script.Parent:WaitForChild("HelmService"))
 local IslandService = require(script.Parent:WaitForChild("IslandService"))
+local GunService = require(script.Parent:WaitForChild("GunService"))
 local OceanTerrainService = require(script.Parent:WaitForChild("OceanTerrainService"))
 local DayNightService = require(script.Parent:WaitForChild("DayNightService"))
 local WeatherService = require(script.Parent:WaitForChild("WeatherService"))
@@ -37,7 +38,7 @@ DayNightService.start()
 -- Cosmetic open-sea weather schedule (clients apply FX only while in a crew)
 WeatherService.start()
 
--- Tiny flat isle near raft spawn — a sail destination before ocean streaming
+-- Stationary isles (spread flats — houses, pirates, visit lockout)
 IslandService.ensure()
 
 -- Realistic Terrain water streams around the pier and every sailing raft
@@ -55,6 +56,19 @@ local HelmLook = remoteFolder:WaitForChild("HelmLook")
 local HelmThrottle = remoteFolder:WaitForChild("HelmThrottle")
 local HelmState = remoteFolder:WaitForChild("HelmState")
 local HelmDismount = remoteFolder:WaitForChild("HelmDismount")
+local ShootGun = remoteFolder:WaitForChild("ShootGun")
+
+GunService.start(Toast :: RemoteEvent)
+
+IslandService.start(
+	Toast :: RemoteEvent,
+	function(player: Player): string?
+		return PartyService.getPartyCode(player)
+	end,
+	function(code: string): { number }
+		return PartyService.getMemberUserIds(code)
+	end
+)
 
 -- Helm: look-steer + throttle drive, jump to unlock
 StarterBaseService._onBaseBuilt = function(code, model)
@@ -62,6 +76,7 @@ StarterBaseService._onBaseBuilt = function(code, model)
 end
 StarterBaseService._onBaseDestroyed = function(code)
 	HelmService.onBaseDestroyed(code)
+	IslandService.clearCrew(code)
 end
 
 HelmService.start(
@@ -93,6 +108,13 @@ HelmDismount.OnServerEvent:Connect(function(player)
 	if HelmService.isHelming(player) then
 		HelmService.release(player, "Left the helm.")
 	end
+end)
+
+ShootGun.OnServerEvent:Connect(function(player, look)
+	if typeof(look) ~= "Vector3" then
+		return
+	end
+	GunService.tryShoot(player, look)
 end)
 
 PortalService.start(Toast, PartyUpdated, PortalsUpdated)

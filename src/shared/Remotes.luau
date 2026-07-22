@@ -46,6 +46,8 @@ function Remotes.createServerRemotes(): Folder
 		"HelmThrottle",
 		"HelmState",
 		"HelmDismount",
+		-- Flintlock fire from island raid loot
+		"ShootGun",
 	}
 
 	for _, name in names do
