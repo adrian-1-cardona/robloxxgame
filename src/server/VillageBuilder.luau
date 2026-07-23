@@ -493,6 +493,555 @@ local function buildWatchtower(model: Model, pos: Vector3)
 	end
 end
 
+-- === Palette for grand structures (church / mansion / castle / lamps) ===============
+local STONE_LIGHT = Color3.fromRGB(178, 180, 182)
+local GOLD = Color3.fromRGB(226, 190, 96)
+local BANNER = Color3.fromRGB(150, 46, 52)
+local BANNER_GOLD = Color3.fromRGB(210, 176, 96)
+local LAMP_GLASS = Color3.fromRGB(255, 224, 150)
+local IRON = Color3.fromRGB(58, 60, 66)
+local STAINED = {
+	Color3.fromRGB(196, 72, 72),
+	Color3.fromRGB(72, 132, 196),
+	Color3.fromRGB(96, 176, 96),
+	Color3.fromRGB(226, 196, 96),
+}
+
+-- A warm glowing lantern head + PointLight (shadowless — see makePart notes). Used by
+-- lamp posts, mansions and castle walls to make a settlement read as "lit up".
+local function attachLampGlow(holder: BasePart, range: number?)
+	local light = Instance.new("PointLight")
+	light.Brightness = 2.2
+	light.Range = range or 26
+	light.Color = Color3.fromRGB(255, 206, 130)
+	light.Shadows = false
+	light.Parent = holder
+	return light
+end
+
+-- A climbable ladder. TrussParts are auto-climbable by Roblox Humanoids, so this is a
+-- real way to scale towers, steeples and cliffs. `height` studs tall, base at basePos.
+local function buildLadder(model: Model, basePos: Vector3, height: number, yaw: number?): BasePart
+	local truss = Instance.new("TrussPart")
+	truss.Name = "Ladder"
+	truss.Anchored = true
+	truss.CanCollide = true
+	truss.Color = Color3.fromRGB(96, 66, 40)
+	truss.Material = Enum.Material.Wood
+	-- TrussPart climbs along its Y axis; X/Z are fixed at 2 studs.
+	truss.Size = Vector3.new(2, height, 2)
+	truss.CFrame = CFrame.new(basePos + Vector3.new(0, height * 0.5, 0)) * CFrame.Angles(0, yaw or 0, 0)
+	truss.CastShadow = false
+	truss.Parent = model
+	return truss
+end
+
+-- A lit iron street lamp — the backbone of a town that glows at night.
+local function buildLampPost(model: Model, pos: Vector3)
+	makePart({
+		Name = "LampPost",
+		Parent = model,
+		Size = Vector3.new(0.5, 7.5, 0.5),
+		CFrame = CFrame.new(pos + Vector3.new(0, 3.75, 0)),
+		Color = IRON,
+		Material = Enum.Material.Metal,
+		CanCollide = false,
+	})
+	local lantern = makePart({
+		Name = "Lantern",
+		Parent = model,
+		Size = Vector3.new(1.1, 1.5, 1.1),
+		CFrame = CFrame.new(pos + Vector3.new(0, 7.7, 0)),
+		Color = LAMP_GLASS,
+		Material = Enum.Material.Neon,
+		CanCollide = false,
+	})
+	makePart({
+		Name = "LampCap",
+		Parent = model,
+		Size = Vector3.new(1.5, 0.4, 1.5),
+		CFrame = CFrame.new(pos + Vector3.new(0, 8.6, 0)),
+		Color = IRON,
+		Material = Enum.Material.Metal,
+		CanCollide = false,
+	})
+	attachLampGlow(lantern, 30)
+end
+
+-- A stone church: nave with a pitched roof, arched stained-glass windows, a warm interior
+-- glow, and a tall bell tower topped with a golden cross. A climbable ladder runs up the
+-- tower so players can reach the belfry. `cf` faces the church entrance toward +Z.
+local function buildChurch(model: Model, cf: CFrame, islandId: string?)
+	local w, d, wallH = 18, 30, 13
+
+	makePart({
+		Name = "ChurchFloor",
+		Parent = model,
+		Size = Vector3.new(w + 1, 0.8, d + 1),
+		CFrame = cf * CFrame.new(0, 0.4, 0),
+		Color = STONE_DARK,
+		Material = Enum.Material.Slate,
+	})
+
+	-- Four stone walls (front wall split to leave a doorway).
+	local wallY = wallH * 0.5 + 0.8
+	local wallSpecs = {
+		{ Name = "NaveBack", Size = Vector3.new(w, wallH, 0.9), Offset = Vector3.new(0, wallY, -d * 0.5) },
+		{ Name = "NaveLeft", Size = Vector3.new(0.9, wallH, d), Offset = Vector3.new(-w * 0.5, wallY, 0) },
+		{ Name = "NaveRight", Size = Vector3.new(0.9, wallH, d), Offset = Vector3.new(w * 0.5, wallY, 0) },
+		{ Name = "NaveFrontL", Size = Vector3.new(w * 0.36, wallH, 0.9), Offset = Vector3.new(-w * 0.32, wallY, d * 0.5) },
+		{ Name = "NaveFrontR", Size = Vector3.new(w * 0.36, wallH, 0.9), Offset = Vector3.new(w * 0.32, wallY, d * 0.5) },
+	}
+	for _, spec in wallSpecs do
+		makePart({
+			Name = spec.Name,
+			Parent = model,
+			Size = spec.Size,
+			CFrame = cf * CFrame.new(spec.Offset),
+			Color = STONE,
+			Material = Enum.Material.Cobblestone,
+		})
+	end
+
+	-- Pitched roof panels + ridge.
+	for i = -1, 1, 2 do
+		makePart({
+			Name = "ChurchRoof",
+			Parent = model,
+			Size = Vector3.new(w * 0.64, 0.6, d + 2),
+			CFrame = cf * CFrame.new(i * w * 0.25, wallY + wallH * 0.5 + 1.4, 0) * CFrame.Angles(0, 0, math.rad(i * -34)),
+			Color = ROOF_WOOD,
+			Material = Enum.Material.Wood,
+		})
+	end
+	makePart({
+		Name = "ChurchRidge",
+		Parent = model,
+		Size = Vector3.new(0.7, 0.7, d + 2.1),
+		CFrame = cf * CFrame.new(0, wallY + wallH * 0.5 + 2.6, 0),
+		Color = ROOF_WOOD,
+		Material = Enum.Material.Wood,
+	})
+
+	-- Arched stained-glass windows down each side (emissive so they "glow").
+	for i = -2, 2 do
+		if i == 0 then
+			continue
+		end
+		for side = -1, 1, 2 do
+			local pane = makePart({
+				Name = "StainedGlass",
+				Parent = model,
+				Size = Vector3.new(0.3, 3.4, 1.6),
+				CFrame = cf * CFrame.new(side * w * 0.5, wallY, i * d * 0.16),
+				Color = STAINED[((i + 2) % #STAINED) + 1],
+				Material = Enum.Material.Neon,
+				CanCollide = false,
+			})
+			pane.Transparency = 0.12
+		end
+	end
+
+	-- Big doors.
+	makePart({
+		Name = "ChurchDoor",
+		Parent = model,
+		Size = Vector3.new(w * 0.24, wallH * 0.66, 0.4),
+		CFrame = cf * CFrame.new(0, wallY - wallH * 0.16, d * 0.5),
+		Color = DOOR_WOOD,
+		Material = Enum.Material.Wood,
+		CanCollide = false,
+	})
+
+	-- Warm interior glow.
+	local glowHolder = makePart({
+		Name = "ChurchGlow",
+		Parent = model,
+		Size = Vector3.new(1, 1, 1),
+		CFrame = cf * CFrame.new(0, wallH * 0.5, 0),
+		Transparency = 1,
+		CanCollide = false,
+	})
+	attachLampGlow(glowHolder, 46)
+
+	-- Bell tower at the back, rising well above the roof.
+	local towerH = wallH + 16
+	local towerW = 6
+	local towerCf = cf * CFrame.new(0, 0, -d * 0.5 + towerW * 0.5)
+	makePart({
+		Name = "BellTower",
+		Parent = model,
+		Size = Vector3.new(towerW, towerH, towerW),
+		CFrame = towerCf * CFrame.new(0, towerH * 0.5 + 0.8, 0),
+		Color = STONE,
+		Material = Enum.Material.Cobblestone,
+	})
+	-- Belfry openings (dark) near the top.
+	for side = -1, 1, 2 do
+		makePart({
+			Name = "BelfryArch",
+			Parent = model,
+			Size = Vector3.new(towerW + 0.1, 3, 1.4),
+			CFrame = towerCf * CFrame.new(0, towerH - 3, side * (towerW * 0.5 - 0.2)),
+			Color = STONE_DARK,
+			Material = Enum.Material.Slate,
+			CanCollide = false,
+		})
+	end
+	-- The bell.
+	makePart({
+		Name = "Bell",
+		Parent = model,
+		Size = Vector3.new(2, 2.2, 2),
+		CFrame = towerCf * CFrame.new(0, towerH - 3, 0),
+		Color = GOLD,
+		Material = Enum.Material.Metal,
+		CanCollide = false,
+	})
+	-- Spire + golden cross crowning the steeple.
+	makePart({
+		Name = "Spire",
+		Parent = model,
+		Size = Vector3.new(towerW - 1, 5, towerW - 1),
+		CFrame = towerCf * CFrame.new(0, towerH + 3, 0),
+		Color = ROOF_WOOD,
+		Material = Enum.Material.Wood,
+	})
+	makePart({
+		Name = "CrossV",
+		Parent = model,
+		Size = Vector3.new(0.5, 3.2, 0.5),
+		CFrame = towerCf * CFrame.new(0, towerH + 7.2, 0),
+		Color = GOLD,
+		Material = Enum.Material.Metal,
+		CanCollide = false,
+	})
+	makePart({
+		Name = "CrossH",
+		Parent = model,
+		Size = Vector3.new(2, 0.5, 0.5),
+		CFrame = towerCf * CFrame.new(0, towerH + 7.8, 0),
+		Color = GOLD,
+		Material = Enum.Material.Metal,
+		CanCollide = false,
+	})
+
+	-- Climbable ladder up the outside of the tower to reach the belfry.
+	local _, churchYaw = cf:ToOrientation()
+	buildLadder(model, (towerCf * CFrame.new(0, 0, -towerW * 0.5 - 0.6)).Position, towerH - 2, churchYaw)
+end
+
+-- A grand two-storey manor house: columned portico entrance, many lit windows, a balcony
+-- and a chimney. `cobble` gives it a stone-town palette instead of timber.
+local function buildMansion(model: Model, cf: CFrame, cobble: boolean, islandId: string?)
+	local w, d = 24, 20
+	local storyH = 7
+	local wallColor = if cobble then STONE else Color3.fromRGB(150, 120, 84)
+	local wallMat = if cobble then Enum.Material.Cobblestone else Enum.Material.WoodPlanks
+
+	makePart({
+		Name = "ManorFloor",
+		Parent = model,
+		Size = Vector3.new(w + 1, 0.8, d + 1),
+		CFrame = cf * CFrame.new(0, 0.4, 0),
+		Color = STONE_DARK,
+		Material = Enum.Material.Slate,
+	})
+
+	-- Two stacked storeys of solid walls (front wall left open at ground for the portico).
+	for story = 0, 1 do
+		local baseY = 0.8 + story * storyH + storyH * 0.5
+		local specs = {
+			{ Name = "Back", Size = Vector3.new(w, storyH, 0.8), Offset = Vector3.new(0, baseY, -d * 0.5) },
+			{ Name = "Left", Size = Vector3.new(0.8, storyH, d), Offset = Vector3.new(-w * 0.5, baseY, 0) },
+			{ Name = "Right", Size = Vector3.new(0.8, storyH, d), Offset = Vector3.new(w * 0.5, baseY, 0) },
+			{ Name = "Front", Size = Vector3.new(w, storyH, 0.8), Offset = Vector3.new(0, baseY, d * 0.5) },
+		}
+		for _, spec in specs do
+			-- Ground front stays open (portico), upper front is solid with a balcony rail.
+			if story == 0 and spec.Name == "Front" then
+				continue
+			end
+			makePart({
+				Name = `Manor_{spec.Name}_{story}`,
+				Parent = model,
+				Size = spec.Size,
+				CFrame = cf * CFrame.new(spec.Offset),
+				Color = wallColor,
+				Material = wallMat,
+			})
+		end
+		-- Storey divider slab.
+		makePart({
+			Name = `ManorFloorSlab_{story}`,
+			Parent = model,
+			Size = Vector3.new(w, 0.5, d),
+			CFrame = cf * CFrame.new(0, 0.8 + (story + 1) * storyH, 0),
+			Color = STONE_DARK,
+			Material = Enum.Material.Slate,
+		})
+		-- Lit windows around this storey.
+		for i = -1, 1, 2 do
+			for _, zf in { -0.28, 0.0, 0.28 } do
+				local pane = makePart({
+					Name = "ManorWindow",
+					Parent = model,
+					Size = Vector3.new(0.3, 2.6, 1.6),
+					CFrame = cf * CFrame.new(i * w * 0.5, baseY, zf * d),
+					Color = GLASS_WARM,
+					Material = Enum.Material.Neon,
+					CanCollide = false,
+				})
+				pane.Transparency = 0.15
+			end
+		end
+	end
+
+	-- Portico: columns + entablature over the ground-floor entrance.
+	for _, sx in { -w * 0.32, -w * 0.11, w * 0.11, w * 0.32 } do
+		makePart({
+			Name = "Column",
+			Parent = model,
+			Size = Vector3.new(1.4, storyH - 0.5, 1.4),
+			CFrame = cf * CFrame.new(sx, 0.8 + (storyH - 0.5) * 0.5, d * 0.5 + 2.2),
+			Color = STONE_LIGHT,
+			Material = Enum.Material.Marble,
+		})
+	end
+	makePart({
+		Name = "Portico",
+		Parent = model,
+		Size = Vector3.new(w * 0.86, 0.8, 5),
+		CFrame = cf * CFrame.new(0, 0.8 + storyH, d * 0.5 + 1.6),
+		Color = STONE_LIGHT,
+		Material = Enum.Material.Marble,
+	})
+	-- Balcony rail on the upper front.
+	makePart({
+		Name = "BalconyRail",
+		Parent = model,
+		Size = Vector3.new(w * 0.86, 1.1, 0.4),
+		CFrame = cf * CFrame.new(0, 0.8 + storyH + 0.9, d * 0.5 + 3.8),
+		Color = STONE_LIGHT,
+		Material = Enum.Material.Marble,
+		CanCollide = false,
+	})
+
+	-- Pitched roof + chimney.
+	for i = -1, 1, 2 do
+		makePart({
+			Name = "ManorRoof",
+			Parent = model,
+			Size = Vector3.new(w * 0.62, 0.6, d + 2),
+			CFrame = cf * CFrame.new(i * w * 0.24, 0.8 + 2 * storyH + 1.6, 0) * CFrame.Angles(0, 0, math.rad(i * -30)),
+			Color = ROOF_WOOD,
+			Material = Enum.Material.Wood,
+		})
+	end
+	local chimney = makePart({
+		Name = "ManorChimney",
+		Parent = model,
+		Size = Vector3.new(1.6, 4, 1.6),
+		CFrame = cf * CFrame.new(w * 0.3, 0.8 + 2 * storyH + 3, -d * 0.3),
+		Color = STONE_DARK,
+		Material = Enum.Material.Cobblestone,
+	})
+	local smoke = Instance.new("Smoke")
+	smoke.Size = 3
+	smoke.Opacity = 0.22
+	smoke.RiseVelocity = 5
+	smoke.Color = Color3.fromRGB(180, 180, 180)
+	smoke.Parent = chimney
+end
+
+-- A huge castle: square curtain walls with battlements, four corner towers, a gatehouse,
+-- a tall central keep, hanging banners, wall torches, and climbable ladders up the towers.
+-- Centred on `center`, sized by `radius` (half the wall span). Reused by the "castle" theme.
+local function buildCastle(model: Model, center: Vector3, topY: number, radius: number, islandId: string?)
+	local wallH = 20
+	local wallT = 3
+	local half = radius
+	local baseY = topY + wallH * 0.5
+
+	local function wallRun(name: string, size: Vector3, pos: Vector3)
+		makePart({
+			Name = name,
+			Parent = model,
+			Size = size,
+			CFrame = CFrame.new(pos),
+			Color = STONE,
+			Material = Enum.Material.Cobblestone,
+		})
+	end
+
+	-- Four curtain walls, with a gap in the front (+Z) wall for the gate.
+	wallRun("WallBack", Vector3.new(half * 2, wallH, wallT), Vector3.new(center.X, baseY, center.Z - half))
+	wallRun("WallLeft", Vector3.new(wallT, wallH, half * 2), Vector3.new(center.X - half, baseY, center.Z))
+	wallRun("WallRight", Vector3.new(wallT, wallH, half * 2), Vector3.new(center.X + half, baseY, center.Z))
+	local gateGap = half * 0.5
+	wallRun("WallFrontL", Vector3.new(half - gateGap * 0.5, wallH, wallT), Vector3.new(center.X - (half + gateGap * 0.5) * 0.5, baseY, center.Z + half))
+	wallRun("WallFrontR", Vector3.new(half - gateGap * 0.5, wallH, wallT), Vector3.new(center.X + (half + gateGap * 0.5) * 0.5, baseY, center.Z + half))
+
+	-- Battlement merlons along all four wall tops.
+	local function crenellate(fromP: Vector3, toP: Vector3)
+		local span = (toP - fromP).Magnitude
+		local count = math.max(2, math.floor(span / 6))
+		for i = 0, count do
+			local t = i / count
+			local p = fromP:Lerp(toP, t)
+			makePart({
+				Name = "Merlon",
+				Parent = model,
+				Size = Vector3.new(2, 2.4, 2),
+				CFrame = CFrame.new(p.X, topY + wallH + 1.2, p.Z),
+				Color = STONE_DARK,
+				Material = Enum.Material.Cobblestone,
+				CastShadow = false,
+			})
+		end
+	end
+	crenellate(Vector3.new(center.X - half, 0, center.Z - half), Vector3.new(center.X + half, 0, center.Z - half))
+	crenellate(Vector3.new(center.X - half, 0, center.Z + half), Vector3.new(center.X + half, 0, center.Z + half))
+	crenellate(Vector3.new(center.X - half, 0, center.Z - half), Vector3.new(center.X - half, 0, center.Z + half))
+	crenellate(Vector3.new(center.X + half, 0, center.Z - half), Vector3.new(center.X + half, 0, center.Z + half))
+
+	-- Four corner towers (taller than the walls) with a ladder up each + a torch on top.
+	local towerH = wallH + 14
+	for _, corner in {
+		Vector3.new(-half, 0, -half),
+		Vector3.new(half, 0, -half),
+		Vector3.new(-half, 0, half),
+		Vector3.new(half, 0, half),
+	} do
+		local tx, tz = center.X + corner.X, center.Z + corner.Z
+		makePart({
+			Name = "CornerTower",
+			Parent = model,
+			Size = Vector3.new(9, towerH, 9),
+			CFrame = CFrame.new(tx, topY + towerH * 0.5, tz),
+			Color = STONE,
+			Material = Enum.Material.Cobblestone,
+		})
+		makePart({
+			Name = "TowerCrown",
+			Parent = model,
+			Size = Vector3.new(10.5, 1.6, 10.5),
+			CFrame = CFrame.new(tx, topY + towerH + 0.8, tz),
+			Color = STONE_DARK,
+			Material = Enum.Material.Cobblestone,
+		})
+		for i = 0, 3 do
+			local a = math.rad(i * 90 + 45)
+			makePart({
+				Name = "TowerMerlon",
+				Parent = model,
+				Size = Vector3.new(1.6, 1.8, 1.6),
+				CFrame = CFrame.new(tx + math.cos(a) * 4, topY + towerH + 2, tz + math.sin(a) * 4),
+				Color = STONE_DARK,
+				Material = Enum.Material.Cobblestone,
+				CastShadow = false,
+			})
+		end
+		buildLadder(model, Vector3.new(tx + 5.4, topY, tz), towerH - 2)
+		local torch = LootPropFactory.createTorchWorld(model, CFrame.new(tx, topY + towerH + 1.6, tz))
+		if islandId then
+			torch:SetAttribute("IslandId", islandId)
+		end
+	end
+
+	-- Gatehouse framing the entrance, with a raised portcullis and banners.
+	for _, sx in { -gateGap * 0.5 - 1.5, gateGap * 0.5 + 1.5 } do
+		makePart({
+			Name = "GatePillar",
+			Parent = model,
+			Size = Vector3.new(3, wallH + 6, wallT + 2),
+			CFrame = CFrame.new(center.X + sx, topY + (wallH + 6) * 0.5, center.Z + half),
+			Color = STONE_DARK,
+			Material = Enum.Material.Cobblestone,
+		})
+	end
+	makePart({
+		Name = "GateArch",
+		Parent = model,
+		Size = Vector3.new(gateGap + 5, 4, wallT + 2),
+		CFrame = CFrame.new(center.X, topY + wallH + 4, center.Z + half),
+		Color = STONE_DARK,
+		Material = Enum.Material.Cobblestone,
+	})
+	makePart({
+		Name = "Portcullis",
+		Parent = model,
+		Size = Vector3.new(gateGap, 6, 0.4),
+		CFrame = CFrame.new(center.X, topY + wallH + 5, center.Z + half),
+		Color = IRON,
+		Material = Enum.Material.DiamondPlate,
+		CanCollide = false,
+	})
+	for _, sx in { -gateGap * 0.5 - 1.5, gateGap * 0.5 + 1.5 } do
+		makePart({
+			Name = "GateBanner",
+			Parent = model,
+			Size = Vector3.new(0.3, 6, 2.4),
+			CFrame = CFrame.new(center.X + sx, topY + wallH - 1, center.Z + half + wallT * 0.5 + 0.3),
+			Color = BANNER,
+			Material = Enum.Material.Fabric,
+			CanCollide = false,
+		})
+	end
+
+	-- Central keep: a tall square tower with its own battlements and a ladder up.
+	local keepW = math.max(16, half * 0.7)
+	local keepH = towerH + 14
+	makePart({
+		Name = "Keep",
+		Parent = model,
+		Size = Vector3.new(keepW, keepH, keepW),
+		CFrame = CFrame.new(center.X, topY + keepH * 0.5, center.Z),
+		Color = STONE,
+		Material = Enum.Material.Cobblestone,
+	})
+	makePart({
+		Name = "KeepCrown",
+		Parent = model,
+		Size = Vector3.new(keepW + 2, 2, keepW + 2),
+		CFrame = CFrame.new(center.X, topY + keepH + 1, center.Z),
+		Color = STONE_DARK,
+		Material = Enum.Material.Cobblestone,
+	})
+	for i = 0, 7 do
+		local a = math.rad(i * 45)
+		makePart({
+			Name = "KeepMerlon",
+			Parent = model,
+			Size = Vector3.new(2, 2, 2),
+			CFrame = CFrame.new(center.X + math.cos(a) * keepW * 0.5, topY + keepH + 2.5, center.Z + math.sin(a) * keepW * 0.5),
+			Color = STONE_DARK,
+			Material = Enum.Material.Cobblestone,
+			CastShadow = false,
+		})
+	end
+	-- Keep banner + a golden pennant on top.
+	makePart({
+		Name = "KeepBanner",
+		Parent = model,
+		Size = Vector3.new(0.3, 8, 3),
+		CFrame = CFrame.new(center.X, topY + keepH * 0.7, center.Z + keepW * 0.5 + 0.3),
+		Color = BANNER,
+		Material = Enum.Material.Fabric,
+		CanCollide = false,
+	})
+	makePart({
+		Name = "KeepPennant",
+		Parent = model,
+		Size = Vector3.new(0.4, 6, 0.4),
+		CFrame = CFrame.new(center.X, topY + keepH + 5, center.Z),
+		Color = BANNER_GOLD,
+		Material = Enum.Material.Metal,
+		CanCollide = false,
+	})
+	buildLadder(model, Vector3.new(center.X + keepW * 0.5 + 0.6, topY, center.Z), keepH - 2)
+end
+
 -- Main entry. Returns { villagerSpots = {Vector3}, merchantSpot = Vector3 }.
 function VillageBuilder.build(
 	model: Model,
@@ -515,6 +1064,66 @@ function VillageBuilder.build(
 	local villageFolder = Instance.new("Folder")
 	villageFolder.Name = "Village"
 	villageFolder.Parent = model
+
+	-- === Castle isles ===============================================================
+	-- Some islands are just one huge castle rising out of the jungle. Build the keep,
+	-- scatter garrison loot inside the courtyard, and hand back guard posts + a merchant
+	-- spot just outside the gate. No houses / campfire / fences.
+	if theme == "castle" then
+		local castleRadius = math.clamp(half * 0.4, 70, 240)
+		buildCastle(villageFolder, center, topY, castleRadius, islandId)
+
+		-- Wall + gate lighting so the keep glows if the isle is flagged Lit.
+		if entry.Lit == true then
+			local lamps = 8
+			for i = 1, lamps do
+				local a = (i / lamps) * math.pi * 2
+				local r = castleRadius * 0.72
+				buildLampPost(villageFolder, Vector3.new(center.X + math.cos(a) * r, topY, center.Z + math.sin(a) * r))
+			end
+		end
+
+		-- Garrison guard posts spread across the courtyard.
+		local guardSpots: { Vector3 } = {}
+		for i = 1, 16 do
+			local a = (i / 16) * math.pi * 2 + math.random() * 0.4
+			local r = castleRadius * (0.2 + math.random() * 0.55)
+			table.insert(guardSpots, Vector3.new(center.X + math.cos(a) * r, topY + 2.5, center.Z + math.sin(a) * r))
+		end
+
+		-- Treasure: weapon / armor / chest loot inside the walls.
+		local weaponCount = (entry.Loot and entry.Loot.Weapons) or 4
+		for _ = 1, weaponCount do
+			local a = math.random() * math.pi * 2
+			local r = castleRadius * (0.15 + math.random() * 0.6)
+			local weaponId = Weapons.rollLootWeapon(function(lo, hi)
+				return math.random(lo, hi)
+			end)
+			local cf = CFrame.new(center.X + math.cos(a) * r, topY + 0.5, center.Z + math.sin(a) * r)
+				* CFrame.Angles(0, math.rad(math.random(0, 360)), 0)
+			WeaponService.spawnWeaponPickup(villageFolder, weaponId, cf)
+		end
+		local armorCount = (entry.Loot and entry.Loot.Armor) or 0
+		if deps.spawnArmorPickup then
+			for _ = 1, armorCount do
+				local a = math.random() * math.pi * 2
+				local r = castleRadius * (0.15 + math.random() * 0.6)
+				local armorId = Armor.rollLootArmor(function(lo, hi)
+					return math.random(lo, hi)
+				end)
+				deps.spawnArmorPickup(villageFolder, armorId, CFrame.new(center.X + math.cos(a) * r, topY + 0.4, center.Z + math.sin(a) * r))
+			end
+		end
+		local chestCount = (entry.Loot and entry.Loot.Chests) or 0
+		for i = 1, chestCount do
+			local a = (i / math.max(chestCount, 1)) * math.pi * 2 + 0.6
+			local r = castleRadius * (0.2 + math.random() * 0.5)
+			buildChest(villageFolder, CFrame.new(center.X + math.cos(a) * r, topY + 0.85, center.Z + math.sin(a) * r), islandId, deps)
+		end
+
+		local merchantSpot = Vector3.new(center.X, topY + 2.5, center.Z + castleRadius + 16)
+		return { villagerSpots = guardSpots, merchantSpot = merchantSpot }
+	end
 
 	-- Houses laid out around the heart. Towns get many more, spread over two rings so
 	-- the settlement reads as a proper town you can wander through, not a tiny hamlet.
@@ -581,9 +1190,61 @@ function VillageBuilder.build(
 			end
 		elseif theme == "stone_town" then
 			buildWell(villageFolder, Vector3.new(center.X + villageRadius * 0.22, topY, center.Z))
-			buildWatchtower(villageFolder, Vector3.new(center.X - villageRadius * 0.5, topY, center.Z - villageRadius * 0.4))
+			local towerPos = Vector3.new(center.X - villageRadius * 0.5, topY, center.Z - villageRadius * 0.4)
+			buildWatchtower(villageFolder, towerPos)
+			-- A climbable ladder so players can actually get up on the watchtower.
+			buildLadder(villageFolder, towerPos + Vector3.new(3.4, 0, 0), 18)
 		elseif cobble then
 			buildWell(villageFolder, Vector3.new(center.X + villageRadius * 0.22, topY, center.Z))
+		end
+	end
+
+	-- Grand landmarks: a church, manor houses, and street lamps that light up the town.
+	if not abandoned then
+		if entry.Church == true then
+			-- Church sits on the near side of the square, facing the heart.
+			local churchCf = CFrame.lookAt(
+				Vector3.new(center.X, topY + 0.8, center.Z + villageRadius * 0.72),
+				Vector3.new(center.X, topY + 0.8, center.Z)
+			)
+			buildChurch(villageFolder, churchCf, islandId)
+		end
+
+		local mansions = tonumber(entry.Mansions) or 0
+		for i = 1, mansions do
+			local a = (i / math.max(mansions, 1)) * math.pi * 2 + 1.1
+			local r = villageRadius * 0.82
+			local pos = Vector3.new(center.X + math.cos(a) * r, topY + 0.8, center.Z + math.sin(a) * r)
+			buildMansion(villageFolder, CFrame.lookAt(pos, Vector3.new(center.X, topY + 0.8, center.Z)), cobble, islandId)
+		end
+
+		if entry.Lit == true then
+			-- Street lamps ring the square and dot an inner path so the town glows.
+			local lamps = math.clamp(math.floor(villageRadius / 10), 6, 16)
+			for i = 1, lamps do
+				local a = (i / lamps) * math.pi * 2
+				local r = villageRadius * 0.55
+				buildLampPost(villageFolder, Vector3.new(center.X + math.cos(a) * r, topY, center.Z + math.sin(a) * r))
+			end
+			for i = 1, 4 do
+				local a = (i / 4) * math.pi * 2 + 0.5
+				local r = villageRadius * 0.25
+				buildLampPost(villageFolder, Vector3.new(center.X + math.cos(a) * r, topY, center.Z + math.sin(a) * r))
+			end
+		end
+
+		-- A couple of derelict, abandoned huts on the outskirts of an otherwise living
+		-- settlement — ruined shells to poke around in ("some houses abandoned").
+		local ruins = if isTown then 3 else 2
+		for i = 1, ruins do
+			local a = (i / ruins) * math.pi * 2 + 2.3
+			local r = villageRadius * (0.98 + math.random() * 0.22)
+			local pos = Vector3.new(center.X + math.cos(a) * r, topY, center.Z + math.sin(a) * r)
+			buildHouse(villageFolder, CFrame.lookAt(pos, Vector3.new(center.X, topY, center.Z)), {
+				cobblestone = cobble,
+				ruined = true,
+				islandId = islandId,
+			})
 		end
 	end
 

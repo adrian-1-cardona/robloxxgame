@@ -131,6 +131,92 @@ local function buildClub(tool: Tool)
 	weld(handle, pommel)
 end
 
+local function buildWarClub(tool: Tool)
+	-- Heavier cousin of the club: a thick haft topped with a jagged stone head bristling
+	-- with spikes and bound with iron bands. Reads clearly as an upgrade in the hand.
+	local STONE = Color3.fromRGB(120, 122, 126)
+	local STONE_LIGHT = Color3.fromRGB(198, 194, 182)
+	local IRON = Color3.fromRGB(92, 96, 104)
+
+	tool.Grip = CFrame.new(0, -0.2, -0.15) * CFrame.Angles(math.rad(15), 0, math.rad(10))
+
+	local handle = part({
+		Name = "Handle",
+		Parent = tool,
+		Size = Vector3.new(0.4, 1.15, 0.4),
+		Color = Color3.fromRGB(70, 46, 28),
+		Material = Enum.Material.Fabric, -- leather-wrapped grip
+	})
+
+	local shaft = part({
+		Name = "Shaft",
+		Parent = tool,
+		Size = Vector3.new(2.7, 0.44, 0.44),
+		Color = WOOD_DARK,
+		Material = Enum.Material.Wood,
+		Shape = Enum.PartType.Cylinder,
+		CFrame = CFrame.new(0, 1.75, 0) * CFrame.Angles(0, 0, math.rad(90)),
+	})
+	weld(handle, shaft)
+
+	-- Iron collar where the head meets the haft.
+	local collar = part({
+		Name = "Collar",
+		Parent = tool,
+		Size = Vector3.new(0.3, 0.9, 0.9),
+		Color = IRON,
+		Material = Enum.Material.Metal,
+		Shape = Enum.PartType.Cylinder,
+		CFrame = CFrame.new(0, 3.0, 0) * CFrame.Angles(0, 0, math.rad(90)),
+	})
+	weld(handle, collar)
+
+	-- Jagged stone head (a couple of overlapping tilted blocks so it looks rough-hewn).
+	local head = part({
+		Name = "StoneHead",
+		Parent = tool,
+		Size = Vector3.new(1.7, 1.8, 1.7),
+		Color = STONE,
+		Material = Enum.Material.Slate,
+		CFrame = CFrame.new(0, 3.9, 0) * CFrame.Angles(math.rad(12), math.rad(20), math.rad(8)),
+	})
+	weld(handle, head)
+	local shard = part({
+		Name = "StoneShard",
+		Parent = tool,
+		Size = Vector3.new(1.2, 1.3, 1.2),
+		Color = STONE_LIGHT,
+		Material = Enum.Material.Slate,
+		CFrame = CFrame.new(0.35, 4.25, -0.25) * CFrame.Angles(math.rad(-18), math.rad(40), math.rad(14)),
+	})
+	weld(handle, shard)
+
+	-- Ring of long spikes radiating out of the head.
+	for i = 0, 5 do
+		local a = i * (math.pi / 3)
+		local spike = part({
+			Name = `Spike_{i}`,
+			Parent = tool,
+			Size = Vector3.new(1.3, 0.32, 0.32),
+			Color = STONE_LIGHT,
+			Material = Enum.Material.Slate,
+			Shape = Enum.PartType.Cylinder,
+			CFrame = CFrame.new(math.cos(a) * 1.15, 3.9, math.sin(a) * 1.15) * CFrame.Angles(0, -a, 0),
+		})
+		weld(handle, spike)
+	end
+	-- A crowning spike on top.
+	local crown = part({
+		Name = "CrownSpike",
+		Parent = tool,
+		Size = Vector3.new(0.34, 1.3, 0.34),
+		Color = STONE_LIGHT,
+		Material = Enum.Material.Slate,
+		CFrame = CFrame.new(0, 4.9, 0),
+	})
+	weld(handle, crown)
+end
+
 local function buildSpear(tool: Tool)
 	tool.Grip = CFrame.new(0, -0.2, 0.4) * CFrame.Angles(math.rad(90), 0, 0)
 	local handle = part({
@@ -383,6 +469,8 @@ function WeaponToolFactory.createTool(weaponId: string): Tool?
 			buildSpear(tool)
 		elseif weaponId == "Club" then
 			buildClub(tool)
+		elseif weaponId == "WarClub" then
+			buildWarClub(tool)
 		else
 			-- fallback melee handle
 			part({ Name = "Handle", Parent = tool, Size = Vector3.new(0.4, 3, 0.4), Color = WOOD })
