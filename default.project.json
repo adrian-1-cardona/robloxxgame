@@ -32,7 +32,7 @@
         "FilteringEnabled": true,
         "StreamingEnabled": true,
         "StreamingMinRadius": 512,
-        "StreamingTargetRadius": 1024,
+        "StreamingTargetRadius": 768,
         "StreamingIntegrityMode": "Disabled"
       },
       "$ignoreUnknownInstances": true,

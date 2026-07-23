@@ -826,78 +826,6 @@ local function buildFloatie(parent: Instance, position: Vector3, yawDegrees: num
 	return model
 end
 
--- Realistic standing-water puddle: a soaked-in damp stain on the planks, a thin
--- glassy sky-reflecting water surface, and a soft bright meniscus around the rim
--- so it reads as real standing water catching the light.
-local function buildPuddle(parent: Instance, center: Vector3, radius: number)
-	local model = Instance.new("Model")
-	model.Name = "Puddle"
-	model.Parent = parent
-
-	-- A few overlapping flat blobs give an irregular, natural puddle outline.
-	local blobs = {
-		{ Vector3.new(0, 0, 0), 1.0 },
-		{ Vector3.new(radius * 0.5, 0, radius * 0.28), 0.6 },
-		{ Vector3.new(-radius * 0.44, 0, radius * 0.4), 0.54 },
-		{ Vector3.new(radius * 0.12, 0, -radius * 0.48), 0.46 },
-	}
-
-	for i, blob in blobs do
-		local off = blob[1] :: Vector3
-		local scale = blob[2] :: number
-		local w = radius * 2 * scale
-		local d = radius * 1.7 * scale
-
-		-- Damp halo: the wood darkened and soaked where water has spread,
-		-- slightly larger than the water and flush with the planks.
-		part({
-			Name = "Damp" .. i,
-			Parent = model,
-			Size = Vector3.new(w * 1.26, 0.04, d * 1.26),
-			CFrame = CFrame.new(center + off + Vector3.new(0, 0.02, 0)),
-			Color = Color3.fromRGB(58, 43, 29),
-			Material = Enum.Material.WoodPlanks,
-			Transparency = 0.4,
-			CanCollide = false,
-			CastShadow = false,
-		})
-
-		-- Water surface: thin, glassy, reflecting the sky with a cool tint. A
-		-- little per-blob variance in sheen keeps the surface from looking flat
-		-- and uniform, without any per-frame property writes to replicate.
-		local sheen = 0.52 + math.noise(off.X * 0.5, off.Z * 0.5) * 0.12
-		part({
-			Name = "Water" .. i,
-			Parent = model,
-			Size = Vector3.new(w, 0.06, d),
-			CFrame = CFrame.new(center + off + Vector3.new(0, 0.05, 0)),
-			Color = Color3.fromRGB(96, 132, 148),
-			Material = Enum.Material.Glass,
-			Transparency = 0.16,
-			Reflectance = math.clamp(sheen, 0.45, 0.66),
-			CanCollide = false,
-			CastShadow = false,
-		})
-	end
-
-	-- Bright meniscus ring around the main blob: a thin wet lip where surface
-	-- tension catches the sky, which sells it as standing water rather than paint.
-	part({
-		Name = "Meniscus",
-		Parent = model,
-		Size = Vector3.new(radius * 2.06, 0.05, radius * 1.76),
-		CFrame = CFrame.new(center + Vector3.new(0, 0.045, 0)),
-		Color = Color3.fromRGB(176, 200, 208),
-		Material = Enum.Material.Glass,
-		Transparency = 0.62,
-		Reflectance = 0.35,
-		CanCollide = false,
-		CastShadow = false,
-	})
-
-	return model
-end
-
 -- Simple flag on a tall pole with a gentle wave.
 local function buildFlag(parent: Instance, position: Vector3, yawDegrees: number?)
 	local model = Instance.new("Model")
@@ -1141,7 +1069,192 @@ local function buildObjectiveBillboard(parent: Instance, position: Vector3, yawD
 	return model
 end
 
--- Deck dressing: floaties, puddles, a flag, and the objective sign on the pier.
+-- A lashed-down wooden barrel (vertical cylinder with two iron hoops). The
+-- body cylinder's length runs along local X, so it's rotated 90° about Z to
+-- stand upright with its base flush on the planks.
+local function buildBarrel(parent: Instance, position: Vector3, yawDegrees: number?)
+	local model = Instance.new("Model")
+	model.Name = "Barrel"
+	model.Parent = parent
+
+	local base = CFrame.new(position) * CFrame.Angles(0, math.rad(yawDegrees or 0), 0)
+	part({
+		Name = "Body",
+		Parent = model,
+		Size = Vector3.new(3.4, 2.6, 2.6),
+		CFrame = base * CFrame.new(0, 1.7, 0) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.fromRGB(104, 70, 44),
+		Material = Enum.Material.Wood,
+		Shape = Enum.PartType.Cylinder,
+	})
+	for _, y in { 0.7, 2.7 } do
+		part({
+			Name = "Hoop",
+			Parent = model,
+			Size = Vector3.new(0.24, 2.78, 2.78),
+			CFrame = base * CFrame.new(0, y, 0) * CFrame.Angles(0, 0, math.rad(90)),
+			Color = Color3.fromRGB(72, 60, 50),
+			Material = Enum.Material.Metal,
+			CanCollide = false,
+			CastShadow = false,
+		})
+	end
+	return model
+end
+
+-- A small stack of cargo crates (a big base crate with a smaller one tilted on top).
+local function buildCrateStack(parent: Instance, position: Vector3, yawDegrees: number?)
+	local model = Instance.new("Model")
+	model.Name = "Crates"
+	model.Parent = parent
+
+	local base = CFrame.new(position) * CFrame.Angles(0, math.rad(yawDegrees or 0), 0)
+	part({
+		Name = "Crate",
+		Parent = model,
+		Size = Vector3.new(3, 3, 3),
+		CFrame = base * CFrame.new(0, 1.5, 0),
+		Color = Color3.fromRGB(120, 84, 50),
+		Material = Enum.Material.WoodPlanks,
+	})
+	part({
+		Name = "Crate",
+		Parent = model,
+		Size = Vector3.new(1.8, 1.8, 1.8),
+		CFrame = base * CFrame.new(0.5, 3.9, -0.3) * CFrame.Angles(0, math.rad(18), 0),
+		Color = Color3.fromRGB(134, 96, 58),
+		Material = Enum.Material.WoodPlanks,
+	})
+	return model
+end
+
+-- A flat coil of ship's rope resting on the planks (concentric thin discs).
+local function buildRopeCoil(parent: Instance, position: Vector3)
+	local model = Instance.new("Model")
+	model.Name = "RopeCoil"
+	model.Parent = parent
+
+	for i = 0, 2 do
+		local d = 2.6 - i * 0.7
+		part({
+			Name = "Coil",
+			Parent = model,
+			Size = Vector3.new(0.34, d, d),
+			CFrame = CFrame.new(position + Vector3.new(0, 0.2 + i * 0.02, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+			Color = Config.Theme.Rope,
+			Material = Enum.Material.Fabric,
+			Shape = Enum.PartType.Cylinder,
+			CanCollide = false,
+			CastShadow = false,
+		})
+	end
+	return model
+end
+
+-- A tidy pyramid of iron cannonballs to sit beside the deck cannons.
+local function buildCannonballStack(parent: Instance, position: Vector3)
+	local model = Instance.new("Model")
+	model.Name = "Cannonballs"
+	model.Parent = parent
+
+	local r = 0.55
+	local offsets = {
+		Vector3.new(-r, r, 0),
+		Vector3.new(r, r, 0),
+		Vector3.new(0, r, -r * 1.1),
+		Vector3.new(0, r, r * 1.1),
+		Vector3.new(0, r + 0.95, 0),
+	}
+	for _, o in offsets do
+		part({
+			Name = "Cannonball",
+			Parent = model,
+			Size = Vector3.new(1.1, 1.1, 1.1),
+			CFrame = CFrame.new(position + o),
+			Color = Color3.fromRGB(38, 38, 42),
+			Material = Enum.Material.Metal,
+			Shape = Enum.PartType.Ball,
+			CanCollide = false,
+			CastShadow = false,
+		})
+	end
+	return model
+end
+
+-- A warm hanging deck lantern on a short post. A single static PointLight (no
+-- per-frame updates) adds a cosy glow to the boarding deck.
+local function buildDeckLantern(parent: Instance, position: Vector3)
+	local model = Instance.new("Model")
+	model.Name = "DeckLantern"
+	model.Parent = parent
+
+	part({
+		Name = "Post",
+		Parent = model,
+		Size = Vector3.new(0.5, 6, 0.5),
+		CFrame = CFrame.new(position + Vector3.new(0, 3, 0)),
+		Color = Color3.fromRGB(74, 52, 34),
+		Material = Enum.Material.Wood,
+		CanCollide = false,
+	})
+	part({
+		Name = "Arm",
+		Parent = model,
+		Size = Vector3.new(1.7, 0.28, 0.28),
+		CFrame = CFrame.new(position + Vector3.new(0.65, 6, 0)),
+		Color = Color3.fromRGB(74, 52, 34),
+		Material = Enum.Material.Wood,
+		CanCollide = false,
+		CastShadow = false,
+	})
+	local glass = part({
+		Name = "Lantern",
+		Parent = model,
+		Size = Vector3.new(1.05, 1.6, 1.05),
+		CFrame = CFrame.new(position + Vector3.new(1.35, 5.6, 0)),
+		Color = Config.Theme.Lantern,
+		Material = Enum.Material.Neon,
+		CanCollide = false,
+		CastShadow = false,
+	})
+	local light = Instance.new("PointLight")
+	light.Color = Config.Theme.Lantern
+	light.Brightness = 1.4
+	light.Range = 18
+	light.Parent = glass
+	return model
+end
+
+-- Ambient deck props — barrels, crates, coiled rope, cannonball stacks and warm
+-- lanterns tucked along the rails so the boarding deck feels lived-in without
+-- crowding the walkway to the portals. Everything is anchored and static.
+local function buildDeckProps(parent: Instance)
+	local y = PIER.DeckY
+
+	-- Barrels grouped along the fore rails (clear of the flag at (-30,-34))
+	buildBarrel(parent, Vector3.new(31, y, -20), 12)
+	buildBarrel(parent, Vector3.new(33.5, y, -14), -20)
+	buildBarrel(parent, Vector3.new(-34, y, 20), 8)
+
+	-- Crate stacks tucked into the side corners
+	buildCrateStack(parent, Vector3.new(-33, y, -8), 22)
+	buildCrateStack(parent, Vector3.new(34, y, -2), -16)
+
+	-- Coiled rope near the stern walkway
+	buildRopeCoil(parent, Vector3.new(-22, y, 52))
+	buildRopeCoil(parent, Vector3.new(20, y, 50))
+
+	-- Cannonball pyramids beside the side cannons
+	buildCannonballStack(parent, Vector3.new(27, y, 30))
+	buildCannonballStack(parent, Vector3.new(-27, y, 12))
+
+	-- Warm lanterns lighting the approach to the berths and the bow
+	buildDeckLantern(parent, Vector3.new(-26, y, 58))
+	buildDeckLantern(parent, Vector3.new(26, y, 58))
+	buildDeckLantern(parent, Vector3.new(0, y, -40))
+end
+
+-- Deck dressing: floaties, a flag, and the objective sign on the pier.
 local function buildDeckDressing(parent: Instance)
 	-- Lifeguard floaties laying on the deck (clear of the berth row at z≈68)
 	local floaties = {
@@ -1153,29 +1266,19 @@ local function buildDeckDressing(parent: Instance)
 		buildFloatie(parent, f[1] :: Vector3, f[2] :: number, f[3] :: number)
 	end
 
-	-- Realistic standing-water puddles scattered across the planks
-	local puddles = {
-		{ Vector3.new(8, PIER.DeckY, -20), 3.2 },
-		{ Vector3.new(-18, PIER.DeckY, 12), 2.6 },
-		{ Vector3.new(16, PIER.DeckY, 34), 3.6 },
-		{ Vector3.new(-6, PIER.DeckY, -4), 2.2 },
-	}
-	for _, p in puddles do
-		buildPuddle(parent, p[1] :: Vector3, p[2] :: number)
-	end
-
 	-- A flag near the front corner of the pier
 	buildFlag(parent, Vector3.new(-30, PIER.DeckY, -34), 25)
 
-	-- Objective board mounted along the STARBOARD (right) side of the walkway,
-	-- facing inward toward the deck, so players read it from the side as they
-	-- head for the portals instead of it sitting behind them at the bow. Clear of
-	-- the side cannons (z≈8/42) and the starboard barrels (z≈-30..-22).
-	buildObjectiveSign(parent, Vector3.new(30, PIER.DeckY, 16), 270)
+	-- Objective board mounted along the STARBOARD (right) side of the walkway.
+	-- Sitting at x≈30, its face must look back toward the deck centre (-X), i.e.
+	-- yaw 90, so players read it as they head for the portals instead of it facing
+	-- out over the rail. Clear of the side cannons (z≈8/42) and starboard barrels.
+	buildObjectiveSign(parent, Vector3.new(30, PIER.DeckY, 16), 90)
 
-	-- Matching walk-by placard along the PORT (left) side, facing inward so the
-	-- objective reads clearly from either side of the deck.
-	buildObjectiveBillboard(parent, Vector3.new(-31, PIER.DeckY, 28), 90)
+	-- Matching walk-by placard along the PORT (left) side. At x≈-31 it must face
+	-- back toward the deck centre (+X), i.e. yaw 270, so the objective reads clearly
+	-- from either side of the deck.
+	buildObjectiveBillboard(parent, Vector3.new(-31, PIER.DeckY, 28), 270)
 end
 
 local function buildScenery(root: Folder)
@@ -1236,8 +1339,11 @@ local function buildScenery(root: Folder)
 		buildMiniIsland(scenery, isle[1] :: Vector3, isle[2] :: Vector3, isle[3] :: number)
 	end
 
-	-- Deck props: floaties, puddles, flag, and the objective sign
+	-- Deck props: floaties, flag, and the objective sign
 	buildDeckDressing(scenery)
+
+	-- Extra ambient dressing: barrels, crates, rope, cannonballs, warm lanterns
+	buildDeckProps(scenery)
 end
 
 local function clearPathwayMarkers(root: Folder)

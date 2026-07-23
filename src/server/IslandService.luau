@@ -85,7 +85,11 @@ local function makePart(props: { [string]: any }): Part
 	p.CFrame = props.CFrame or CFrame.new()
 	p.TopSurface = Enum.SurfaceType.Smooth
 	p.BottomSurface = Enum.SurfaceType.Smooth
-	p.CastShadow = if props.CastShadow == nil then true else props.CastShadow
+	-- Decorative scatter parts default to NO shadow. With ShadowMap + thousands of props
+	-- per isle, per-part shadow casting was the single biggest GPU cost. Terrain/sun
+	-- shadows (GlobalShadows) still ground the world; individual props opt in only if
+	-- they explicitly pass CastShadow = true.
+	p.CastShadow = props.CastShadow == true
 	if props.Transparency ~= nil then
 		p.Transparency = props.Transparency
 	end
@@ -331,11 +335,11 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 
 	-- Density divisors are tuned so these HUGE isles stay lush and explorable without the
 	-- per-isle part count exploding (island area grows with the square of the radius).
-	local palmCount = math.floor(size / 13)
+	local palmCount = math.floor(size / 20)
 	if biome == "beach" then
-		palmCount = math.floor(size / 16)
+		palmCount = math.floor(size / 24)
 	elseif biome == "jungle" then
-		palmCount = math.floor(size / 14)
+		palmCount = math.floor(size / 20)
 	end
 
 	for _ = 1, palmCount do
@@ -350,7 +354,7 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 		buildPalm(model, topY, x, z)
 	end
 
-	local bushCount = math.floor(size / 10)
+	local bushCount = math.floor(size / 16)
 	for _ = 1, bushCount do
 		local angle = math.random() * math.pi * 2
 		local r = half * (0.12 + math.random() * 0.7)
@@ -360,7 +364,7 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 		buildBush(model, topY, center.X + math.cos(angle) * r, center.Z + math.sin(angle) * r, biome == "jungle")
 	end
 
-	local tuftCount = math.floor(size / 6)
+	local tuftCount = math.floor(size / 12)
 	for _ = 1, tuftCount do
 		local angle = math.random() * math.pi * 2
 		local r = half * (0.2 + math.random() * 0.65)
@@ -368,7 +372,7 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 	end
 
 	if biome == "jungle" or biome == "palm" then
-		local treeCount = if biome == "jungle" then math.floor(size / 20) else math.floor(size / 36)
+		local treeCount = if biome == "jungle" then math.floor(size / 30) else math.floor(size / 50)
 		for _ = 1, treeCount do
 			local angle = math.random() * math.pi * 2
 			-- Keep the very center clear for the hill/village heart, then spread trees
@@ -379,7 +383,7 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 	end
 
 	-- Rolling dunes across the interior — breaks up the flat with gentle rises
-	local duneCount = math.floor(size / 34)
+	local duneCount = math.floor(size / 48)
 	for _ = 1, duneCount do
 		local angle = math.random() * math.pi * 2
 		local r = half * (0.2 + math.random() * 0.62)
@@ -393,7 +397,7 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 	end
 
 	-- Rock outcrops — a few inland, more clustered near the shoreline
-	local rockCount = math.floor(size / 50)
+	local rockCount = math.floor(size / 72)
 	for _ = 1, rockCount do
 		local angle = math.random() * math.pi * 2
 		local r = half * (0.35 + math.random() * 0.55)
@@ -409,7 +413,7 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 	end
 
 	-- Scattered tropical flowers for colour (shadowless, so nearly free).
-	local flowerCount = math.floor(size / 22)
+	local flowerCount = math.floor(size / 34)
 	for _ = 1, flowerCount do
 		local angle = math.random() * math.pi * 2
 		local r = half * (0.18 + math.random() * 0.62)
