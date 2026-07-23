@@ -452,6 +452,12 @@ function WeatherController.start()
 		playLightningFlash(intensity)
 	end)
 
+	-- Weather changes slowly, but the lighting overlay rewrites a dozen Lighting /
+	-- Atmosphere properties (and scans for effects) every call — far too costly per
+	-- frame. Run it and the sound ambience on a ~12 Hz tick; only the rain rig, which
+	-- must track the camera, stays per-frame.
+	local heavyAccum = 0
+	local HEAVY_INTERVAL = 1 / 12
 	RunService.RenderStepped:Connect(function(dt)
 		if not atSea then
 			return
@@ -460,9 +466,16 @@ function WeatherController.start()
 		if not state then
 			return
 		end
-		applyLightingOverlay(state)
 		syncRainRig(state, dt)
-		syncAmbience(state, dt)
+
+		heavyAccum += dt
+		if heavyAccum < HEAVY_INTERVAL then
+			return
+		end
+		local step = heavyAccum
+		heavyAccum = 0
+		applyLightingOverlay(state)
+		syncAmbience(state, step)
 	end)
 
 	print("[SurviveAtSea] Weather controller ready — open-sea only, lobby untouched")
