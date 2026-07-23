@@ -4,12 +4,23 @@
 -- stern, ship's wheel) that players board from. No neon portal glows.
 -- Players stay on the ship's deck (invisible barriers).
 
+local CollectionService = game:GetService("CollectionService")
 local Workspace = game:GetService("Workspace")
 
 local Config = require(script.Parent:WaitForChild("Config"))
 local OceanConfig = require(script.Parent:WaitForChild("OceanConfig"))
 
 local LobbyWorld = {}
+
+-- Decorative motion (boat bob, gate sway, flag wave) is tagged here and driven
+-- locally on each client by LobbyFX. Keeping it off the server means the engine
+-- never streams thousands of anchored-part CFrame updates per second — the old
+-- server task.spawn loops were the main source of lobby lag.
+LobbyWorld.Tags = {
+	Boat = "SurviveAtSeaFXBoat",
+	Gate = "SurviveAtSeaFXGate",
+	Flag = "SurviveAtSeaFXFlag",
+}
 
 -- Pier playable bounds (matches PierDeck at CFrame 0,2,20 size 80×140)
 local PIER = {
@@ -222,21 +233,13 @@ local function buildBoat(parent: Instance, position: Vector3, yawDegrees: number
 		table.insert(built, { part = p, offset = piece.offset })
 	end
 
-	task.spawn(function()
-		local t = yawDegrees * 0.1
-		while model.Parent do
-			t += 0.04
-			local bob = math.sin(t) * 0.55
-			local roll = math.rad(math.sin(t * 0.7) * 3)
-			local boatCf = CFrame.new(position + Vector3.new(0, bob, 0)) * CFrame.Angles(roll, yaw, 0)
-			for _, item in built do
-				if item.part.Parent then
-					item.part.CFrame = boatCf * item.offset
-				end
-			end
-			task.wait(0.06)
-		end
-	end)
+	-- Client-driven bob/roll (see LobbyWorld.Tags). Store the base pose so every
+	-- client can reproduce the exact same gentle motion without any replication.
+	model:SetAttribute("BaseX", position.X)
+	model:SetAttribute("BaseY", position.Y)
+	model:SetAttribute("BaseZ", position.Z)
+	model:SetAttribute("YawDeg", yawDegrees)
+	CollectionService:AddTag(model, LobbyWorld.Tags.Boat)
 
 	return model
 end
@@ -361,15 +364,9 @@ local function buildPortal(folder: Instance, index: number, position: Vector3): 
 		CanCollide = false,
 	})
 
-	task.spawn(function()
-		local base = gate.CFrame
-		local t = index * 1.3
-		while gate.Parent do
-			t += 0.05
-			gate.CFrame = base * CFrame.Angles(0, math.rad(math.sin(t) * 1.8), 0)
-			task.wait(0.05)
-		end
-	end)
+	-- Client-driven gentle sway (see LobbyWorld.Tags).
+	gate:SetAttribute("PhaseSeed", index * 1.3)
+	CollectionService:AddTag(gate, LobbyWorld.Tags.Gate)
 
 	local signAnchor = part({
 		Name = "SignAnchor",
@@ -734,7 +731,7 @@ local function buildFloatie(parent: Instance, position: Vector3, yawDegrees: num
 
 	local ringRadius = 2.2 * s
 	local tubeDia = 0.82 * s
-	local segments = 24
+	local segments = 16
 	local white = Color3.fromRGB(240, 238, 231)
 	local orange = Color3.fromRGB(230, 92, 36)
 
@@ -794,7 +791,7 @@ local function buildFloatie(parent: Instance, position: Vector3, yawDegrees: num
 	-- Grab line draped between the lashings, sagging outward off the ring.
 	local grabRadius = ringRadius + tubeDia * 0.55
 	local droopSpans = 4
-	local perSpan = 3
+	local perSpan = 2
 	-- A point along the sagging span at parameter t, bulging outward at the middle.
 	local function ropePoint(a0: number, a1: number, t: number): Vector3
 		local a = a0 + (a1 - a0) * t
@@ -829,8 +826,9 @@ local function buildFloatie(parent: Instance, position: Vector3, yawDegrees: num
 	return model
 end
 
--- Realistic standing-water puddle: a damp stain soaked into the planks with a
--- thin, glassy sky-reflecting water surface resting on top.
+-- Realistic standing-water puddle: a soaked-in damp stain on the planks, a thin
+-- glassy sky-reflecting water surface, and a soft bright meniscus around the rim
+-- so it reads as real standing water catching the light.
 local function buildPuddle(parent: Instance, center: Vector3, radius: number)
 	local model = Instance.new("Model")
 	model.Name = "Puddle"
@@ -839,10 +837,9 @@ local function buildPuddle(parent: Instance, center: Vector3, radius: number)
 	-- A few overlapping flat blobs give an irregular, natural puddle outline.
 	local blobs = {
 		{ Vector3.new(0, 0, 0), 1.0 },
-		{ Vector3.new(radius * 0.55, 0, radius * 0.25), 0.62 },
-		{ Vector3.new(-radius * 0.45, 0, radius * 0.4), 0.56 },
-		{ Vector3.new(radius * 0.15, 0, -radius * 0.5), 0.5 },
-		{ Vector3.new(-radius * 0.2, 0, -radius * 0.35), 0.4 },
+		{ Vector3.new(radius * 0.5, 0, radius * 0.28), 0.6 },
+		{ Vector3.new(-radius * 0.44, 0, radius * 0.4), 0.54 },
+		{ Vector3.new(radius * 0.12, 0, -radius * 0.48), 0.46 },
 	}
 
 	for i, blob in blobs do
@@ -856,11 +853,11 @@ local function buildPuddle(parent: Instance, center: Vector3, radius: number)
 		part({
 			Name = "Damp" .. i,
 			Parent = model,
-			Size = Vector3.new(w * 1.22, 0.04, d * 1.22),
+			Size = Vector3.new(w * 1.26, 0.04, d * 1.26),
 			CFrame = CFrame.new(center + off + Vector3.new(0, 0.02, 0)),
-			Color = Color3.fromRGB(64, 48, 33),
+			Color = Color3.fromRGB(58, 43, 29),
 			Material = Enum.Material.WoodPlanks,
-			Transparency = 0.42,
+			Transparency = 0.4,
 			CanCollide = false,
 			CastShadow = false,
 		})
@@ -868,20 +865,35 @@ local function buildPuddle(parent: Instance, center: Vector3, radius: number)
 		-- Water surface: thin, glassy, reflecting the sky with a cool tint. A
 		-- little per-blob variance in sheen keeps the surface from looking flat
 		-- and uniform, without any per-frame property writes to replicate.
-		local sheen = 0.5 + math.noise(off.X * 0.5, off.Z * 0.5) * 0.12
+		local sheen = 0.52 + math.noise(off.X * 0.5, off.Z * 0.5) * 0.12
 		part({
 			Name = "Water" .. i,
 			Parent = model,
-			Size = Vector3.new(w, 0.05, d),
+			Size = Vector3.new(w, 0.06, d),
 			CFrame = CFrame.new(center + off + Vector3.new(0, 0.05, 0)),
-			Color = Color3.fromRGB(72, 96, 108),
+			Color = Color3.fromRGB(96, 132, 148),
 			Material = Enum.Material.Glass,
-			Transparency = 0.28,
-			Reflectance = math.clamp(sheen, 0.42, 0.6),
+			Transparency = 0.16,
+			Reflectance = math.clamp(sheen, 0.45, 0.66),
 			CanCollide = false,
 			CastShadow = false,
 		})
 	end
+
+	-- Bright meniscus ring around the main blob: a thin wet lip where surface
+	-- tension catches the sky, which sells it as standing water rather than paint.
+	part({
+		Name = "Meniscus",
+		Parent = model,
+		Size = Vector3.new(radius * 2.06, 0.05, radius * 1.76),
+		CFrame = CFrame.new(center + Vector3.new(0, 0.045, 0)),
+		Color = Color3.fromRGB(176, 200, 208),
+		Material = Enum.Material.Glass,
+		Transparency = 0.62,
+		Reflectance = 0.35,
+		CanCollide = false,
+		CastShadow = false,
+	})
 
 	return model
 end
@@ -934,16 +946,10 @@ local function buildFlag(parent: Instance, position: Vector3, yawDegrees: number
 		Material = Enum.Material.Fabric,
 		CanCollide = false,
 	})
-	local flagBase = flag.CFrame
 
-	task.spawn(function()
-		local t = 0
-		while flag.Parent do
-			t += 0.06
-			flag.CFrame = flagBase * CFrame.Angles(0, math.rad(math.sin(t) * 6), math.rad(math.sin(t * 1.6) * 3))
-			task.wait(0.06)
-		end
-	end)
+	-- Client-driven wave (see LobbyWorld.Tags).
+	flag:SetAttribute("PhaseSeed", (position.X + position.Z) * 0.05)
+	CollectionService:AddTag(flag, LobbyWorld.Tags.Flag)
 
 	return model
 end
@@ -1161,12 +1167,14 @@ local function buildDeckDressing(parent: Instance)
 	-- A flag near the front corner of the pier
 	buildFlag(parent, Vector3.new(-30, PIER.DeckY, -34), 25)
 
-	-- Objective sign facing the spawn point
-	buildObjectiveSign(parent, Vector3.new(14, PIER.DeckY, -30), 200)
+	-- Objective board mounted along the STARBOARD (right) side of the walkway,
+	-- facing inward toward the deck, so players read it from the side as they
+	-- head for the portals instead of it sitting behind them at the bow. Clear of
+	-- the side cannons (z≈8/42) and the starboard barrels (z≈-30..-22).
+	buildObjectiveSign(parent, Vector3.new(30, PIER.DeckY, 16), 270)
 
-	-- Small walk-by objective placard along the left-side walkway, facing inward
-	-- so players read it as they stroll past (clear of the cannons at z≈8/42 and
-	-- the under-deck support pillar near z≈20).
+	-- Matching walk-by placard along the PORT (left) side, facing inward so the
+	-- objective reads clearly from either side of the deck.
 	buildObjectiveBillboard(parent, Vector3.new(-31, PIER.DeckY, 28), 90)
 end
 

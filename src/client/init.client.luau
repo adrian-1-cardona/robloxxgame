@@ -13,6 +13,7 @@ local LobbyWorld = require(Shared:WaitForChild("LobbyWorld"))
 local LobbyUI = require(script:WaitForChild("Lobby"):WaitForChild("LobbyUI"))
 local HelmController = require(script:WaitForChild("Lobby"):WaitForChild("HelmController"))
 local OceanController = require(script:WaitForChild("Lobby"):WaitForChild("OceanController"))
+local LobbyFX = require(script:WaitForChild("Lobby"):WaitForChild("LobbyFX"))
 local ClockHUD = require(script:WaitForChild("Lobby"):WaitForChild("ClockHUD"))
 local WeatherController = require(script:WaitForChild("Gameplay"):WaitForChild("WeatherController"))
 local GunController = require(script:WaitForChild("Gameplay"):WaitForChild("GunController"))
@@ -46,6 +47,7 @@ end
 
 -- Lighting lock first so lobby stays daytime before any crew UI opens.
 safeStart("ClockHUD", ClockHUD.start)
+safeStart("LobbyFX", LobbyFX.start)
 safeStart("LobbyUI", LobbyUI.start)
 safeStart("HelmController", HelmController.start)
 safeStart("GunController", GunController.start)

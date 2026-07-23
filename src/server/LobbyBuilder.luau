@@ -20,9 +20,10 @@ local function safeLighting()
 		pcall(function()
 			Lighting.Technology = Enum.Technology.ShadowMap
 		end)
-		-- Specular up so Terrain water picks up sky / sun reflections
-		Lighting.EnvironmentDiffuseScale = 0.6
-		Lighting.EnvironmentSpecularScale = 0.85
+		-- Specular + diffuse up so Terrain water and the ship's wood/canvas pick
+		-- up richer sky / sun reflections for a nicer overall look.
+		Lighting.EnvironmentDiffuseScale = 0.75
+		Lighting.EnvironmentSpecularScale = 1
 
 		for _, child in Lighting:GetChildren() do
 			if child:IsA("Atmosphere") or child:IsA("BloomEffect") or child:IsA("ColorCorrectionEffect") or child:IsA("SunRaysEffect") then

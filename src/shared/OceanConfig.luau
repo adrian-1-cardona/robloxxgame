@@ -15,12 +15,13 @@ local OceanConfig = {
 	-- How often the server refreshes which chunks stay filled.
 	StreamHz = 2,
 
-	-- Engine Terrain water material (the realistic wave field).
-	WaterColor = Color3.fromRGB(11, 74, 92),
+	-- Engine Terrain water material (the realistic wave field). Calm rolling
+	-- swells (lower speed) read as a prettier open sea than the old fast chop.
+	WaterColor = Color3.fromRGB(14, 92, 116),
 	WaterReflectance = 0.85,
-	WaterTransparency = 0.28,
-	WaterWaveSize = 0.22,
-	WaterWaveSpeed = 18,
+	WaterTransparency = 0.3,
+	WaterWaveSize = 0.28,
+	WaterWaveSpeed = 10,
 
 	-- Soft abyss tint under the voxels (non-colliding visual only).
 	AbyssColor = Color3.fromRGB(3, 28, 48),
