@@ -8,6 +8,7 @@ local Players = game:GetService("Players")
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
 local Remotes = require(Shared:WaitForChild("Remotes"))
+local Weapons = require(Shared:WaitForChild("Weapons"))
 
 local MerchantController = {}
 
@@ -17,6 +18,10 @@ local tradeRemote: RemoteFunction? = nil
 local gui: ScreenGui? = nil
 local currencyLabel: TextLabel? = nil
 local statusLabel: TextLabel? = nil
+local scrollFrame: ScrollingFrame? = nil
+local shopItems: { any }? = nil
+-- Forward declaration: invokeTrade() re-runs populateRows() after a sale changes your bag.
+local populateRows: () -> ()
 
 local function currencyText(): string
 	local d = player:GetAttribute(Config.Currency.Doubloons.Attribute) or 0
@@ -36,24 +41,147 @@ local function close()
 		gui = nil
 		currencyLabel = nil
 		statusLabel = nil
+		scrollFrame = nil
+		shopItems = nil
 	end
 end
 
-local function buy(index: number)
+local function setStatus(message: string?, ok: boolean?)
+	if statusLabel then
+		statusLabel.Text = message or ""
+		statusLabel.TextColor3 = if ok
+			then Color3.fromRGB(150, 235, 160)
+			else Color3.fromRGB(240, 150, 150)
+	end
+end
+
+-- Buy a shop row (numeric index) or run a structured action (e.g. a sell payload table).
+local function invokeTrade(payload: any)
 	if not tradeRemote then
 		return
 	end
 	local ok, result = pcall(function()
-		return tradeRemote:InvokeServer(index)
+		return tradeRemote:InvokeServer(payload)
 	end)
 	if ok and typeof(result) == "table" then
-		if statusLabel then
-			statusLabel.Text = result.message or ""
-			statusLabel.TextColor3 = if result.ok
-				then Color3.fromRGB(150, 235, 160)
-				else Color3.fromRGB(240, 150, 150)
-		end
+		setStatus(result.message, result.ok)
 		refreshCurrency()
+		-- A sale removes an item from your bag; rebuild the list to reflect it.
+		populateRows()
+	end
+end
+
+-- Every Tool the player is carrying (equipped + backpack), with its merchant sell value.
+local function collectSellables(): { { name: string, itemId: string?, value: number } }
+	local out = {}
+	local function scan(container: Instance?)
+		if not container then
+			return
+		end
+		for _, child in container:GetChildren() do
+			if child:IsA("Tool") then
+				local itemId = child:GetAttribute("ItemId")
+				local rarity = child:GetAttribute("Rarity")
+				local idStr = if typeof(itemId) == "string" then itemId else nil
+				table.insert(out, {
+					name = child.Name,
+					itemId = idStr,
+					value = Weapons.sellValue(idStr, if typeof(rarity) == "number" then rarity else nil),
+				})
+			end
+		end
+	end
+	scan(player.Character)
+	scan(player:FindFirstChildOfClass("Backpack"))
+	return out
+end
+
+local function makeSectionHeader(order: number, text: string)
+	local lbl = Instance.new("TextLabel")
+	lbl.Name = "Header"
+	lbl.Size = UDim2.new(1, -6, 0, 24)
+	lbl.LayoutOrder = order
+	lbl.BackgroundTransparency = 1
+	lbl.Font = Enum.Font.GothamBold
+	lbl.TextXAlignment = Enum.TextXAlignment.Left
+	lbl.TextSize = 14
+	lbl.TextColor3 = Color3.fromRGB(150, 200, 255)
+	lbl.Text = text
+	lbl.Parent = scrollFrame
+end
+
+local function makeRow(order: number, text: string, bg: Color3): TextButton
+	local row = Instance.new("TextButton")
+	row.Name = "Row"
+	row.Size = UDim2.new(1, -6, 0, 42)
+	row.LayoutOrder = order
+	row.BackgroundColor3 = bg
+	row.Font = Enum.Font.GothamBold
+	row.TextSize = 15
+	row.TextColor3 = Color3.fromRGB(230, 240, 248)
+	row.Text = text
+	row.Parent = scrollFrame
+	local rc = Instance.new("UICorner")
+	rc.CornerRadius = UDim.new(0, 8)
+	rc.Parent = row
+	return row
+end
+
+-- (Re)build the buy/craft rows and the sell rows in the shop scroll.
+function populateRows()
+	local scroll = scrollFrame
+	if not scroll then
+		return
+	end
+	for _, c in scroll:GetChildren() do
+		if c:IsA("TextButton") or c:IsA("TextLabel") then
+			c:Destroy()
+		end
+	end
+
+	local order = 0
+
+	makeSectionHeader(order, "Buy & Craft")
+	order += 1
+	if shopItems then
+		for index, entry in shopItems do
+			order += 1
+			local currencyDef = Config.Currency[entry.Currency]
+			local currencyName = currencyDef and currencyDef.Label or entry.Currency
+			local bg = if entry.Currency == "Scrap"
+				then Color3.fromRGB(30, 46, 40)
+				else Color3.fromRGB(26, 42, 62)
+			local row = makeRow(order, `{entry.Label}   —   {entry.Cost} {currencyName}`, bg)
+			row.MouseButton1Click:Connect(function()
+				invokeTrade(index)
+			end)
+		end
+	end
+
+	order += 1
+	makeSectionHeader(order, "Sell — the merchant buys anything")
+	order += 1
+	local sellables = collectSellables()
+	if #sellables == 0 then
+		local empty = Instance.new("TextLabel")
+		empty.Name = "Empty"
+		empty.Size = UDim2.new(1, -6, 0, 30)
+		empty.LayoutOrder = order
+		empty.BackgroundTransparency = 1
+		empty.Font = Enum.Font.GothamMedium
+		empty.TextXAlignment = Enum.TextXAlignment.Left
+		empty.TextSize = 13
+		empty.TextColor3 = Color3.fromRGB(160, 175, 185)
+		empty.Text = "Nothing to sell right now."
+		empty.Parent = scroll
+	else
+		for _, item in sellables do
+			order += 1
+			local row = makeRow(order, `Sell {item.name}   —   +{item.value} Doubloons`, Color3.fromRGB(48, 40, 26))
+			row.MouseButton1Click:Connect(function()
+				invokeTrade({ action = "sell", tool = item.name, itemId = item.itemId })
+			end)
+		end
 	end
 end
 
@@ -133,27 +261,8 @@ local function open(shop: { any })
 	listLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	listLayout.Parent = scroll
 
-	for index, entry in shop do
-		local currencyDef = Config.Currency[entry.Currency]
-		local currencyName = currencyDef and currencyDef.Label or entry.Currency
-		local row = Instance.new("TextButton")
-		row.Size = UDim2.new(1, -6, 0, 42)
-		row.LayoutOrder = index
-		row.BackgroundColor3 = if entry.Currency == "Scrap"
-			then Color3.fromRGB(30, 46, 40)
-			else Color3.fromRGB(26, 42, 62)
-		row.Font = Enum.Font.GothamBold
-		row.TextSize = 15
-		row.TextColor3 = Color3.fromRGB(230, 240, 248)
-		row.Text = `{entry.Label}   —   {entry.Cost} {currencyName}`
-		row.Parent = scroll
-		local rc = Instance.new("UICorner")
-		rc.CornerRadius = UDim.new(0, 8)
-		rc.Parent = row
-		row.MouseButton1Click:Connect(function()
-			buy(index)
-		end)
-	end
+	scrollFrame = scroll
+	shopItems = shop
 
 	statusLabel = Instance.new("TextLabel")
 	statusLabel.Size = UDim2.new(1, -24, 0, 28)
@@ -164,10 +273,13 @@ local function open(shop: { any })
 	statusLabel.TextXAlignment = Enum.TextXAlignment.Left
 	statusLabel.TextSize = 14
 	statusLabel.TextColor3 = Color3.fromRGB(190, 205, 215)
-	statusLabel.Text = "Trade Doubloons or craft ammo from Scrap."
+	statusLabel.Text = "Buy with Doubloons, craft with Scrap, or sell anything you carry."
 	statusLabel.Parent = panel
 
 	gui = screen
+
+	-- Build the buy + sell lists now that the scroll and status label exist.
+	populateRows()
 
 	-- Keep currency line live while the shop is open.
 	player:GetAttributeChangedSignal(Config.Currency.Doubloons.Attribute):Connect(refreshCurrency)

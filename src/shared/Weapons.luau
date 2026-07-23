@@ -44,14 +44,32 @@ Weapons.List = {
 		Id = "Club",
 		Name = "Club",
 		Class = "melee",
-		ToolTip = "Wooden club — RMB / RT / tap to swing",
-		Damage = 22,
-		Cooldown = 0.55,
-		Range = 7.5,
-		HitRadius = 3.2,
-		HitWindow = 0.22,
-		SwingDuration = 0.35,
+		ToolTip = "Heavy wooden club — RMB / RT / tap to swing",
+		-- Buffed to match the improved starter club: hits harder, faster, wider arc.
+		Damage = 30,
+		Cooldown = 0.48,
+		Range = 9,
+		HitRadius = 3.8,
+		HitWindow = 0.24,
+		SwingDuration = 0.32,
+		Knockback = 14,
 		Rarity = 1, -- Common grey — the most abundant island loot (see LootWeights)
+	},
+	WarClub = {
+		Id = "WarClub",
+		Name = "Spiked War Club",
+		Class = "melee",
+		ToolTip = "Stone-spiked war club — brutal reach and knockback",
+		-- A meaner club: a jagged stone head studded with spikes. Best-in-slot melee
+		-- short of the spear's reach, with a strong shove on every connect.
+		Damage = 44,
+		Cooldown = 0.52,
+		Range = 9.5,
+		HitRadius = 4.0,
+		HitWindow = 0.26,
+		SwingDuration = 0.34,
+		Knockback = 22,
+		Rarity = 3,
 	},
 	Spear = {
 		Id = "Spear",
@@ -164,6 +182,7 @@ Weapons.List = {
 -- are Legendary and barely ever show up.
 Weapons.LootWeights = {
 	Club = 46, -- Common grey — you'll find these all over the beaches
+	WarClub = 12, -- Rare blue — a prized melee upgrade
 	Spear = 26, -- Common melee
 	Bow = 30, -- frequent find (quiet hunting)
 	Pistol = 20,
@@ -196,10 +215,55 @@ Weapons.Shop = {
 	{ Kind = "weapon", Weapon = "Pistol", Currency = "Doubloons", Cost = 30, Label = "Buy Flintlock Pistol" },
 	{ Kind = "weapon", Weapon = "Bow", Currency = "Doubloons", Cost = 26, Label = "Buy Hunting Bow" },
 	{ Kind = "weapon", Weapon = "Spear", Currency = "Doubloons", Cost = 18, Label = "Buy Fishing Spear" },
+	{ Kind = "weapon", Weapon = "WarClub", Currency = "Doubloons", Cost = 40, Label = "Buy Spiked War Club" },
 	{ Kind = "weapon", Weapon = "Shotgun", Currency = "Doubloons", Cost = 55, Label = "Buy Boarding Shotgun" },
 	{ Kind = "weapon", Weapon = "Revolver", Currency = "Doubloons", Cost = 60, Label = "Buy Sea Revolver" },
 	{ Kind = "weapon", Weapon = "Rifle", Currency = "Doubloons", Cost = 90, Label = "Buy Long Rifle" },
 }
+
+-- === Selling ==============================================================
+-- The merchant buys anything you carry. Base sell value scales with rarity so a
+-- legendary rifle is worth far more than a common club. Loot props (walls, torches,
+-- planks, crates, beds) fetch a small flat scrap-tier value. Shared by client (price
+-- preview) and server (authoritative payout) so both always agree.
+Weapons.SellByRarity = {
+	[0] = 3, -- Starter gear
+	[1] = 4, -- Common
+	[2] = 8, -- Uncommon
+	[3] = 16, -- Rare
+	[4] = 30, -- Epic
+	[5] = 55, -- Legendary
+}
+
+-- Flat Doubloon value for salvage loot tools (Loot_Wall, Loot_Torch, ...).
+Weapons.LootSellValue = 3
+
+-- Authoritative sell price in Doubloons for an item, from what a Tool advertises via its
+-- attributes. `itemId` is the Tool's "ItemId" attribute; `rarity` is optional (armor /
+-- future items can pass their own tier). Returns 0 only for genuinely worthless items.
+function Weapons.sellValue(itemId: string?, rarity: number?): number
+	if typeof(itemId) == "string" then
+		-- Looted weapons carry ItemId = "Weapon_<id>".
+		local weaponId = string.match(itemId, "^Weapon_(.+)$")
+		local def = weaponId and Weapons.List[weaponId]
+		if def then
+			return Weapons.SellByRarity[def.Rarity or 1] or 4
+		end
+		-- The starter club.
+		if itemId == "StarterClub" then
+			return Weapons.SellByRarity[0]
+		end
+		-- Salvage loot tools.
+		if string.match(itemId, "^Loot_") then
+			return Weapons.LootSellValue
+		end
+	end
+	if typeof(rarity) == "number" then
+		return Weapons.SellByRarity[rarity] or 4
+	end
+	-- Anything else the merchant will still take for a couple of coins.
+	return 2
+end
 
 function Weapons.get(id: string): { [string]: any }?
 	return Weapons.List[id]

@@ -9,7 +9,9 @@ local WOOD = Color3.fromRGB(118, 82, 48)
 local WOOD_DARK = Color3.fromRGB(78, 52, 30)
 local WOOD_LIGHT = Color3.fromRGB(148, 108, 68)
 local BARK = Color3.fromRGB(62, 44, 28)
-local GRIP_WRAP = Color3.fromRGB(96, 72, 42)
+local GRIP_WRAP = Color3.fromRGB(74, 48, 30) -- dark leather binding
+local IRON = Color3.fromRGB(96, 100, 108)
+local STONE_SPIKE = Color3.fromRGB(206, 200, 186)
 
 local function weld(a: BasePart, b: BasePart)
 	local w = Instance.new("WeldConstraint")
@@ -70,18 +72,18 @@ function ClubToolFactory.create(): Tool
 		Size = Vector3.new(0.32, 1.05, 0.32),
 		CFrame = CFrame.new(),
 		Color = GRIP_WRAP,
-		Material = Enum.Material.Wood,
+		Material = Enum.Material.Fabric, -- wrapped leather grip
 	})
 
-	-- Cylinder wraps (axis along X by default → rotate to run along grip Y)
+	-- Leather grip wraps (axis along X by default → rotate to run along grip Y)
 	for i = 0, 2 do
 		local ring = part({
 			Name = `GripRing_{i}`,
 			Parent = tool,
-			Size = Vector3.new(0.16, 0.4, 0.4),
+			Size = Vector3.new(0.16, 0.42, 0.42),
 			CFrame = CFrame.new(0, -0.32 + i * 0.26, 0) * CFrame.Angles(0, 0, math.rad(90)),
-			Color = WOOD_DARK,
-			Material = Enum.Material.Wood,
+			Color = GRIP_WRAP,
+			Material = Enum.Material.Fabric,
 			Shape = Enum.PartType.Cylinder,
 		})
 		weld(handle, ring)
@@ -131,6 +133,39 @@ function ClubToolFactory.create(): Tool
 		Shape = Enum.PartType.Ball,
 	})
 	weld(handle, headCap)
+
+	-- Iron reinforcement bands hammered around the striking head — reads as a real,
+	-- battle-worn weapon rather than a plain stick.
+	for i, y in { 3.15, 3.95 } do
+		local band = part({
+			Name = `IronBand_{i}`,
+			Parent = tool,
+			Size = Vector3.new(0.22, 1.5, 1.5),
+			CFrame = CFrame.new(0, y, 0) * CFrame.Angles(0, 0, math.rad(90)),
+			Color = IRON,
+			Material = Enum.Material.Metal,
+			Shape = Enum.PartType.Cylinder,
+		})
+		weld(handle, band)
+	end
+
+	-- A ring of short stone spikes driven into the head for extra bite. Each is a cylinder
+	-- (length along local X) rotated about Y so its point juts radially outward.
+	local headY = 3.55
+	for i = 0, 5 do
+		local a = i * (math.pi / 3)
+		local spike = part({
+			Name = `Spike_{i}`,
+			Parent = tool,
+			Size = Vector3.new(0.9, 0.26, 0.26),
+			CFrame = CFrame.new(math.cos(a) * 1.0, headY, math.sin(a) * 1.0)
+				* CFrame.Angles(0, -a, 0),
+			Color = STONE_SPIKE,
+			Material = Enum.Material.Slate,
+			Shape = Enum.PartType.Cylinder,
+		})
+		weld(handle, spike)
+	end
 
 	local nubOffsets = {
 		CFrame.new(0.55, 3.45, 0.2),

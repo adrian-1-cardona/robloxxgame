@@ -104,7 +104,62 @@ function MerchantService.spawnMerchant(parent: Instance, cf: CFrame, islandId: s
 	return model
 end
 
+-- Find a Tool the player is carrying to sell — by exact ItemId when known, else by name.
+-- Checks the equipped tool (Character) first, then the Backpack.
+local function findSellTool(player: Player, toolName: string?, itemId: string?): Tool?
+	local function scan(container: Instance?): Tool?
+		if not container then
+			return nil
+		end
+		if itemId then
+			for _, child in container:GetChildren() do
+				if child:IsA("Tool") and child:GetAttribute("ItemId") == itemId then
+					return child
+				end
+			end
+		end
+		if toolName then
+			for _, child in container:GetChildren() do
+				if child:IsA("Tool") and child.Name == toolName then
+					return child
+				end
+			end
+		end
+		return nil
+	end
+	return scan(player.Character) or scan(player:FindFirstChildOfClass("Backpack"))
+end
+
+-- Sell anything you carry. The merchant buys any Tool for Doubloons, priced by rarity
+-- (see Weapons.sellValue): looted weapons are worth more the rarer they are, salvage loot
+-- tools fetch a few coins. The item is consumed on sale.
+function MerchantService.handleSell(player: Player, payload: { [string]: any }): { ok: boolean, message: string }
+	if nearestMerchantDistance(player) > Config.Islands.Merchant.GreetRange + 12 then
+		return { ok = false, message = "Get closer to a merchant to trade." }
+	end
+
+	local toolName = if typeof(payload.tool) == "string" then payload.tool else nil
+	local itemId = if typeof(payload.itemId) == "string" then payload.itemId else nil
+	local tool = findSellTool(player, toolName, itemId)
+	if not tool then
+		return { ok = false, message = "You aren't carrying that item." }
+	end
+
+	local value = Weapons.sellValue(tool:GetAttribute("ItemId"), tool:GetAttribute("Rarity"))
+	local soldName = tool.Name
+	tool:Destroy()
+	WeaponService.addCurrency(player, "Doubloons", value)
+	return { ok = true, message = `Sold {soldName} for {value} Doubloons.` }
+end
+
 function MerchantService.handleTrade(player: Player, index: any): { ok: boolean, message: string }
+	-- Table payloads are structured actions (e.g. selling). Numbers are shop-row buys.
+	if typeof(index) == "table" then
+		if index.action == "sell" then
+			return MerchantService.handleSell(player, index)
+		end
+		return { ok = false, message = "Invalid trade." }
+	end
 	if typeof(index) ~= "number" then
 		return { ok = false, message = "Invalid trade." }
 	end
