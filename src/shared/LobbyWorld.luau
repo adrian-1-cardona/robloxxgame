@@ -372,7 +372,7 @@ local function buildPortal(folder: Instance, index: number, position: Vector3): 
 		Name = "SignAnchor",
 		Parent = model,
 		Size = Vector3.new(1, 1, 1),
-		CFrame = CFrame.new(position + Vector3.new(0, 19, -0.5)),
+		CFrame = CFrame.new(position + Vector3.new(0, 19, 2.5)), -- Moved sign to front of stick
 		Transparency = 1,
 		CanCollide = false,
 		CastShadow = false,
