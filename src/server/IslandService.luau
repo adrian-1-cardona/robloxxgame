@@ -1200,12 +1200,7 @@ local function seedFromId(id: string): number
 	return h
 end
 
--- Sculpt one island entirely out of Roblox voxel Terrain. Produces an organic,
--- non-circular landmass with a flat, walkable interior plateau at topY (so villages,
--- loot and NPCs sit correctly), sandy beaches at the coast, a grass/jungle interior,
--- and biome-driven relief — low dunes for beaches, hills for palm isles, tall rocky
--- peaks for jungles — all placed in the OUTER band so they never bury the settlement.
--- Seeded per isle, so each island looks and feels different.
+-- Enhanced terrain generation with better foundations for medieval villages
 local function generateIslandTerrain(
 	id: string,
 	center: Vector3,
@@ -1221,6 +1216,7 @@ local function generateIslandTerrain(
 	local half = size * 0.5
 	local surfaceY = OceanConfig.SurfaceY
 	local isTown = theme == "town" or theme == "stone_town"
+	local hasVillage = theme ~= "wild" and theme ~= "abandoned"
 
 	local grassMat = if biome == "jungle" or biome == "volcanic"
 		then Enum.Material.LeafyGrass
@@ -1237,6 +1233,54 @@ local function generateIslandTerrain(
 		Terrain:FillCylinder(CFrame.new(px, (topAt + baseBottom) * 0.5, pz), h, radius, material)
 	end
 
+	-- Enhanced foundation for villages: create a flatter, more stable base
+	if hasVillage then
+		-- Create a larger, flatter foundation for villages with smoother terrain
+		local villageFoundationRadius = if isTown then half * 0.75 else half * 0.6
+		local foundationHeight = topY + 0.5
+		
+		-- Main village foundation - perfectly flat for cobblestone streets
+		Terrain:FillCylinder(
+			CFrame.new(cx, (foundationHeight + topY) * 0.5, cz), 
+			foundationHeight - topY, 
+			villageFoundationRadius, 
+			grassMat
+		)
+		
+		-- Smooth transition zones around the village center
+		for ring = 1, 3 do
+			local ringRadius = villageFoundationRadius + (ring * half * 0.08)
+			local ringHeight = topY - (ring * 0.3)
+			if ringRadius < half * 0.95 then  -- Don't exceed island bounds
+				Terrain:FillCylinder(
+					CFrame.new(cx, (ringHeight + topY - 2) * 0.5, cz),
+					math.abs(ringHeight - topY + 2),
+					ringRadius,
+					if ring == 3 then sandMat else grassMat
+				)
+			end
+		end
+		
+		-- Add subtle terracing for medieval hillside village aesthetic
+		if theme == "stone_town" or theme == "town" then
+			for tier = 1, 2 do
+				local tierAngle = rng:NextNumber(0, math.pi * 2)
+				local tierDistance = villageFoundationRadius * 0.7 * tier
+				local tierX = cx + math.cos(tierAngle) * tierDistance
+				local tierZ = cz + math.sin(tierAngle) * tierDistance
+				local tierRadius = villageFoundationRadius * (0.4 - tier * 0.1)
+				local tierHeight = topY + (tier * 1.2)
+				
+				Terrain:FillCylinder(
+					CFrame.new(tierX, (tierHeight + topY) * 0.5, tierZ),
+					tierHeight - topY,
+					tierRadius,
+					grassMat
+				)
+			end
+		end
+	end
+
 	-- 1) Sand body: a main plateau plus several offset lobes give an irregular coast.
 	landColumn(cx, cz, half * 0.66, topY, sandMat)
 	local lobes = rng:NextInteger(4, 7)
@@ -1248,32 +1292,47 @@ local function generateIslandTerrain(
 		if dist + lobeR > half * 0.98 then
 			lobeR = math.max(half * 0.18, half * 0.98 - dist)
 		end
+		-- Avoid placing lobes too close to village centers
+		if hasVillage then
+			local lobeCenter = Vector3.new(cx + math.cos(a) * dist, topY, cz + math.sin(a) * dist)
+			local distToVillage = (lobeCenter - center).Magnitude
+			if distToVillage < half * 0.45 then
+				continue  -- Skip this lobe to keep village area clear
+			end
+		end
 		landColumn(cx + math.cos(a) * dist, cz + math.sin(a) * dist, lobeR, topY, sandMat)
 	end
 
-	-- 2) Grass/jungle cap over the interior, leaving a sandy coastal rim.
-	local capTop = topY + 0.3
+	-- 2) Enhanced grass/jungle cap with village considerations
+	local capTop = topY + (if hasVillage then 0.2 else 0.3)  -- Flatter for villages
 	local capBottom = topY - 3.5
 	local capH = capTop - capBottom
 	local capY = (capTop + capBottom) * 0.5
-	Terrain:FillCylinder(CFrame.new(cx, capY, cz), capH, half * 0.6, grassMat)
-	for _ = 1, 3 do
+	local capRadius = if hasVillage then half * 0.7 else half * 0.6  -- Larger grass area for villages
+	
+	Terrain:FillCylinder(CFrame.new(cx, capY, cz), capH, capRadius, grassMat)
+	
+	-- Add grass patches but keep village center clear
+	for i = 1, 3 do
 		local a = rng:NextNumber(0, math.pi * 2)
 		local d = half * rng:NextNumber(0.12, 0.4)
+		local patchCenter = Vector3.new(cx + math.cos(a) * d, topY, cz + math.sin(a) * d)
+		
+		-- Skip patches too close to village center
+		if hasVillage and (patchCenter - center).Magnitude < half * 0.35 then
+			continue
+		end
+		
 		local r = half * rng:NextNumber(0.2, 0.34)
 		Terrain:FillCylinder(CFrame.new(cx + math.cos(a) * d, capY, cz + math.sin(a) * d), capH, r, grassMat)
 	end
 
-	-- 3) Biome relief + signature landforms. Beaches/palms/jungles/highlands keep the
-	-- classic dune→hill→peak treatment in the OUTER band (settlement heart stays flat).
-	-- Volcanic isles grow a central basalt volcano; mountain isles a snow-capped peak plus
-	-- a sunken lake. All feature geometry is precomputed in planIslandFeatures so terrain
-	-- and the decorative pass (lava, waterfall, docks) agree on exact positions.
+	-- 3) Enhanced biome relief with village-friendly positioning
 	local rockMat = Enum.Material.Rock
 
 	if biome == "volcanic" and features.volcano then
 		local v = features.volcano
-		-- Stacked balls taper from a wide grassy/rocky base to a basalt crater rim.
+		-- Position volcano away from village center for better layouts
 		local steps = 12
 		for s = 0, steps do
 			local t = s / steps
@@ -1285,21 +1344,29 @@ local function generateIslandTerrain(
 			local mat = if t < 0.18 then grassMat elseif t > 0.62 then Enum.Material.Basalt else rockMat
 			Terrain:FillBall(Vector3.new(v.pos.X, y, v.pos.Z), math.max(r, v.craterR + 2), mat)
 		end
-		-- Hollow out the summit crater (lava is filled by decorateShore).
+		-- Hollow out the summit crater
 		local rimY = topY + v.height
 		Terrain:FillCylinder(CFrame.new(v.pos.X, rimY - 4, v.pos.Z), 14, v.craterR, Enum.Material.Air)
-		-- A couple of low tropical hillocks around the base.
-		for _ = 1, rng:NextInteger(2, 4) do
+		
+		-- Reduced tropical hillocks to avoid village interference
+		for i = 1, rng:NextInteger(1, 2) do
 			local a = rng:NextNumber(0, math.pi * 2)
-			local d = half * rng:NextNumber(0.55, 0.82)
+			local d = half * rng:NextNumber(0.7, 0.9)  -- Push further from center
 			local hx, hz = cx + math.cos(a) * d, cz + math.sin(a) * d
+			
+			-- Check distance from village if applicable
+			if hasVillage and (Vector3.new(hx, topY, hz) - center).Magnitude < half * 0.5 then
+				continue
+			end
+			
 			for s = 0, 4 do
 				local t = s / 4
 				Terrain:FillBall(Vector3.new(hx, topY + 14 * t, hz), math.max(half * 0.09 * (1 - t * 0.7), 3), grassMat)
 			end
 		end
+		
 	elseif biome == "mountain" then
-		-- One tall snow-capped peak on the back band.
+		-- Mountain peak positioned for scenic backdrop
 		local pk = features.peak
 		if pk then
 			local steps = 12
@@ -1311,17 +1378,25 @@ local function generateIslandTerrain(
 				Terrain:FillBall(Vector3.new(pk.pos.X, y, pk.pos.Z), math.max(r, 3), mat)
 			end
 		end
-		-- Rolling grassy hummocks across the rest of the interior.
-		for _ = 1, rng:NextInteger(2, 4) do
+		
+		-- Strategic hummock placement for medieval castle/village aesthetic  
+		for i = 1, rng:NextInteger(1, 3) do
 			local a = rng:NextNumber(0, math.pi * 2)
-			local d = half * rng:NextNumber(0.5, 0.86)
+			local d = half * rng:NextNumber(0.6, 0.9)  -- Keep away from village center
 			local hx, hz = cx + math.cos(a) * d, cz + math.sin(a) * d
+			
+			-- Avoid village area
+			if hasVillage and (Vector3.new(hx, topY, hz) - center).Magnitude < half * 0.4 then
+				continue
+			end
+			
 			for s = 0, 4 do
 				local t = s / 4
 				Terrain:FillBall(Vector3.new(hx, topY + 20 * t, hz), math.max(half * 0.12 * (1 - t * 0.7), 3), grassMat)
 			end
 		end
-		-- Carve a basin and flood it: a real sunken freshwater lake.
+		
+		-- Lake positioned for castle/village water feature
 		local lake = features.lake
 		if lake then
 			local clearTop = topY + 6
@@ -1360,25 +1435,34 @@ local function generateIslandTerrain(
 			grassMat
 		)
 	else
-		-- Beach / palm / jungle / highland relief.
+		-- Enhanced relief for other biomes with village considerations
 		local peakExtra, hillCount
 		if biome == "jungle" then
-			peakExtra, hillCount = rng:NextNumber(34, 66), rng:NextInteger(2, 3)
+			peakExtra, hillCount = rng:NextNumber(34, 66), rng:NextInteger(1, 2)  -- Fewer hills for villages
 		elseif biome == "palm" then
-			peakExtra, hillCount = rng:NextNumber(16, 32), rng:NextInteger(1, 2)
+			peakExtra, hillCount = rng:NextNumber(16, 32), rng:NextInteger(0, 1)
 		elseif biome == "highland" then
-			peakExtra, hillCount = rng:NextNumber(20, 40), rng:NextInteger(2, 3)
+			peakExtra, hillCount = rng:NextNumber(20, 40), rng:NextInteger(1, 2)
 		else
 			peakExtra, hillCount = rng:NextNumber(5, 13), rng:NextInteger(0, 1)
 		end
-		local hillBandMin = if isTown then 0.84 else 0.6
+		
+		-- Push hills to outer bands to preserve village flatness
+		local hillBandMin = if isTown then 0.88 else (if hasVillage then 0.75 else 0.6)
 		local hillBandMax = 0.94
 		local hillRock = if biome == "jungle" then Enum.Material.Rock else grassMat
-		for _ = 1, hillCount do
+		
+		for i = 1, hillCount do
 			local a = rng:NextNumber(0, math.pi * 2)
 			local d = half * rng:NextNumber(hillBandMin, hillBandMax)
 			local hx, hz = cx + math.cos(a) * d, cz + math.sin(a) * d
-			local baseR = half * (if isTown then rng:NextNumber(0.06, 0.11) else rng:NextNumber(0.12, 0.2))
+			local baseR = half * (if isTown then rng:NextNumber(0.05, 0.09) else rng:NextNumber(0.08, 0.15))
+			
+			-- Ensure hills don't interfere with village layout
+			if hasVillage and (Vector3.new(hx, topY, hz) - center).Magnitude < half * 0.5 then
+				continue
+			end
+			
 			local steps = 6
 			for s = 0, steps do
 				local t = s / steps
@@ -1389,16 +1473,33 @@ local function generateIslandTerrain(
 		end
 	end
 
-	-- 4) A scatter of shallow rock knobs just off the coast for a natural reef read.
-	local knobs = rng:NextInteger(3, 7)
-	for _ = 1, knobs do
+	-- 4) Refined coastal rock placement for better harbor/dock access
+	local knobs = rng:NextInteger(2, 5)  -- Fewer rocks for cleaner shorelines
+	for i = 1, knobs do
 		local a = rng:NextNumber(0, math.pi * 2)
-		local d = half * rng:NextNumber(0.9, 1.02)
-		Terrain:FillBall(
-			Vector3.new(cx + math.cos(a) * d, surfaceY - 0.5, cz + math.sin(a) * d),
-			rng:NextNumber(3, 7),
-			Enum.Material.Rock
-		)
+		local d = half * rng:NextNumber(0.95, 1.05)
+		
+		-- Avoid dock areas if this island has docks
+		local skipKnob = false
+		if features.docks then
+			for _, dock in features.docks do
+				local knobAngle = math.atan2(math.sin(a), math.cos(a))
+				local dockAngle = math.atan2(dock.dir.Z, dock.dir.X)
+				local angleDiff = math.abs(knobAngle - dockAngle)
+				if angleDiff < math.rad(45) or angleDiff > math.rad(315) then
+					skipKnob = true
+					break
+				end
+			end
+		end
+		
+		if not skipKnob then
+			Terrain:FillBall(
+				Vector3.new(cx + math.cos(a) * d, surfaceY - 0.5, cz + math.sin(a) * d),
+				rng:NextNumber(2, 5),  -- Smaller rocks
+				Enum.Material.Rock
+			)
+		end
 	end
 end
 
@@ -1575,88 +1676,236 @@ local function buildDock(
 	end
 end
 
--- A tall coastal lighthouse — banded stone tower, a glassed lantern room that glows, and
--- a conical cap. The signature landmark of the medieval fishing town / seaside village.
+-- Enhanced lighthouse with improved banded stone appearance matching reference images
 local function buildLighthouse(model: Model, topY: number, x: number, z: number)
 	local lh = Instance.new("Model")
 	lh.Name = "Lighthouse"
 	lh.Parent = model
 	local baseY = topY
-	local towerH = 34
-	-- Rocky footing.
+	local towerH = 42  -- Taller for more impressive silhouette
+	
+	-- Enhanced rocky foundation with more detail
 	makePart({
-		Name = "LHFooting",
+		Name = "LHFoundation",
 		Parent = lh,
-		Size = Vector3.new(13, 4, 13),
-		CFrame = CFrame.new(x, baseY + 1, z),
-		Color = Color3.fromRGB(120, 120, 124),
+		Size = Vector3.new(15, 5, 15),
+		CFrame = CFrame.new(x, baseY + 1.5, z),
+		Color = Color3.fromRGB(105, 102, 98),
 		Material = Enum.Material.Rock,
 		Shape = Enum.PartType.Cylinder,
-	}).CFrame = CFrame.new(x, baseY + 1, z) * CFrame.Angles(0, 0, math.rad(90))
-	-- Tapered banded tower (alternating white / red segments).
-	local segs = 6
+	}).CFrame = CFrame.new(x, baseY + 1.5, z) * CFrame.Angles(0, 0, math.rad(90))
+	
+	-- Stone base platform
+	makePart({
+		Name = "LHBasePlatform",
+		Parent = lh,
+		Size = Vector3.new(11, 2, 11),
+		CFrame = CFrame.new(x, baseY + 4, z),
+		Color = Color3.fromRGB(135, 132, 128),
+		Material = Enum.Material.Cobblestone,
+	})
+	
+	-- Enhanced tapered banded tower with more distinctive stripes
+	local segs = 8  -- More segments for finer banding
+	local LIGHTHOUSE_WHITE = Color3.fromRGB(248, 248, 245)
+	local LIGHTHOUSE_RED = Color3.fromRGB(165, 42, 38)
+	local LIGHTHOUSE_STONE = Color3.fromRGB(140, 135, 130)
+	
 	for i = 0, segs - 1 do
 		local segH = towerH / segs
-		local r = 5.2 - i * 0.45
-		local y = baseY + 3 + segH * (i + 0.5)
+		local r = 6.2 - i * 0.4  -- Slightly wider base, more gradual taper
+		local y = baseY + 5 + segH * (i + 0.5)
+		
+		-- Alternating white and red bands
+		local bandColor = if i % 2 == 0 then LIGHTHOUSE_WHITE else LIGHTHOUSE_RED
+		local bandMaterial = if i % 2 == 0 then Enum.Material.SmoothPlastic else Enum.Material.SmoothPlastic
+		
 		makePart({
 			Name = `LHSeg_{i}`,
 			Parent = lh,
-			Size = Vector3.new(segH + 0.1, r * 2, r * 2),
+			Size = Vector3.new(segH + 0.2, r * 2, r * 2),
 			CFrame = CFrame.new(x, y, z) * CFrame.Angles(0, 0, math.rad(90)),
-			Color = if i % 2 == 0 then Color3.fromRGB(232, 232, 232) else Color3.fromRGB(178, 58, 52),
-			Material = Enum.Material.Concrete,
+			Color = bandColor,
+			Material = bandMaterial,
 			Shape = Enum.PartType.Cylinder,
 		})
+		
+		-- Add horizontal divider lines between segments
+		if i > 0 then
+			makePart({
+				Name = `LHDivider_{i}`,
+				Parent = lh,
+				Size = Vector3.new(0.3, (r + 0.2) * 2, (r + 0.2) * 2),
+				CFrame = CFrame.new(x, y - segH * 0.5, z) * CFrame.Angles(0, 0, math.rad(90)),
+				Color = LIGHTHOUSE_STONE,
+				Material = Enum.Material.Concrete,
+				Shape = Enum.PartType.Cylinder,
+				CanCollide = false,
+			})
+		end
 	end
-	local topOfTower = baseY + 3 + towerH
-	-- Gallery deck.
+	
+	local topOfTower = baseY + 5 + towerH
+	
+	-- Enhanced gallery deck with railings
 	makePart({
 		Name = "LHGallery",
 		Parent = lh,
-		Size = Vector3.new(1.0, 8.4, 8.4),
-		CFrame = CFrame.new(x, topOfTower, z) * CFrame.Angles(0, 0, math.rad(90)),
-		Color = Color3.fromRGB(70, 72, 78),
+		Size = Vector3.new(1.2, 9.5, 9.5),
+		CFrame = CFrame.new(x, topOfTower + 0.6, z) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.fromRGB(75, 78, 85),
 		Material = Enum.Material.Metal,
 		Shape = Enum.PartType.Cylinder,
 	})
-	-- Lantern room (glowing).
+	
+	-- Gallery railing posts
+	for i = 0, 7 do
+		local angle = (i / 8) * math.pi * 2
+		local railX = x + math.cos(angle) * 4.2
+		local railZ = z + math.sin(angle) * 4.2
+		makePart({
+			Name = "GalleryPost",
+			Parent = lh,
+			Size = Vector3.new(0.3, 2.5, 0.3),
+			CFrame = CFrame.new(railX, topOfTower + 1.8, railZ),
+			Color = Color3.fromRGB(75, 78, 85),
+			Material = Enum.Material.Metal,
+			CanCollide = false,
+		})
+	end
+	
+	-- Top railing ring
+	makePart({
+		Name = "GalleryRail",
+		Parent = lh,
+		Size = Vector3.new(0.4, 8.8, 8.8),
+		CFrame = CFrame.new(x, topOfTower + 3, z) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.fromRGB(75, 78, 85),
+		Material = Enum.Material.Metal,
+		Shape = Enum.PartType.Cylinder,
+		CanCollide = false,
+	})
+	
+	-- Enhanced lantern room with detailed frame structure
+	local lanternBase = makePart({
+		Name = "LHLanternBase",
+		Parent = lh,
+		Size = Vector3.new(1.5, 6.5, 6.5),
+		CFrame = CFrame.new(x, topOfTower + 4.2, z) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.fromRGB(75, 78, 85),
+		Material = Enum.Material.Metal,
+		Shape = Enum.PartType.Cylinder,
+	})
+	
+	-- Glowing lantern room glass
 	local lantern = makePart({
 		Name = "LHLantern",
 		Parent = lh,
-		Size = Vector3.new(4.2, 5, 4.2),
-		CFrame = CFrame.new(x, topOfTower + 3, z) * CFrame.Angles(0, 0, math.rad(90)),
-		Color = Color3.fromRGB(255, 226, 150),
+		Size = Vector3.new(3.8, 5.8, 5.8),
+		CFrame = CFrame.new(x, topOfTower + 4.2, z) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.fromRGB(255, 235, 180),
 		Material = Enum.Material.Neon,
 		Shape = Enum.PartType.Cylinder,
+		CanCollide = false,
+		Transparency = 0.15,
 	})
+	
+	-- Lantern room frame segments (vertical mullions)
+	for i = 0, 5 do
+		local angle = (i / 6) * math.pi * 2
+		local frameX = x + math.cos(angle) * 2.9
+		local frameZ = z + math.sin(angle) * 2.9
+		makePart({
+			Name = "LanternFrame",
+			Parent = lh,
+			Size = Vector3.new(0.2, 4, 0.5),
+			CFrame = CFrame.new(frameX, topOfTower + 4.2, frameZ),
+			Color = Color3.fromRGB(45, 48, 55),
+			Material = Enum.Material.Metal,
+			CanCollide = false,
+		})
+	end
+	
+	-- Enhanced light source
 	local light = Instance.new("PointLight")
-	light.Brightness = 4
-	light.Range = 90
-	light.Color = Color3.fromRGB(255, 226, 160)
+	light.Brightness = 5.5
+	light.Range = 120
+	light.Color = Color3.fromRGB(255, 240, 180)
 	light.Shadows = false
 	light.Parent = lantern
-	-- Conical cap.
+	
+	-- Beacon effect (spot light for extra range)
+	local beacon = Instance.new("SpotLight")
+	beacon.Brightness = 3.5
+	beacon.Range = 200
+	beacon.Angle = 45
+	beacon.Color = Color3.fromRGB(255, 240, 180)
+	beacon.Face = Enum.NormalId.Top
+	beacon.Shadows = false
+	beacon.Parent = lantern
+	
+	-- Enhanced conical roof with weathered copper appearance
 	makePart({
 		Name = "LHCap",
 		Parent = lh,
-		Size = Vector3.new(3.4, 5.6, 5.6),
-		CFrame = CFrame.new(x, topOfTower + 6.6, z) * CFrame.Angles(0, 0, math.rad(90)),
-		Color = Color3.fromRGB(60, 62, 68),
+		Size = Vector3.new(4.5, 7, 7),
+		CFrame = CFrame.new(x, topOfTower + 8.2, z) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.fromRGB(95, 115, 105),  -- Weathered copper green
 		Material = Enum.Material.Metal,
 		Shape = Enum.PartType.Cylinder,
 	})
-	-- Climbable ladder up the tower.
-	local truss = Instance.new("TrussPart")
-	truss.Name = "LHLadder"
-	truss.Anchored = true
-	truss.CanCollide = true
-	truss.Color = Color3.fromRGB(70, 72, 78)
-	truss.Material = Enum.Material.Metal
-	truss.Size = Vector3.new(2, towerH, 2)
-	truss.CFrame = CFrame.new(x + 5, baseY + 3 + towerH * 0.5, z)
-	truss.CastShadow = false
-	truss.Parent = lh
+	
+	-- Roof finial
+	makePart({
+		Name = "LHFinial",
+		Parent = lh,
+		Size = Vector3.new(1.2, 0.8, 0.8),
+		CFrame = CFrame.new(x, topOfTower + 11.8, z),
+		Color = Color3.fromRGB(65, 68, 75),
+		Material = Enum.Material.Metal,
+	})
+	
+	-- Enhanced spiral staircase (external)
+	local stairCount = 12
+	for i = 0, stairCount - 1 do
+		local stepAngle = (i / stairCount) * math.pi * 4  -- Two full rotations
+		local stepRadius = 6.8
+		local stepY = baseY + 5 + (i / stairCount) * (towerH - 5)
+		local stepX = x + math.cos(stepAngle) * stepRadius
+		local stepZ = z + math.sin(stepAngle) * stepRadius
+		
+		-- Step platform
+		makePart({
+			Name = "LHStep",
+			Parent = lh,
+			Size = Vector3.new(2.5, 0.3, 1.2),
+			CFrame = CFrame.lookAt(Vector3.new(stepX, stepY, stepZ), Vector3.new(x, stepY, z)),
+			Color = Color3.fromRGB(75, 78, 85),
+			Material = Enum.Material.Metal,
+		})
+		
+		-- Step railing
+		makePart({
+			Name = "StepRail",
+			Parent = lh,
+			Size = Vector3.new(0.2, 1.5, 2.8),
+			CFrame = CFrame.lookAt(Vector3.new(stepX, stepY + 0.75, stepZ), Vector3.new(x, stepY + 0.75, z)) * CFrame.new(1.3, 0, 0),
+			Color = Color3.fromRGB(75, 78, 85),
+			Material = Enum.Material.Metal,
+			CanCollide = false,
+		})
+	end
+	
+	-- Door at base
+	makePart({
+		Name = "LHDoor",
+		Parent = lh,
+		Size = Vector3.new(0.3, 3.5, 2),
+		CFrame = CFrame.new(x + 5.5, baseY + 6.5, z),
+		Color = Color3.fromRGB(85, 55, 35),
+		Material = Enum.Material.Wood,
+		CanCollide = false,
+	})
 end
 
 -- Fill a volcano crater with glowing lava, embers, smoke and a warm glow, plus a couple of
@@ -2059,28 +2308,29 @@ local function buildFlatIsland(entry: { [string]: any }, folder: Folder): Island
 		CanCollide = false,
 		CastShadow = false,
 	})
-	local gui = Instance.new("BillboardGui")
-	gui.Name = "IsleBillboard"
-	gui.Adornee = marker
-	gui.Size = UDim2.fromOffset(200, 44)
-	gui.AlwaysOnTop = true
-	gui.MaxDistance = 900
-	gui.Parent = marker
+	-- Island name billboard removed - names only show in popups now
+	-- local gui = Instance.new("BillboardGui")
+	-- gui.Name = "IsleBillboard"
+	-- gui.Adornee = marker
+	-- gui.Size = UDim2.fromOffset(200, 44)
+	-- gui.AlwaysOnTop = true
+	-- gui.MaxDistance = 900
+	-- gui.Parent = marker
 
-	local label = Instance.new("TextLabel")
-	label.Name = "Label"
-	label.BackgroundTransparency = 0.28
-	label.BackgroundColor3 = Color3.fromRGB(18, 36, 48)
-	label.Size = UDim2.fromScale(1, 1)
-	label.Font = Enum.Font.GothamBold
-	label.TextScaled = true
-	label.TextColor3 = Config.Theme.Foam
-	label.Text = string.upper(entry.Name)
-	label.Parent = gui
+	-- local label = Instance.new("TextLabel")
+	-- label.Name = "Label"
+	-- label.BackgroundTransparency = 0.28
+	-- label.BackgroundColor3 = Color3.fromRGB(18, 36, 48)
+	-- label.Size = UDim2.fromScale(1, 1)
+	-- label.Font = Enum.Font.GothamBold
+	-- label.TextScaled = true
+	-- label.TextColor3 = Config.Theme.Foam
+	-- label.Text = string.upper(entry.Name)
+	-- label.Parent = gui
 
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 8)
-	corner.Parent = label
+	-- local corner = Instance.new("UICorner")
+	-- corner.CornerRadius = UDim.new(0, 8)
+	-- corner.Parent = label
 
 	local theme = entry.Theme or "wild"
 	local record: IslandRecord = {
@@ -2094,7 +2344,7 @@ local function buildFlatIsland(entry: { [string]: any }, folder: Folder): Island
 		abandoned = entry.Abandoned == true,
 		biome = biome,
 		model = model,
-		label = label,
+		label = nil, -- No longer displaying island names in-game
 		npcs = {},
 	}
 

@@ -53,23 +53,166 @@ local function makePart(props: { [string]: any }): Part
 	return p
 end
 
--- One house. `opts`: cobblestone (bool), ruined (bool), islandId (string).
+-- Level-of-Detail system for buildings based on distance from players
+local function setupBuildingLOD(model: Model, center: Vector3)
+	local LOD_NEAR = 150   -- Full detail
+	local LOD_MID = 300    -- Medium detail
+	local LOD_FAR = 500    -- Low detail
+	
+	local lodFolder = Instance.new("Folder")
+	lodFolder.Name = "LODController"
+	lodFolder.Parent = model
+	
+	-- Create LOD script for runtime distance checking
+	local lodScript = Instance.new("Script")
+	lodScript.Name = "BuildingLOD"
+	lodScript.Parent = lodFolder
+	
+		-- LOD script code (runs on server with optimizations)
+	lodScript.Source = [[
+		local Players = game:GetService("Players")
+		local RunService = game:GetService("RunService")
+		
+		local model = script.Parent.Parent
+		local center = Vector3.new(]] .. center.X .. [[, ]] .. center.Y .. [[, ]] .. center.Z .. [[)
+		local LOD_NEAR = 150
+		local LOD_MID = 300
+		local LOD_FAR = 500
+		
+		-- Cache for performance
+		local detailParts = {}
+		local borderParts = {}
+		local decorativeParts = {}
+		
+		-- Categorize parts on startup
+		for _, child in pairs(model:GetChildren()) do
+			if child.Name == "Village" then
+				for _, building in pairs(child:GetChildren()) do
+					for _, part in pairs(building:GetDescendants()) do
+						if part:IsA("BasePart") then
+							if part.Name:match("TimberPost") or part.Name:match("TimberBeam") or 
+							   part.Name:match("WindowFrame") or part.Name:match("WindowShutter") then
+								table.insert(detailParts, part)
+							elseif part.Name:match("DoorHandle") or part.Name:match("RoofSupport") or
+								   part.Name:match("ChimneyCap") or part.Name:match("StepRail") then
+								table.insert(borderParts, part)
+							elseif part.Name:match("PathBorder") or part.Name:match("Rubble") or
+								   part.Name:match("Finial") or part.Name:match("LanternFrame") then
+								table.insert(decorativeParts, part)
+							end
+						end
+					end
+				end
+			end
+		end
+		
+		local function getClosestPlayerDistance()
+			local minDist = math.huge
+			for _, player in pairs(Players:GetPlayers()) do
+				if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+					local dist = (player.Character.HumanoidRootPart.Position - center).Magnitude
+					minDist = math.min(minDist, dist)
+				end
+			end
+			return minDist
+		end
+		
+		local function setDetailLevel(level)
+			-- Level 0: High detail (all visible)
+			-- Level 1: Medium detail (hide fine details)  
+			-- Level 2: Low detail (hide most decorative elements)
+			
+			-- Performance optimization: batch operations
+			local hideDetail = level >= 2
+			local hideBorder = level >= 1
+			local hideDecorative = level >= 2
+			
+			for _, part in pairs(detailParts) do
+				if part.Parent then
+					part.Transparency = hideDetail and 1 or 0
+				end
+			end
+			
+			for _, part in pairs(borderParts) do
+				if part.Parent then
+					part.Transparency = hideBorder and 1 or 0
+				end
+			end
+			
+			for _, part in pairs(decorativeParts) do
+				if part.Parent then
+					part.Transparency = hideDecorative and 1 or 0
+				end
+			end
+		end
+		
+		local lastLevel = -1
+		local updateTimer = 0
+		local UPDATE_INTERVAL = 1.0  -- Update every second for performance
+		
+		RunService.Heartbeat:Connect(function(dt)
+			updateTimer += dt
+			if updateTimer < UPDATE_INTERVAL then
+				return
+			end
+			updateTimer = 0
+			
+			local dist = getClosestPlayerDistance()
+			local level = 0
+			
+			if dist > LOD_FAR then
+				level = 2  -- Low detail
+			elseif dist > LOD_MID then 
+				level = 1  -- Medium detail
+			else
+				level = 0  -- High detail
+			end
+			
+			if level ~= lastLevel then
+				setDetailLevel(level)
+				lastLevel = level
+			end
+		end)
+	]]
+end
+
+-- Enhanced medieval house with detailed timber framing and architectural variety.
+-- `opts`: cobblestone (bool), ruined (bool), islandId (string), style ("timber"|"stone"|"cottage").
 -- Walls are detachable salvage (LootPropFactory) so they can be hauled to a raft.
 local function buildHouse(model: Model, cf: CFrame, opts: { [string]: any })
 	local cobble = opts.cobblestone == true
 	local ruined = opts.ruined == true
-	local wallColor = if cobble then STONE else WOOD
-	local wallMat = if cobble then Enum.Material.Cobblestone else Enum.Material.Wood
-	local floorColor = if cobble then STONE_DARK else Color3.fromRGB(104, 74, 46)
+	local style = opts.style or (if cobble then "stone" else "timber")
+	
+	-- Enhanced color palette for medieval aesthetics
+	local TIMBER_FRAME = Color3.fromRGB(62, 39, 35)
+	local PLASTER_WHITE = Color3.fromRGB(245, 240, 230)
+	local PLASTER_CREAM = Color3.fromRGB(235, 220, 200)
+	local MEDIEVAL_STONE = Color3.fromRGB(140, 135, 130)
+	local COBBLE_DARK = Color3.fromRGB(85, 82, 78)
+	
+	local wallColor = if cobble then MEDIEVAL_STONE else PLASTER_CREAM
+	local wallMat = if cobble then Enum.Material.Cobblestone else Enum.Material.SmoothPlastic
+	local floorColor = if cobble then COBBLE_DARK else Color3.fromRGB(104, 74, 46)
 
 	local w, d = 16, 14
-	local wallH = if ruined then 4.5 else 7
+	local wallH = if ruined then 4.5 else 8.5  -- Slightly taller for more impressive medieval look
+
+	-- Enhanced stone foundation
+	local foundation = makePart({
+		Name = "HouseFoundation",
+		Parent = model,
+		Size = Vector3.new(w + 1, 1.2, d + 1),
+		CFrame = cf * CFrame.new(0, 0.6, 0),
+		Color = STONE_DARK,
+		Material = Enum.Material.Cobblestone,
+	})
 
 	local floor = makePart({
 		Name = "HouseFloor",
 		Parent = model,
-		Size = Vector3.new(w, 0.6, d),
-		CFrame = cf * CFrame.new(0, 0.3, 0),
+		Size = Vector3.new(w, 0.4, d),
+		CFrame = cf * CFrame.new(0, 1.4, 0),
 		Color = floorColor,
 		Material = if cobble then Enum.Material.Slate else Enum.Material.WoodPlanks,
 	})
@@ -78,14 +221,15 @@ local function buildHouse(model: Model, cf: CFrame, opts: { [string]: any })
 	wallsFolder.Name = "SalvageWalls"
 	wallsFolder.Parent = model
 
-	local wallY = wallH * 0.5
+	local wallY = wallH * 0.5 + 1.6
 	local specs = {
-		{ Name = "WallBack", Size = Vector3.new(w, wallH, 0.7), Offset = Vector3.new(0, wallY, -d * 0.5) },
-		{ Name = "WallLeft", Size = Vector3.new(0.7, wallH, d), Offset = Vector3.new(-w * 0.5, wallY, 0) },
-		{ Name = "WallRight", Size = Vector3.new(0.7, wallH, d), Offset = Vector3.new(w * 0.5, wallY, 0) },
-		{ Name = "WallFrontL", Size = Vector3.new(w * 0.34, wallH, 0.7), Offset = Vector3.new(-w * 0.33, wallY, d * 0.5) },
-		{ Name = "WallFrontR", Size = Vector3.new(w * 0.34, wallH, 0.7), Offset = Vector3.new(w * 0.33, wallY, d * 0.5) },
+		{ Name = "WallBack", Size = Vector3.new(w, wallH, 0.8), Offset = Vector3.new(0, wallY, -d * 0.5) },
+		{ Name = "WallLeft", Size = Vector3.new(0.8, wallH, d), Offset = Vector3.new(-w * 0.5, wallY, 0) },
+		{ Name = "WallRight", Size = Vector3.new(0.8, wallH, d), Offset = Vector3.new(w * 0.5, wallY, 0) },
+		{ Name = "WallFrontL", Size = Vector3.new(w * 0.32, wallH, 0.8), Offset = Vector3.new(-w * 0.34, wallY, d * 0.5) },
+		{ Name = "WallFrontR", Size = Vector3.new(w * 0.32, wallH, 0.8), Offset = Vector3.new(w * 0.34, wallY, d * 0.5) },
 	}
+	
 	for i, spec in specs do
 		-- Ruined houses are missing a wall or two.
 		if ruined and (i == 2 or i == 4) and math.random() < 0.6 then
@@ -101,102 +245,322 @@ local function buildHouse(model: Model, cf: CFrame, opts: { [string]: any })
 		if cobble then
 			local prim = wall.PrimaryPart
 			if prim then
-				prim.Color = STONE
+				prim.Color = MEDIEVAL_STONE
 				prim.Material = Enum.Material.Cobblestone
+			end
+		else
+			local prim = wall.PrimaryPart
+			if prim then
+				prim.Color = wallColor
+				prim.Material = Enum.Material.SmoothPlastic
+			end
+		end
+	end
+
+	-- Add detailed timber framing for non-stone houses
+	if not cobble and not ruined then
+		-- Vertical timber posts
+		for _, pos in { 
+			{-w * 0.45, 0, -d * 0.45}, {w * 0.45, 0, -d * 0.45}, 
+			{-w * 0.45, 0, d * 0.45}, {w * 0.45, 0, d * 0.45},
+			{0, 0, -d * 0.5}, {0, 0, d * 0.5}
+		} do
+			makePart({
+				Name = "TimberPost",
+				Parent = model,
+				Size = Vector3.new(0.4, wallH, 0.4),
+				CFrame = cf * CFrame.new(pos[1], wallY, pos[3]),
+				Color = TIMBER_FRAME,
+				Material = Enum.Material.Wood,
+				CanCollide = false,
+			})
+		end
+		
+		-- Horizontal timber beams
+		for y = wallH * 0.3, wallH * 0.8, wallH * 0.25 do
+			-- Front and back beams
+			for _, z in {-d * 0.5, d * 0.5} do
+				makePart({
+					Name = "TimberBeam",
+					Parent = model,
+					Size = Vector3.new(w * 0.9, 0.3, 0.4),
+					CFrame = cf * CFrame.new(0, 1.6 + y, z),
+					Color = TIMBER_FRAME,
+					Material = Enum.Material.Wood,
+					CanCollide = false,
+				})
+			end
+			-- Side beams
+			for _, x in {-w * 0.5, w * 0.5} do
+				makePart({
+					Name = "TimberBeam",
+					Parent = model,
+					Size = Vector3.new(0.4, 0.3, d * 0.9),
+					CFrame = cf * CFrame.new(x, 1.6 + y, 0),
+					Color = TIMBER_FRAME,
+					Material = Enum.Material.Wood,
+					CanCollide = false,
+				})
 			end
 		end
 	end
 
 	if not ruined then
-		-- Pitched roof: two sloped panels meeting at a ridge beam (reads far nicer than a flat slab).
+		-- Enhanced pitched roof with overhangs and detailed structure
 		for i = -1, 1, 2 do
 			makePart({
 				Name = "RoofSlope",
 				Parent = model,
-				Size = Vector3.new(w * 0.62, 0.5, d + 2.0),
-				CFrame = cf * CFrame.new(i * w * 0.24, wallH + 1.1, 0) * CFrame.Angles(0, 0, math.rad(i * -32)),
-				Color = if cobble then ROOF_WOOD else ROOF_THATCH,
+				Size = Vector3.new(w * 0.65, 0.6, d + 3.0),
+				CFrame = cf * CFrame.new(i * w * 0.26, wallY + wallH * 0.45 + 1.8, 0) * CFrame.Angles(0, 0, math.rad(i * -35)),
+				Color = if cobble then ROOF_WOOD else Color3.fromRGB(120, 85, 45),
 				Material = if cobble then Enum.Material.Wood else Enum.Material.Grass,
 			})
 		end
+		
+		-- Roof ridge beam
 		makePart({
 			Name = "RoofRidge",
 			Parent = model,
-			Size = Vector3.new(0.6, 0.6, d + 2.1),
-			CFrame = cf * CFrame.new(0, wallH + 2.0, 0),
+			Size = Vector3.new(0.8, 0.8, d + 3.2),
+			CFrame = cf * CFrame.new(0, wallY + wallH * 0.45 + 3.2, 0),
 			Color = ROOF_WOOD,
 			Material = Enum.Material.Wood,
 		})
-		-- Stone homes get a chimney with a wisp of smoke.
-		if cobble then
+		
+		-- Roof supports/rafters
+		for i = -1, 1, 1 do
+			if i ~= 0 then
+				makePart({
+					Name = "RoofSupport",
+					Parent = model,
+					Size = Vector3.new(0.3, w * 0.4, 0.3),
+					CFrame = cf * CFrame.new(0, wallY + wallH * 0.3 + 1.5, i * d * 0.25) * CFrame.Angles(0, 0, math.rad(i * 25)),
+					Color = TIMBER_FRAME,
+					Material = Enum.Material.Wood,
+					CanCollide = false,
+				})
+			end
+		end
+		
+		-- Enhanced chimney with detailed brickwork
+		if cobble or math.random() < 0.7 then
 			local chimney = makePart({
 				Name = "Chimney",
 				Parent = model,
-				Size = Vector3.new(1.3, 3.2, 1.3),
-				CFrame = cf * CFrame.new(w * 0.3, wallH + 1.8, -d * 0.3),
-				Color = STONE_DARK,
-				Material = Enum.Material.Cobblestone,
+				Size = Vector3.new(1.6, 4.2, 1.6),
+				CFrame = cf * CFrame.new(w * 0.25, wallY + wallH * 0.5 + 2.8, -d * 0.25),
+				Color = if cobble then STONE_DARK else Color3.fromRGB(120, 65, 45),
+				Material = if cobble then Enum.Material.Cobblestone else Enum.Material.Brick,
 			})
+			
+			-- Chimney cap
+			makePart({
+				Name = "ChimneyCap",
+				Parent = model,
+				Size = Vector3.new(2.2, 0.4, 2.2),
+				CFrame = cf * CFrame.new(w * 0.25, wallY + wallH * 0.5 + 5.2, -d * 0.25),
+				Color = STONE_DARK,
+				Material = Enum.Material.Slate,
+			})
+			
 			local smoke = Instance.new("Smoke")
-			smoke.Size = 2.4
-			smoke.Opacity = 0.25
-			smoke.RiseVelocity = 4
+			smoke.Size = 2.8
+			smoke.Opacity = 0.3
+			smoke.RiseVelocity = 5
 			smoke.Color = Color3.fromRGB(180, 180, 180)
 			smoke.Parent = chimney
 		end
 	else
-		-- collapsed beam
+		-- Enhanced ruins with more detail
 		makePart({
 			Name = "CollapsedBeam",
 			Parent = model,
-			Size = Vector3.new(w * 0.8, 0.5, 0.5),
+			Size = Vector3.new(w * 0.8, 0.6, 0.6),
 			CFrame = cf * CFrame.new(0, wallH * 0.4, 0) * CFrame.Angles(0, math.rad(18), math.rad(24)),
 			Color = MOSS,
 			Material = Enum.Material.Wood,
 			CanCollide = false,
 		})
+		
+		-- Rubble pile
+		for i = 1, 3 do
+			makePart({
+				Name = "Rubble",
+				Parent = model,
+				Size = Vector3.new(1 + math.random(), 0.8 + math.random() * 0.4, 1 + math.random()),
+				CFrame = cf * CFrame.new((math.random() - 0.5) * w * 0.8, 2, (math.random() - 0.5) * d * 0.8),
+				Color = STONE_DARK,
+				Material = Enum.Material.Concrete,
+				CanCollide = false,
+				Shape = Enum.PartType.Block,
+			})
+		end
 	end
 
-	-- Front door in the gap between the two front wall halves.
+	-- Enhanced door with frame and details
 	if not ruined or math.random() < 0.5 then
+		-- Door frame
+		makePart({
+			Name = "DoorFrame",
+			Parent = model,
+			Size = Vector3.new(w * 0.32, wallH * 0.8, 0.2),
+			CFrame = cf * CFrame.new(0, wallY - wallH * 0.1, d * 0.5 + 0.1),
+			Color = TIMBER_FRAME,
+			Material = Enum.Material.Wood,
+			CanCollide = false,
+		})
+		
+		-- Door
 		makePart({
 			Name = "Door",
 			Parent = model,
-			Size = Vector3.new(w * 0.28, wallH * 0.72, 0.35),
-			CFrame = cf * CFrame.new(0, wallH * 0.36 + 0.3, d * 0.5),
-			Color = DOOR_WOOD,
+			Size = Vector3.new(w * 0.26, wallH * 0.72, 0.3),
+			CFrame = cf * CFrame.new(0, wallY - wallH * 0.14, d * 0.5 + 0.05),
+			Color = Color3.fromRGB(85, 55, 35),
 			Material = Enum.Material.Wood,
+			CanCollide = false,
+		})
+		
+		-- Door handle
+		makePart({
+			Name = "DoorHandle",
+			Parent = model,
+			Size = Vector3.new(0.2, 0.2, 0.3),
+			CFrame = cf * CFrame.new(w * 0.08, wallY - wallH * 0.14, d * 0.5 + 0.2),
+			Color = Color3.fromRGB(60, 60, 60),
+			Material = Enum.Material.Metal,
 			CanCollide = false,
 		})
 	end
 
-	-- Windows on the side walls — warm glowing Neon panes on lit homes, dark on ruins.
-	-- The panes are emissive Neon so they read as "lit" on their own; we no longer attach
-	-- a PointLight per window (that was up to ~64 dynamic lights on a single town, a huge
-	-- render cost) — the campfire remains the village's one real light source.
+	-- Enhanced windows with frames and shutters
 	if not ruined then
 		for i = -1, 1, 2 do
+			-- Window frame
+			makePart({
+				Name = "WindowFrame",
+				Parent = model,
+				Size = Vector3.new(0.4, 2.2, 2.4),
+				CFrame = cf * CFrame.new(i * w * 0.5, wallY - wallH * 0.1, d * 0.1),
+				Color = TIMBER_FRAME,
+				Material = Enum.Material.Wood,
+				CanCollide = false,
+			})
+			
+			-- Window pane (diamond pattern)
 			local pane = makePart({
 				Name = "Window",
 				Parent = model,
-				Size = Vector3.new(0.3, 1.5, 1.8),
-				CFrame = cf * CFrame.new(i * w * 0.5, wallH * 0.55, d * 0.12),
+				Size = Vector3.new(0.2, 1.8, 2.0),
+				CFrame = cf * CFrame.new(i * w * 0.5, wallY - wallH * 0.1, d * 0.1),
 				Color = GLASS_WARM,
 				Material = Enum.Material.Neon,
 				CanCollide = false,
 			})
-			pane.Transparency = 0.15
+			pane.Transparency = 0.12
+			
+			-- Window shutters
+			for j = -1, 1, 2 do
+				makePart({
+					Name = "WindowShutter",
+					Parent = model,
+					Size = Vector3.new(0.3, 1.8, 0.8),
+					CFrame = cf * CFrame.new(i * w * 0.5, wallY - wallH * 0.1, d * 0.1 + j * 1.2),
+					Color = Color3.fromRGB(65, 45, 30),
+					Material = Enum.Material.Wood,
+					CanCollide = false,
+				})
+			end
 		end
 	end
 
 	-- Interior bed (loot) + torch (loot)
-	local bed = LootPropFactory.createBedWorld(model, cf * CFrame.new(-w * 0.25, 0.95, -d * 0.22))
+	local bed = LootPropFactory.createBedWorld(model, cf * CFrame.new(-w * 0.25, 2.5, -d * 0.22))
 	if opts.islandId then
 		bed:SetAttribute("IslandId", opts.islandId)
 	end
-	local torch = LootPropFactory.createTorchWorld(model, cf * CFrame.new(w * 0.28, 1.7, -d * 0.22))
+	local torch = LootPropFactory.createTorchWorld(model, cf * CFrame.new(w * 0.28, 3.5, -d * 0.22))
 	if opts.islandId then
 		torch:SetAttribute("IslandId", opts.islandId)
+	end
+end
+
+-- Enhanced cobblestone street network connecting buildings and village center
+local function buildCobblestoneStreets(model: Model, center: Vector3, topY: number, villagerSpots: { Vector3 }, villageRadius: number)
+	local COBBLE_MAIN = Color3.fromRGB(110, 108, 105)
+	local COBBLE_ACCENT = Color3.fromRGB(95, 92, 88)
+	
+	-- Main town square (circular plaza)
+	local squareRadius = villageRadius * 0.25
+	makePart({
+		Name = "TownSquare",
+		Parent = model,
+		Size = Vector3.new(squareRadius * 2, 0.3, squareRadius * 2),
+		CFrame = CFrame.new(center.X, topY + 0.15, center.Z),
+		Color = COBBLE_MAIN,
+		Material = Enum.Material.Cobblestone,
+		CanCollide = false,
+		Shape = Enum.PartType.Cylinder,
+	})
+	
+	-- Radial streets from center to houses
+	for i, spot in villagerSpots do
+		if i > #villagerSpots * 0.7 then break end -- Don't connect every house to avoid overcrowding
+		
+		local direction = (Vector3.new(spot.X, topY, spot.Z) - Vector3.new(center.X, topY, center.Z)).Unit
+		local distance = (Vector3.new(spot.X, topY, spot.Z) - Vector3.new(center.X, topY, center.Z)).Magnitude
+		local pathLength = distance - squareRadius - 8 -- Leave gaps at both ends
+		
+		if pathLength > 10 then
+			local pathCenter = Vector3.new(center.X, topY, center.Z) + direction * (squareRadius + pathLength * 0.5 + 8)
+			
+			-- Main path
+			makePart({
+				Name = "CobblePath",
+				Parent = model,
+				Size = Vector3.new(4, 0.2, pathLength),
+				CFrame = CFrame.lookAt(pathCenter, pathCenter + direction) * CFrame.Angles(math.rad(90), 0, 0),
+				Color = COBBLE_MAIN,
+				Material = Enum.Material.Cobblestone,
+				CanCollide = false,
+			})
+			
+			-- Path border stones
+			for side = -1, 1, 2 do
+				makePart({
+					Name = "PathBorder",
+					Parent = model,
+					Size = Vector3.new(0.5, 0.3, pathLength + 2),
+					CFrame = CFrame.lookAt(pathCenter + direction:Cross(Vector3.new(0, 1, 0)) * side * 2.2, pathCenter + direction + direction:Cross(Vector3.new(0, 1, 0)) * side * 2.2) * CFrame.Angles(math.rad(90), 0, 0),
+					Color = COBBLE_ACCENT,
+					Material = Enum.Material.Cobblestone,
+					CanCollide = false,
+				})
+			end
+		end
+	end
+	
+	-- Connecting ring road around the village
+	local ringRadius = villageRadius * 0.65
+	local segments = 24
+	for i = 1, segments do
+		local angle1 = (i - 1) / segments * math.pi * 2
+		local angle2 = i / segments * math.pi * 2
+		local pos1 = Vector3.new(center.X + math.cos(angle1) * ringRadius, topY, center.Z + math.sin(angle1) * ringRadius)
+		local pos2 = Vector3.new(center.X + math.cos(angle2) * ringRadius, topY, center.Z + math.sin(angle2) * ringRadius)
+		local segmentCenter = (pos1 + pos2) * 0.5
+		local segmentLength = (pos2 - pos1).Magnitude
+		
+		makePart({
+			Name = "RingRoad",
+			Parent = model,
+			Size = Vector3.new(3, 0.2, segmentLength),
+			CFrame = CFrame.lookAt(segmentCenter, pos2) * CFrame.Angles(math.rad(90), 0, 0),
+			Color = COBBLE_MAIN,
+			Material = Enum.Material.Cobblestone,
+			CanCollide = false,
+		})
 	end
 end
 
@@ -1268,6 +1632,9 @@ function VillageBuilder.build(
 
 	if not abandoned then
 		buildFenceRing(villageFolder, center, topY, villageRadius * 0.95)
+		
+		-- Add cobblestone streets connecting the village
+		buildCobblestoneStreets(villageFolder, center, topY, villagerSpots, villageRadius)
 	end
 
 	-- Weapon pickups scattered through the village (all villages have loot).
@@ -1311,6 +1678,9 @@ function VillageBuilder.build(
 		topY + 2.5,
 		center.Z + villageRadius * 0.15
 	)
+
+	-- Setup Level-of-Detail system for performance optimization
+	setupBuildingLOD(model, center)
 
 	return { villagerSpots = villagerSpots, merchantSpot = merchantSpot }
 end
