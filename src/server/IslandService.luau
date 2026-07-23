@@ -34,6 +34,15 @@ export type IslandRecord = {
 	model: Model,
 	label: TextLabel?,
 	npcs: { Model },
+	-- Villagers are spawned lazily (see populateIsland) the first time a crew lands, so
+	-- the world starts with no villagers. This plan holds what to spawn and where.
+	villagerPlan: {
+		spots: { Vector3 },
+		passive: number,
+		hostile: number,
+		abandoned: boolean,
+	}?,
+	populated: boolean?,
 }
 
 type CrewIslandState = {
@@ -259,6 +268,98 @@ local function buildJungleTree(model: Model, topY: number, x: number, z: number)
 	end
 end
 
+-- A towering buttressed rainforest giant (kapok / ceiba) — the Amazon canopy centrepiece.
+-- Massive trunk with flaring root buttresses and a broad, layered canopy.
+local function buildGiantTree(model: Model, topY: number, x: number, z: number)
+	local trunkH = 30 + math.random() * 18
+	local trunk = makePart({
+		Name = "GiantTrunk",
+		Parent = model,
+		Size = Vector3.new(3.4, trunkH, 3.4),
+		CFrame = CFrame.new(x, topY + trunkH * 0.5, z),
+		Color = Color3.fromRGB(112, 86, 60),
+		Material = Enum.Material.Wood,
+		CanCollide = true,
+	})
+	-- Flaring root buttresses around the base.
+	for i = 0, 4 do
+		local a = math.rad(i * 72 + math.random(-10, 10))
+		makePart({
+			Name = `Buttress_{i}`,
+			Parent = model,
+			Size = Vector3.new(1.2, 6 + math.random() * 2, 3.2),
+			CFrame = CFrame.new(x + math.cos(a) * 2.2, topY + 2.5, z + math.sin(a) * 2.2)
+				* CFrame.Angles(0, -a, math.rad(16)),
+			Color = Color3.fromRGB(98, 74, 50),
+			Material = Enum.Material.Wood,
+			CanCollide = false,
+			CastShadow = false,
+		})
+	end
+	-- Broad, layered emergent canopy.
+	for i = 0, 3 do
+		makePart({
+			Name = `GiantCanopy_{i}`,
+			Parent = model,
+			Size = Vector3.new(20 - i * 3, 5 + math.random() * 2, 20 - i * 3),
+			CFrame = trunk.CFrame * CFrame.new((math.random() - 0.5) * 3, trunkH * 0.42 + i * 3.4, (math.random() - 0.5) * 3),
+			Color = Color3.fromRGB(22 + i * 6, 74 + i * 10, 32 + i * 6),
+			Material = Enum.Material.LeafyGrass,
+			CanCollide = false,
+			CastShadow = i == 0,
+			Shape = Enum.PartType.Ball,
+		})
+	end
+end
+
+-- Low broad rainforest ferns / undergrowth fronds — thick green floor cover.
+local function buildFern(model: Model, topY: number, x: number, z: number)
+	local blades = math.random(3, 5)
+	for i = 1, blades do
+		local a = math.rad((i / blades) * 360 + math.random(-20, 20))
+		makePart({
+			Name = "Fern",
+			Parent = model,
+			Size = Vector3.new(2.6 + math.random() * 1.4, 0.28, 0.9 + math.random() * 0.5),
+			CFrame = CFrame.new(x, topY + 0.7, z)
+				* CFrame.Angles(0, a, math.rad(22 + math.random() * 14)),
+			Color = Color3.fromRGB(34, 98, 44),
+			Material = Enum.Material.LeafyGrass,
+			CanCollide = false,
+			CastShadow = false,
+		})
+	end
+end
+
+-- A climbable jungle vine: a TrussPart (auto-climbable by Humanoids) dressed with a couple
+-- of leafy strips, giving players a real way to scale the isle's rocky peaks and cliffs.
+local function buildClimbVine(model: Model, topY: number, x: number, z: number, height: number)
+	local truss = Instance.new("TrussPart")
+	truss.Name = "ClimbVine"
+	truss.Anchored = true
+	truss.CanCollide = true
+	truss.Color = Color3.fromRGB(64, 88, 42)
+	truss.Material = Enum.Material.Grass
+	truss.Size = Vector3.new(2, height, 2)
+	truss.CFrame = CFrame.new(x, topY + height * 0.5, z)
+	truss.CastShadow = false
+	truss.Parent = model
+	-- Leafy dressing so it reads as a hanging vine, not scaffolding.
+	for i = 0, 2 do
+		makePart({
+			Name = `VineLeaf_{i}`,
+			Parent = model,
+			Size = Vector3.new(1.4, 1.2, 0.3),
+			CFrame = CFrame.new(x + (i - 1) * 0.7, topY + height * (0.3 + i * 0.25), z - 1.1)
+				* CFrame.Angles(0, math.rad(math.random(0, 360)), 0),
+			Color = Color3.fromRGB(40, 104, 46),
+			Material = Enum.Material.LeafyGrass,
+			CanCollide = false,
+			CastShadow = false,
+		})
+	end
+end
+
 local function buildRock(model: Model, topY: number, x: number, z: number, scale: number?)
 	local s = scale or (1 + math.random() * 1.7)
 	local g = 92 + math.random(0, 34)
@@ -333,13 +434,15 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 	local half = size * 0.5
 	local beachBand = half * 0.78 -- outer ring stays sandier; vegetation denser inward
 
-	-- Density divisors are tuned so these HUGE isles stay lush and explorable without the
-	-- per-isle part count exploding (island area grows with the square of the radius).
-	local palmCount = math.floor(size / 20)
+	-- Density divisors are tuned so isles stay lush and explorable while keeping the
+	-- per-isle part count LOW (island area grows with the square of the radius, and a
+	-- fast raft streams several isles' worth of parts in quickly — a big divisor keeps
+	-- the approach smooth and lag-free instead of dumping thousands of parts at once).
+	local palmCount = math.floor(size / 28)
 	if biome == "beach" then
-		palmCount = math.floor(size / 24)
+		palmCount = math.floor(size / 32)
 	elseif biome == "jungle" then
-		palmCount = math.floor(size / 20)
+		palmCount = math.floor(size / 28)
 	end
 
 	for _ = 1, palmCount do
@@ -354,7 +457,7 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 		buildPalm(model, topY, x, z)
 	end
 
-	local bushCount = math.floor(size / 16)
+	local bushCount = math.floor(size / 22)
 	for _ = 1, bushCount do
 		local angle = math.random() * math.pi * 2
 		local r = half * (0.12 + math.random() * 0.7)
@@ -364,7 +467,7 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 		buildBush(model, topY, center.X + math.cos(angle) * r, center.Z + math.sin(angle) * r, biome == "jungle")
 	end
 
-	local tuftCount = math.floor(size / 12)
+	local tuftCount = math.floor(size / 17)
 	for _ = 1, tuftCount do
 		local angle = math.random() * math.pi * 2
 		local r = half * (0.2 + math.random() * 0.65)
@@ -372,7 +475,7 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 	end
 
 	if biome == "jungle" or biome == "palm" then
-		local treeCount = if biome == "jungle" then math.floor(size / 30) else math.floor(size / 50)
+		local treeCount = if biome == "jungle" then math.floor(size / 42) else math.floor(size / 68)
 		for _ = 1, treeCount do
 			local angle = math.random() * math.pi * 2
 			-- Keep the very center clear for the hill/village heart, then spread trees
@@ -382,8 +485,35 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 		end
 	end
 
+	-- Amazon rainforest layer: buttressed canopy giants, thick ferns on the floor, and
+	-- climbable vines out on the peaks so the relief is scalable ("places to climb").
+	-- Denser on jungle isles, a lighter touch on palm isles.
+	if biome == "jungle" or biome == "palm" then
+		local giantCount = if biome == "jungle" then math.floor(size / 120) else math.floor(size / 220)
+		for _ = 1, giantCount do
+			local angle = math.random() * math.pi * 2
+			local r = half * (0.25 + math.random() * 0.5)
+			buildGiantTree(model, topY, center.X + math.cos(angle) * r, center.Z + math.sin(angle) * r)
+		end
+
+		local fernCount = if biome == "jungle" then math.floor(size / 18) else math.floor(size / 32)
+		for _ = 1, fernCount do
+			local angle = math.random() * math.pi * 2
+			local r = half * (0.15 + math.random() * 0.7)
+			buildFern(model, topY, center.X + math.cos(angle) * r, center.Z + math.sin(angle) * r)
+		end
+
+		local vineCount = math.clamp(math.floor(size / 160), 2, 7)
+		for _ = 1, vineCount do
+			local angle = math.random() * math.pi * 2
+			local r = half * (0.62 + math.random() * 0.28)
+			local h = 24 + math.random() * 18
+			buildClimbVine(model, topY, center.X + math.cos(angle) * r, center.Z + math.sin(angle) * r, h)
+		end
+	end
+
 	-- Rolling dunes across the interior — breaks up the flat with gentle rises
-	local duneCount = math.floor(size / 48)
+	local duneCount = math.floor(size / 64)
 	for _ = 1, duneCount do
 		local angle = math.random() * math.pi * 2
 		local r = half * (0.2 + math.random() * 0.62)
@@ -397,7 +527,7 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 	end
 
 	-- Rock outcrops — a few inland, more clustered near the shoreline
-	local rockCount = math.floor(size / 72)
+	local rockCount = math.floor(size / 96)
 	for _ = 1, rockCount do
 		local angle = math.random() * math.pi * 2
 		local r = half * (0.35 + math.random() * 0.55)
@@ -405,7 +535,7 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 	end
 
 	-- Weathered driftwood logs washed up along the beach ring
-	local driftCount = math.clamp(math.floor(size / 55), 2, 8)
+	local driftCount = math.clamp(math.floor(size / 70), 2, 6)
 	for _ = 1, driftCount do
 		local angle = math.random() * math.pi * 2
 		local r = half * (0.72 + math.random() * 0.2)
@@ -413,7 +543,7 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 	end
 
 	-- Scattered tropical flowers for colour (shadowless, so nearly free).
-	local flowerCount = math.floor(size / 34)
+	local flowerCount = math.floor(size / 46)
 	for _ = 1, flowerCount do
 		local angle = math.random() * math.pi * 2
 		local r = half * (0.18 + math.random() * 0.62)
@@ -520,6 +650,45 @@ local function spawnVillager(island: IslandRecord, cf: CFrame, kind: string): Mo
 	table.insert(island.npcs, model)
 	table.insert(IslandService._npcs, runtime)
 	return model
+end
+
+-- Bring an island's people to life. Villagers are NOT spawned at world-gen — the world
+-- starts empty of villagers — so this is called the first time a crew sets foot on the
+-- isle (from updateVisitLockouts). Idempotent: only ever populates once per isle.
+local function populateIsland(record: IslandRecord)
+	if record.populated then
+		return
+	end
+	record.populated = true
+
+	local plan = record.villagerPlan
+	if not plan then
+		return
+	end
+
+	local spots = plan.spots
+	local spotCount = math.max(#spots, 1)
+	local center, topY = record.center, record.topY
+	local function spotAt(i: number): CFrame
+		local base = spots[((i - 1) % spotCount) + 1] or Vector3.new(center.X, topY + 2.5, center.Z)
+		local jitter = Vector3.new((math.random() - 0.5) * 8, 0, (math.random() - 0.5) * 8)
+		local pos = base + jitter
+		return CFrame.new(Vector3.new(pos.X, topY + 2.5, pos.Z))
+	end
+
+	if plan.abandoned then
+		-- Rare feral scavengers only.
+		for i = 1, plan.hostile do
+			spawnVillager(record, spotAt(i), "scavenger")
+		end
+	else
+		for i = 1, plan.passive do
+			spawnVillager(record, spotAt(i), "passive")
+		end
+		for i = 1, plan.hostile do
+			spawnVillager(record, spotAt(i + 3), "hostile")
+		end
+	end
 end
 
 -- Stable per-isle seed from its id so an island's terrain is identical every build
@@ -764,31 +933,19 @@ local function buildFlatIsland(entry: { [string]: any }, folder: Folder): Island
 			end,
 		}
 		local layout = VillageBuilder.build(model, center, size, topY, entry, deps)
-		local spots = layout.villagerSpots
-		local spotCount = math.max(#spots, 1)
 
-		local function spotAt(i: number): CFrame
-			local base = spots[((i - 1) % spotCount) + 1] or Vector3.new(center.X, topY + 2.5, center.Z)
-			local jitter = Vector3.new((math.random() - 0.5) * 8, 0, (math.random() - 0.5) * 8)
-			local pos = base + jitter
-			return CFrame.new(Vector3.new(pos.X, topY + 2.5, pos.Z))
-		end
+		-- No villagers at the start: the settlement is built empty of people. We only
+		-- record WHERE and WHAT to spawn; populateIsland brings the town to life the first
+		-- time a crew actually lands (see updateVisitLockouts).
+		record.villagerPlan = {
+			spots = layout.villagerSpots,
+			passive = (villagerCfg.Passive or 0),
+			hostile = (villagerCfg.Hostile or 0),
+			abandoned = record.abandoned,
+		}
 
-		if record.abandoned then
-			-- Rare feral scavengers only.
-			for i = 1, (villagerCfg.Hostile or 0) do
-				spawnVillager(record, spotAt(i), "scavenger")
-			end
-		else
-			for i = 1, (villagerCfg.Passive or 0) do
-				spawnVillager(record, spotAt(i), "passive")
-			end
-			for i = 1, (villagerCfg.Hostile or 0) do
-				spawnVillager(record, spotAt(i + 3), "hostile")
-			end
-		end
-
-		-- The blue-hatted merchant (never hostile, draggable / weldable to your raft).
+		-- The blue-hatted merchant (never hostile, draggable / weldable to your raft) is
+		-- part of the scenery, so it's placed right away — trade is always available.
 		if entry.Merchant == true then
 			local m = layout.merchantSpot
 			MerchantService.spawnMerchant(model, CFrame.new(m), entry.Id)
@@ -991,6 +1148,10 @@ local function updateVisitLockouts()
 			end
 
 			if anyoneOn then
+				-- First boots on the sand: bring the town to life (villagers spawn now).
+				if not isle.populated then
+					populateIsland(isle)
+				end
 				state.visited = true
 				if not state.notifiedVisit then
 					state.notifiedVisit = true
