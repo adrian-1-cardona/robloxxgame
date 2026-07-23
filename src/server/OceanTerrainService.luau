@@ -43,10 +43,10 @@ local function worldToChunk(x: number, z: number): (number, number)
 	return math.floor(x / CHUNK), math.floor(z / CHUNK)
 end
 
-local function fillChunk(cx: number, cz: number)
+local function fillChunk(cx: number, cz: number): boolean
 	local key = chunkKey(cx, cz)
 	if activeChunks[key] then
-		return
+		return false
 	end
 
 	local centerX = cx * CHUNK + CHUNK * 0.5
@@ -58,6 +58,7 @@ local function fillChunk(cx: number, cz: number)
 		Enum.Material.Water
 	)
 	activeChunks[key] = true
+	return true
 end
 
 local function clearChunk(cx: number, cz: number)
@@ -77,16 +78,20 @@ local function clearChunk(cx: number, cz: number)
 	activeChunks[key] = nil
 end
 
-local function ensureAround(x: number, z: number, wanted: { [string]: boolean })
+local function ensureAround(x: number, z: number, wanted: { [string]: boolean }): boolean
 	local cx, cz = worldToChunk(x, z)
+	local changed = false
 	for dx = -RADIUS, RADIUS do
 		for dz = -RADIUS, RADIUS do
 			local nx, nz = cx + dx, cz + dz
 			local key = chunkKey(nx, nz)
 			wanted[key] = true
-			fillChunk(nx, nz)
+			if fillChunk(nx, nz) then
+				changed = true
+			end
 		end
 	end
+	return changed
 end
 
 local function collectFocusPoints(): { Vector3 }
@@ -109,10 +114,13 @@ local function collectFocusPoints(): { Vector3 }
 	return points
 end
 
-local function streamOnce()
+local function streamOnce(): boolean
+	local changed = false
 	local wanted: { [string]: boolean } = {}
 	for _, pos in collectFocusPoints() do
-		ensureAround(pos.X, pos.Z, wanted)
+		if ensureAround(pos.X, pos.Z, wanted) then
+			changed = true
+		end
 	end
 
 	local stale: { string } = {}
@@ -125,11 +133,18 @@ local function streamOnce()
 		local cxStr, czStr = string.match(key, "^(%-?%d+),(%-?%d+)$")
 		if cxStr and czStr then
 			clearChunk(tonumber(cxStr) :: number, tonumber(czStr) :: number)
+			changed = true
 		end
 	end
 
-	-- Re-paint sand after water fills so the isle stays land
-	IslandService.paintTerrain()
+	-- Re-paint sand only when the water field actually changed this cycle. FillCylinder
+	-- is a voxel write per isle, so doing it every tick (when nothing moved) was pure
+	-- server-side terrain churn — the main streaming lag source.
+	if changed then
+		IslandService.paintTerrain()
+	end
+
+	return changed
 end
 
 -- Hide legacy flat-glass ocean parts so Terrain water is the visible sea.
@@ -189,8 +204,12 @@ function OceanTerrainService.start()
 			return
 		end
 		accum = 0
-		hideLegacyOceanParts()
-		streamOnce()
+		-- Only re-hide legacy ocean parts when the water field changed (e.g. a new
+		-- starter base introduced a fresh focus point). On steady state nothing moves,
+		-- so we skip both the descendant scan and the terrain repaint entirely.
+		if streamOnce() then
+			hideLegacyOceanParts()
+		end
 	end)
 
 	print("[SurviveAtSea] Ocean terrain streaming online — realistic waves enabled")

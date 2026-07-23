@@ -93,7 +93,19 @@ function LobbyFX.start()
 		store[key] = nil
 	end
 
-	RunService.Heartbeat:Connect(function(dt)
+	-- Re-CFraming every boat/gate/flag part touches a lot of instances. The motion is
+	-- slow decorative bob/sway, so a ~30 Hz tick is visually indistinguishable from
+	-- per-frame while halving the CFrame writes. Accumulated dt keeps phase timing exact.
+	local fxAccum = 0
+	local FX_INTERVAL = 1 / 30
+	RunService.Heartbeat:Connect(function(frameDt)
+		fxAccum += frameDt
+		if fxAccum < FX_INTERVAL then
+			return
+		end
+		local dt = fxAccum
+		fxAccum = 0
+
 		-- Boats: gentle bob + roll around their moored pose.
 		for model, entry in boats do
 			if not model.Parent then
