@@ -87,12 +87,12 @@ local function buildBody(parent: Instance, cf: CFrame, gearColor: Color3): (Mode
 		CFrame = root.CFrame * CFrame.new(0, 0.1, 0),
 		Color = gearColor,
 	})
-	-- Tribal skirt / loincloth
+	-- Tribal skirt / loincloth (sits at the hips over the tops of the legs)
 	makePart({
 		Name = "Skirt",
 		Parent = model,
 		Size = Vector3.new(2.2, 1.1, 1.2),
-		CFrame = root.CFrame * CFrame.new(0, -1.3, 0),
+		CFrame = root.CFrame * CFrame.new(0, -0.75, 0),
 		Color = WRAP_BROWN,
 	})
 	-- Arms
@@ -106,23 +106,28 @@ local function buildBody(parent: Instance, cf: CFrame, gearColor: Color3): (Mode
 			Material = Enum.Material.SmoothPlastic,
 		})
 	end
-	-- Legs
+	-- Legs. Positioned so the feet bottom sits 2.5 studs below the root — with the
+	-- island spawn placing the root at topY + 2.5, that plants the feet exactly on
+	-- the ground instead of sinking the villager into it.
 	for i = -1, 1, 2 do
 		makePart({
 			Name = "Leg",
 			Parent = model,
-			Size = Vector3.new(0.85, 1.9, 0.9),
-			CFrame = root.CFrame * CFrame.new(i * 0.5, -2.0, 0),
+			Size = Vector3.new(0.9, 2.0, 0.95),
+			CFrame = root.CFrame * CFrame.new(i * 0.5, -1.5, 0),
 			Color = SKIN_DARK,
 			Material = Enum.Material.SmoothPlastic,
 		})
 	end
 
+	-- Head top lands 2.5 studs above the root, giving the rig an overall height of
+	-- ~5 studs (feet at -2.5, head top at +2.5) so villagers stand eye-to-eye with a
+	-- standard-scale player character.
 	local head = makePart({
 		Name = "Head",
 		Parent = model,
 		Size = Vector3.new(1.25, 1.25, 1.25),
-		CFrame = root.CFrame * CFrame.new(0, 1.7, 0),
+		CFrame = root.CFrame * CFrame.new(0, 1.875, 0),
 		Color = SKIN,
 		Material = Enum.Material.SmoothPlastic,
 		Shape = Enum.PartType.Ball,

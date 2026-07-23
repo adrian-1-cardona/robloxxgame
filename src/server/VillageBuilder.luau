@@ -39,7 +39,10 @@ local function makePart(props: { [string]: any }): Part
 	p.CFrame = props.CFrame or CFrame.new()
 	p.TopSurface = Enum.SurfaceType.Smooth
 	p.BottomSurface = Enum.SurfaceType.Smooth
-	p.CastShadow = if props.CastShadow == nil then true else props.CastShadow
+	-- Village geometry (houses, walls, roofs, fences, towers) no longer casts shadows by
+	-- default — a town of 20+ houses was thousands of shadow-casters. Sun/terrain shadows
+	-- still apply via GlobalShadows.
+	p.CastShadow = props.CastShadow == true
 	if props.Transparency then
 		p.Transparency = props.Transparency
 	end
@@ -167,7 +170,10 @@ local function buildHouse(model: Model, cf: CFrame, opts: { [string]: any })
 		})
 	end
 
-	-- Windows on the side walls — warm glowing panes on lit homes, dark on ruins.
+	-- Windows on the side walls — warm glowing Neon panes on lit homes, dark on ruins.
+	-- The panes are emissive Neon so they read as "lit" on their own; we no longer attach
+	-- a PointLight per window (that was up to ~64 dynamic lights on a single town, a huge
+	-- render cost) — the campfire remains the village's one real light source.
 	if not ruined then
 		for i = -1, 1, 2 do
 			local pane = makePart({
@@ -180,11 +186,6 @@ local function buildHouse(model: Model, cf: CFrame, opts: { [string]: any })
 				CanCollide = false,
 			})
 			pane.Transparency = 0.15
-			local glow = Instance.new("PointLight")
-			glow.Brightness = 0.7
-			glow.Range = 12
-			glow.Color = GLASS_WARM
-			glow.Parent = pane
 		end
 	end
 

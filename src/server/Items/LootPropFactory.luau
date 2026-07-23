@@ -33,7 +33,10 @@ local function makePart(props: { [string]: any }): Part
 	p.CFrame = props.CFrame or CFrame.new()
 	p.TopSurface = Enum.SurfaceType.Smooth
 	p.BottomSurface = Enum.SurfaceType.Smooth
-	p.CastShadow = if props.CastShadow == nil then true else props.CastShadow
+	-- Loot props (walls, planks, crates, beds, torches) are numerous — especially the
+	-- 5 salvage walls per village house. Default them to no shadow; sun/terrain shadows
+	-- via GlobalShadows still apply.
+	p.CastShadow = props.CastShadow == true
 	if props.Transparency ~= nil then
 		p.Transparency = props.Transparency
 	end
@@ -94,9 +97,11 @@ local function attachFlame(holder: BasePart)
 	local light = Instance.new("PointLight")
 	light.Name = "TorchLight"
 	light.Brightness = 2.4
-	light.Range = 28
+	light.Range = 24
 	light.Color = Color3.fromRGB(255, 186, 90)
-	light.Shadows = true
+	-- Shadow-casting dynamic lights are extremely expensive and torches are everywhere
+	-- (houses, village posts, island scatter). Keep the warm glow, drop the shadow pass.
+	light.Shadows = false
 	light.Parent = holder
 
 	return fire, light
