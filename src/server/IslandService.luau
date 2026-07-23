@@ -1459,6 +1459,35 @@ local function planIslandFeatures(
 		}
 	end
 
+	-- Twin Peaks: two blocky rock stacks on separate sand pads, linked by a rope bridge.
+	if biome == "twin_peaks" then
+		local axis = rng:NextNumber(-0.25, 0.25)
+		local sep = half * 0.3
+		local padR = half * 0.22
+		local rockFoot = padR * 0.78
+		local rockH = math.clamp(size * 0.09, 88, 130)
+		features.peaks = {
+			{
+				pos = Vector3.new(center.X - sep, center.Y, center.Z + sep * axis),
+				padR = padR,
+				padW = padR * 2.15,
+				padD = padR * 1.85,
+				rockFoot = rockFoot,
+				rockH = rockH * rng:NextNumber(0.92, 1.05),
+				angle = math.pi, -- outward (−X)
+			},
+			{
+				pos = Vector3.new(center.X + sep, center.Y, center.Z - sep * axis),
+				padR = padR * rng:NextNumber(0.92, 1.05),
+				padW = padR * 2.05,
+				padD = padR * 1.75,
+				rockFoot = rockFoot * 0.92,
+				rockH = rockH * rng:NextNumber(0.85, 0.98),
+				angle = 0, -- outward (+X)
+			},
+		}
+	end
+
 	-- Dock directions: evenly spaced around the coast, biased away from the tall side
 	-- (peak / volcano) so a pier never tries to climb the mountain.
 	local dcount = tonumber(entry.Docks) or 0
@@ -1468,6 +1497,9 @@ local function planIslandFeatures(
 			baseA = features.peak.angle + math.pi -- start opposite the peak
 		elseif features.volcano then
 			baseA = features.volcano.angle + math.pi * 0.5
+		elseif features.peaks and features.peaks[1] then
+			-- Twin Peaks: pier reaches out from the left sand pad into open water.
+			baseA = features.peaks[1].angle
 		end
 		for i = 1, dcount do
 			local a = baseA + (i - 1) * (math.pi * 2 / dcount) * 0.55
@@ -1488,6 +1520,358 @@ local function planIslandFeatures(
 	end
 
 	return features
+end
+
+-- =====================================================================================
+-- Twin Peaks biome — low-poly dual rock stacks on sand pads, linked by a rope bridge
+-- (matches the postcard "two blocky isles + sagging span" look).
+-- =====================================================================================
+
+local TWIN_SAND = Color3.fromRGB(234, 226, 207)
+local TWIN_ROCK = Color3.fromRGB(85, 85, 85)
+local TWIN_ROCK_LIT = Color3.fromRGB(98, 98, 102)
+local TWIN_LEAF = Color3.fromRGB(46, 139, 87)
+local TWIN_LEAF_DARK = Color3.fromRGB(36, 118, 72)
+local TWIN_TRUNK = Color3.fromRGB(92, 64, 38)
+local TWIN_ROPE = Color3.fromRGB(72, 52, 34)
+
+-- Clumpy low-poly canopy tree: thin trunk + clustered leaf balls (the "broccoli" tree).
+local function buildClumpTree(model: Model, baseY: number, x: number, z: number, scale: number?)
+	local s = scale or (0.9 + math.random() * 0.55)
+	local trunkH = (9 + math.random() * 5) * s
+	local trunkR = 1.15 * s
+	-- Cylinder length is Size.X; rotate 90° about Z so the trunk stands upright.
+	makePart({
+		Name = "ClumpTrunk",
+		Parent = model,
+		Size = Vector3.new(trunkH, trunkR, trunkR),
+		CFrame = CFrame.new(x, baseY + trunkH * 0.5, z) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = TWIN_TRUNK,
+		Material = Enum.Material.Wood,
+		CanCollide = false,
+		Shape = Enum.PartType.Cylinder,
+	})
+	local canopyY = baseY + trunkH
+	local blobs = {
+		{ 0, 0, 5.5 },
+		{ 2.2, 1.0, 4.2 },
+		{ -2.0, 0.6, 4.0 },
+		{ 0.4, 2.4, 3.6 },
+		{ -1.2, -1.6, 3.8 },
+	}
+	for i, b in blobs do
+		local r = b[3] * s
+		makePart({
+			Name = `ClumpLeaf_{i}`,
+			Parent = model,
+			Size = Vector3.new(r, r, r),
+			CFrame = CFrame.new(x + b[1] * s, canopyY + b[2] * s, z + (i % 2 == 0 and 0.6 or -0.4) * s),
+			Color = if i % 2 == 0 then TWIN_LEAF else TWIN_LEAF_DARK,
+			Material = Enum.Material.Grass,
+			CanCollide = false,
+			CastShadow = i == 1,
+			Shape = Enum.PartType.Ball,
+		})
+	end
+end
+
+-- Sagging rope bridge between two peak tops — walkable planks + twin side ropes.
+local function buildRopeBridge(model: Model, a: Vector3, b: Vector3)
+	local segs = 18
+	local sag = math.clamp((a - b).Magnitude * 0.08, 6, 18)
+	local function pointAt(t: number): Vector3
+		local p = a:Lerp(b, t)
+		local dip = sag * 4 * t * (1 - t)
+		return Vector3.new(p.X, p.Y - dip, p.Z)
+	end
+	local across = Vector3.new(b.X - a.X, 0, b.Z - a.Z)
+	local side = if across.Magnitude > 0.1 then across.Unit:Cross(Vector3.yAxis) else Vector3.new(1, 0, 0)
+	local halfW = 2.4
+
+	for i = 0, segs - 1 do
+		local t0 = i / segs
+		local t1 = (i + 1) / segs
+		local p0 = pointAt(t0)
+		local p1 = pointAt(t1)
+		local mid = (p0 + p1) * 0.5
+		local dir = p1 - p0
+		local len = math.max(dir.Magnitude, 0.4)
+		local look = CFrame.lookAt(mid, mid + dir)
+		-- Walkway plank (collidable so players can cross).
+		makePart({
+			Name = `BridgePlank_{i}`,
+			Parent = model,
+			Size = Vector3.new(halfW * 2, 0.35, len + 0.08),
+			CFrame = look,
+			Color = Color3.fromRGB(118, 86, 54),
+			Material = Enum.Material.WoodPlanks,
+			CanCollide = true,
+			CastShadow = false,
+		})
+		-- Twin hand-rope segments.
+		for _, sx in { -halfW, halfW } do
+			local r0 = p0 + side * sx + Vector3.new(0, 2.2, 0)
+			local r1 = p1 + side * sx + Vector3.new(0, 2.2, 0)
+			local rmid = (r0 + r1) * 0.5
+			local rdir = r1 - r0
+			makePart({
+				Name = `BridgeRope_{i}`,
+				Parent = model,
+				Size = Vector3.new(0.22, 0.22, math.max(rdir.Magnitude, 0.3)),
+				CFrame = CFrame.lookAt(rmid, rmid + rdir),
+				Color = TWIN_ROPE,
+				Material = Enum.Material.Fabric,
+				CanCollide = false,
+				CastShadow = false,
+			})
+		end
+	end
+
+	-- End posts anchoring the span.
+	for _, endPos in { a, b } do
+		for _, sx in { -halfW, halfW } do
+			makePart({
+				Name = "BridgePost",
+				Parent = model,
+				Size = Vector3.new(0.55, 5.2, 0.55),
+				CFrame = CFrame.new(endPos + side * sx + Vector3.new(0, 1.4, 0)),
+				Color = TWIN_TRUNK,
+				Material = Enum.Material.Wood,
+				CanCollide = false,
+			})
+		end
+	end
+end
+
+-- Stacked rectangular rock mass — stair-step / jagged low-poly cliff like the reference.
+local function buildBlockyRockStack(
+	model: Model,
+	rng: Random,
+	baseCenter: Vector3,
+	baseY: number,
+	footprint: number,
+	height: number,
+	side: number
+): Vector3
+	-- Returns the top plateau center (for trees + bridge anchors).
+	local tiers = rng:NextInteger(6, 8)
+	local topPos = baseCenter + Vector3.new(0, height, 0)
+	for t = 0, tiers - 1 do
+		local frac = t / (tiers - 1)
+		local y0 = baseY + height * (t / tiers)
+		local y1 = baseY + height * ((t + 1) / tiers)
+		local midY = (y0 + y1) * 0.5
+		local tierH = math.max(y1 - y0, 4)
+		-- Shrink + offset each tier for the stair-step silhouette.
+		local w = footprint * (1 - frac * 0.62) * rng:NextNumber(0.88, 1.06)
+		local d = footprint * (1 - frac * 0.58) * rng:NextNumber(0.82, 1.04)
+		local ox = side * footprint * 0.04 * (1 - frac) + rng:NextNumber(-w * 0.06, w * 0.06)
+		local oz = rng:NextNumber(-d * 0.08, d * 0.08)
+		local col = if t % 2 == 0 then TWIN_ROCK else TWIN_ROCK_LIT
+		makePart({
+			Name = `RockTier_{t}`,
+			Parent = model,
+			Size = Vector3.new(w, tierH + 0.4, d),
+			CFrame = CFrame.new(baseCenter.X + ox, midY, baseCenter.Z + oz)
+				* CFrame.Angles(0, math.rad(rng:NextNumber(-8, 8)), 0),
+			Color = col,
+			Material = Enum.Material.Slate,
+			CanCollide = true,
+			CastShadow = true,
+		})
+		-- Extra jutting blocks for a jagged, modular read.
+		local juts = rng:NextInteger(1, 3)
+		for j = 1, juts do
+			local jw = w * rng:NextNumber(0.28, 0.48)
+			local jh = tierH * rng:NextNumber(0.55, 1.1)
+			local jd = d * rng:NextNumber(0.28, 0.45)
+			local ja = rng:NextNumber(0, math.pi * 2)
+			local jr = (math.min(w, d) * 0.42) * rng:NextNumber(0.7, 1.05)
+			makePart({
+				Name = `RockJut_{t}_{j}`,
+				Parent = model,
+				Size = Vector3.new(jw, jh, jd),
+				CFrame = CFrame.new(
+					baseCenter.X + ox + math.cos(ja) * jr,
+					midY + rng:NextNumber(-tierH * 0.15, tierH * 0.2),
+					baseCenter.Z + oz + math.sin(ja) * jr
+				) * CFrame.Angles(0, ja, 0),
+				Color = col,
+				Material = Enum.Material.Slate,
+				CanCollide = true,
+				CastShadow = false,
+			})
+		end
+		if t == tiers - 1 then
+			topPos = Vector3.new(baseCenter.X + ox, y1, baseCenter.Z + oz)
+		end
+	end
+
+	-- Climbable vine/truss on the outer face so players can reach the bridge.
+	local climbH = height * 0.92
+	local truss = Instance.new("TrussPart")
+	truss.Name = "PeakClimb"
+	truss.Anchored = true
+	truss.CanCollide = true
+	truss.Color = Color3.fromRGB(64, 88, 42)
+	truss.Material = Enum.Material.Grass
+	truss.Size = Vector3.new(2, climbH, 2)
+	truss.CFrame = CFrame.new(baseCenter.X + side * footprint * 0.42, baseY + climbH * 0.5, baseCenter.Z)
+	truss.CastShadow = false
+	truss.Parent = model
+
+	return topPos
+end
+
+-- Flat sandy rectangular pad (the pale base under each rock stack in the reference).
+local function buildSandPad(model: Model, center: Vector3, topY: number, width: number, depth: number)
+	makePart({
+		Name = "SandPad",
+		Parent = model,
+		Size = Vector3.new(width, 3.2, depth),
+		CFrame = CFrame.new(center.X, topY - 0.4, center.Z),
+		Color = TWIN_SAND,
+		Material = Enum.Material.Sand,
+		CanCollide = true,
+		CastShadow = true,
+	})
+	-- Slightly larger submerged shelf so the pad reads as rising from the sea.
+	makePart({
+		Name = "SandShelf",
+		Parent = model,
+		Size = Vector3.new(width * 1.08, 2.4, depth * 1.08),
+		CFrame = CFrame.new(center.X, topY - 2.6, center.Z),
+		Color = Color3.fromRGB(214, 204, 178),
+		Material = Enum.Material.Sand,
+		CanCollide = true,
+		CastShadow = false,
+	})
+end
+
+-- Terrain under twin peaks: two sandy columns + a thin shoal between them (raft collision
+-- still uses the enclosing SizeStuds circle from paintTerrain).
+local function generateTwinPeaksTerrain(
+	id: string,
+	center: Vector3,
+	topY: number,
+	size: number,
+	features: { [string]: any }
+)
+	local Terrain = Workspace.Terrain
+	local rng = Random.new(seedFromId(id))
+	local half = size * 0.5
+	local surfaceY = OceanConfig.SurfaceY
+	local sandMat = Enum.Material.Sand
+	local baseBottom = surfaceY - 40
+
+	local peaks = features.peaks
+	if not peaks then
+		return
+	end
+
+	local function sandColumn(px: number, pz: number, radius: number)
+		local h = topY - baseBottom
+		Terrain:FillCylinder(CFrame.new(px, (topY + baseBottom) * 0.5, pz), h, radius, sandMat)
+	end
+
+	for _, peak in peaks do
+		sandColumn(peak.pos.X, peak.pos.Z, peak.padR * 0.72)
+		-- Soft irregular lobes around each pad.
+		for _ = 1, 3 do
+			local a = rng:NextNumber(0, math.pi * 2)
+			local d = peak.padR * rng:NextNumber(0.15, 0.4)
+			sandColumn(peak.pos.X + math.cos(a) * d, peak.pos.Z + math.sin(a) * d, peak.padR * rng:NextNumber(0.28, 0.42))
+		end
+	end
+
+	-- Thin connecting shoal under the bridge gap (still walkable if someone falls in shallow).
+	if #peaks >= 2 then
+		local a, b = peaks[1].pos, peaks[2].pos
+		local mid = (a + b) * 0.5
+		local span = (Vector3.new(a.X - b.X, 0, a.Z - b.Z)).Magnitude
+		local yaw = math.atan2(b.X - a.X, b.Z - a.Z)
+		Terrain:FillBlock(
+			CFrame.new(mid.X, (topY - 1 + baseBottom) * 0.5, mid.Z) * CFrame.Angles(0, yaw, 0),
+			Vector3.new(half * 0.1, topY - 1 - baseBottom, math.max(span * 0.45, 40)),
+			sandMat
+		)
+	end
+
+	-- A few reef knobs off the coast.
+	for _ = 1, rng:NextInteger(3, 5) do
+		local a = rng:NextNumber(0, math.pi * 2)
+		local d = half * rng:NextNumber(0.88, 1.02)
+		Terrain:FillBall(
+			Vector3.new(center.X + math.cos(a) * d, surfaceY - 0.5, center.Z + math.sin(a) * d),
+			rng:NextNumber(3, 7),
+			Enum.Material.Rock
+		)
+	end
+end
+
+-- Parts pass: sand pads, blocky rock stacks, clump trees, palms, rope bridge.
+local function decorateTwinPeaks(
+	model: Model,
+	center: Vector3,
+	topY: number,
+	size: number,
+	features: { [string]: any }
+)
+	local rng = Random.new(seedFromId((model:GetAttribute("IslandId") :: string?) or "twin") * 5 + 11)
+	local peaks = features.peaks
+	if not peaks or #peaks < 2 then
+		return
+	end
+
+	local tops: { Vector3 } = {}
+	for i, peak in peaks do
+		local side = if i == 1 then -1 else 1
+		buildSandPad(model, peak.pos, topY, peak.padW, peak.padD)
+		local top = buildBlockyRockStack(model, rng, peak.pos, topY, peak.rockFoot, peak.rockH, side)
+		table.insert(tops, top)
+
+		-- Clumpy canopy trees on the upper plateaus.
+		local treeCount = rng:NextInteger(3, 5)
+		for t = 1, treeCount do
+			local a = rng:NextNumber(0, math.pi * 2)
+			local r = peak.rockFoot * rng:NextNumber(0.05, 0.22)
+			buildClumpTree(model, top.Y, top.X + math.cos(a) * r, top.Z + math.sin(a) * r, rng:NextNumber(0.85, 1.25))
+		end
+
+		-- Palm trees on the sandy pad (around the rock foot).
+		local palmCount = rng:NextInteger(4, 7)
+		for _ = 1, palmCount do
+			local a = rng:NextNumber(0, math.pi * 2)
+			local r = peak.padR * rng:NextNumber(0.55, 0.92)
+			local px = peak.pos.X + math.cos(a) * r
+			local pz = peak.pos.Z + math.sin(a) * r
+			-- Keep palms off the rock footprint.
+			if (Vector3.new(px - peak.pos.X, 0, pz - peak.pos.Z)).Magnitude > peak.rockFoot * 0.48 then
+				buildPalm(model, topY, px, pz, rng:NextNumber(0.8, 1.15))
+			end
+		end
+	end
+
+	-- Rope bridge linking the two summits.
+	if #tops >= 2 then
+		-- Nudge anchors slightly toward each other so posts sit on the inner ledge.
+		local a, b = tops[1], tops[2]
+		local toward = Vector3.new(b.X - a.X, 0, b.Z - a.Z)
+		if toward.Magnitude > 1 then
+			toward = toward.Unit
+			a = a + toward * 4 + Vector3.new(0, 1.2, 0)
+			b = b - toward * 4 + Vector3.new(0, 1.2, 0)
+		end
+		buildRopeBridge(model, a, b)
+	end
+
+	-- A couple of shoreline rocks for scale.
+	local half = size * 0.5
+	for _ = 1, 5 do
+		local a = rng:NextNumber(0, math.pi * 2)
+		local r = half * rng:NextNumber(0.72, 0.92)
+		buildRock(model, topY, center.X + math.cos(a) * r, center.Z + math.sin(a) * r, rng:NextNumber(1.2, 2.2))
+	end
 end
 
 -- Decorative + structural pass run after terrain + vegetation: crater lava, waterfalls,
@@ -1538,6 +1922,12 @@ local function decorateShore(
 			buildRowboat(model, CFrame.new(bx, lake.surfaceY + 0.4, bz) * CFrame.Angles(0, toCenter, 0))
 		else
 			local startR = half * 0.8
+			-- Twin Peaks: pier starts at the outer edge of a sand pad, not mid-channel.
+			if biome == "twin_peaks" and features.peaks and #features.peaks > 0 then
+				local peak = features.peaks[1]
+				local peakDist = flatDistance(peak.pos, center)
+				startR = peakDist + peak.padR * 0.82
+			end
 			local endR = half + Config.Islands.RaftCollisionPad + 30
 			buildDock(model, center, surfaceY, dock.angle, startR, endR, {
 				islandId = islandId,
@@ -1589,15 +1979,23 @@ local function buildFlatIsland(entry: { [string]: any }, folder: Folder): Island
 	model.PrimaryPart = anchor
 
 	-- Precompute this isle's signature landforms + shoreline layout so the terrain sculptor
-	-- and the decorative pass agree on exact positions (volcano, lake, docks, lighthouse).
+	-- and the decorative pass agree on exact positions (volcano, lake, docks, lighthouse,
+	-- twin-peak pads).
 	local features = planIslandFeatures(entry.Id, center, topY, size, biome, entry)
 
-	-- Carve the organic, biome-specific terrain island (beaches, grass/jungle/highland
-	-- interior, hills, rocky peaks, volcanic cones, snow peaks + lakes). Seeded per isle so
-	-- every island's shape is different.
-	generateIslandTerrain(entry.Id, center, topY, size, biome, entry.Theme or "wild", features)
+	if biome == "twin_peaks" then
+		-- Low-poly dual stacks: sand pads + blocky rocks + clump trees + rope bridge.
+		-- Skip the organic disc / scatter vegetation so the gap between peaks stays open sea.
+		generateTwinPeaksTerrain(entry.Id, center, topY, size, features)
+		decorateTwinPeaks(model, center, topY, size, features)
+	else
+		-- Carve the organic, biome-specific terrain island (beaches, grass/jungle/highland
+		-- interior, hills, rocky peaks, volcanic cones, snow peaks + lakes). Seeded per isle
+		-- so every island's shape is different.
+		generateIslandTerrain(entry.Id, center, topY, size, biome, entry.Theme or "wild", features)
+		scatterVegetation(model, center, size, topY, biome, features)
+	end
 
-	scatterVegetation(model, center, size, topY, biome, features)
 	scatterLooseLoot(model, center, size, topY, entry.Id)
 
 	-- Docks / piers, lighthouse, crater lava, waterfalls, moored + beached boats.
@@ -1607,7 +2005,7 @@ local function buildFlatIsland(entry: { [string]: any }, folder: Folder): Island
 		Name = "IsleMarker",
 		Parent = model,
 		Size = Vector3.new(1, 1, 1),
-		CFrame = CFrame.new(center.X, topY + 18, center.Z),
+		CFrame = CFrame.new(center.X, topY + (if biome == "twin_peaks" then 140 else 18), center.Z),
 		Transparency = 1,
 		CanCollide = false,
 		CastShadow = false,
@@ -2117,7 +2515,7 @@ function IslandService.ensure(): Folder
 	end
 
 	IslandService.paintTerrain()
-	print(`[SurviveAtSea] {#IslandService._islands} massive voxel-terrain isles ready (organic coastlines, beaches, hills & rocky peaks, jungle, villages/towns, loot, visit lockout)`)
+	print(`[SurviveAtSea] {#IslandService._islands} massive voxel-terrain isles ready (organic coastlines, twin-peak rope-bridge stacks, beaches, hills & rocky peaks, jungle, villages/towns, loot, visit lockout)`)
 	return folder
 end
 
