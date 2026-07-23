@@ -321,7 +321,30 @@ function OceanController.start()
 		end
 	end)
 
+	-- Foam / wake upkeep is expensive (scans crew decks + re-CFrames many parts), so it
+	-- runs on a fixed ~15 Hz tick instead of every frame, and is skipped entirely in the
+	-- lobby where there are no crew rafts to foam.
+	local foamAccum = 0
+	local FOAM_INTERVAL = 1 / 15
 	RunService.Heartbeat:Connect(function(dt)
+		if not ClockHUD.isGameplayActive() then
+			-- Left the crew / on the pier: drop any lingering foam and idle.
+			if next(foamByDeck) then
+				for tracked in foamByDeck do
+					detachFoam(tracked)
+				end
+			end
+			foamAccum = 0
+			return
+		end
+
+		foamAccum += dt
+		if foamAccum < FOAM_INTERVAL then
+			return
+		end
+		local step = foamAccum
+		foamAccum = 0
+
 		local deck = findCrewDeck()
 		if deck then
 			attachFoamToDeck(deck)
@@ -337,8 +360,8 @@ function OceanController.start()
 			local prev = lastDeckPos[tracked]
 			local pos = tracked.Position
 			local speed = 0
-			if prev and dt > 0 then
-				speed = (pos - prev).Magnitude / dt
+			if prev and step > 0 then
+				speed = (pos - prev).Magnitude / step
 			end
 			lastDeckPos[tracked] = pos
 			syncFoamAnchors(tracked, folder, speed)

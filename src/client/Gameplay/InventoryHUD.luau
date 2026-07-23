@@ -7,16 +7,21 @@ local Players = game:GetService("Players")
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
 local Weapons = require(Shared:WaitForChild("Weapons"))
+local Remotes = require(Shared:WaitForChild("Remotes"))
 
 local InventoryHUD = {}
 
 local player = Players.LocalPlayer
+local panel: Frame? = nil
 local doubloonLabel: TextLabel? = nil
 local scrapLabel: TextLabel? = nil
 local armorLabel: TextLabel? = nil
 local ammoLabel: TextLabel? = nil
 local equippedRanged: Tool? = nil
 local loadedConn: RBXScriptConnection? = nil
+-- Panel is hidden on the lobby pier and only shown once the player is out at sea
+-- (on a crew). Mirrors WeatherController / OceanController gameplay gating.
+local atSea = false
 
 local function makeRow(parent: Instance, order: number, color: Color3): TextLabel
 	local row = Instance.new("TextLabel")
@@ -60,31 +65,54 @@ local function refreshArmor()
 	armorLabel.Text = `Armor: {math.floor(rating * 100 + 0.5)}%`
 end
 
+-- Pick the ammo type to display when no gun is equipped: whichever reserve the
+-- player is actually carrying the most of. Returns nil when they hold no ammo.
+local function bestCarriedAmmo(): ({ [string]: any }?, number)
+	local bestDef: { [string]: any }? = nil
+	local bestReserve = 0
+	for _, ammoDef in Weapons.Ammo do
+		local reserve = player:GetAttribute(ammoDef.Attribute)
+		reserve = if typeof(reserve) == "number" then reserve else 0
+		if reserve > bestReserve then
+			bestReserve = reserve
+			bestDef = ammoDef
+		end
+	end
+	return bestDef, bestReserve
+end
+
 local function refreshAmmo()
 	if not ammoLabel then
 		return
 	end
-	-- Ammo is only ever shown while a gun is actually equipped. Clubs / spears and an
-	-- empty-handed player show no ammo line at all (it's hidden, not just blank).
+	-- Ammo shows whenever the player has ammo — either loaded in an equipped gun or
+	-- sitting in reserve. With no ammo at all the line is hidden entirely (not blank).
 	local tool = equippedRanged
-	if not (tool and tool.Parent) then
-		ammoLabel.Visible = false
-		ammoLabel.Text = ""
+	if tool and tool.Parent then
+		local ammoId = tool:GetAttribute("Ammo")
+		if typeof(ammoId) == "string" then
+			-- Per-gun ammo: the equipped gun's own type + chambered / reserve counts.
+			local ammoDef = Weapons.Ammo[ammoId]
+			local reserve = player:GetAttribute(ammoDef and ammoDef.Attribute) or 0
+			local loaded = tool:GetAttribute("Loaded") or 0
+			local label = ammoDef and ammoDef.Label or ammoId
+			ammoLabel.Visible = true
+			ammoLabel.Text = `{label}: {loaded} / {reserve}`
+			return
+		end
+	end
+
+	-- No gun equipped: still surface the reserve the player is carrying so ammo looted
+	-- before finding a weapon is visible. Nothing carried → hide the line.
+	local ammoDef, reserve = bestCarriedAmmo()
+	if ammoDef and reserve > 0 then
+		ammoLabel.Visible = true
+		ammoLabel.Text = `{ammoDef.Label}: {reserve}`
 		return
 	end
-	local ammoId = tool:GetAttribute("Ammo")
-	if typeof(ammoId) ~= "string" then
-		ammoLabel.Visible = false
-		ammoLabel.Text = ""
-		return
-	end
-	-- Per-gun ammo: reads the equipped gun's own ammo type + chambered/reserve counts.
-	local ammoDef = Weapons.Ammo[ammoId]
-	local reserve = player:GetAttribute(ammoDef and ammoDef.Attribute) or 0
-	local loaded = tool:GetAttribute("Loaded") or 0
-	local label = ammoDef and ammoDef.Label or ammoId
-	ammoLabel.Visible = true
-	ammoLabel.Text = `{label}: {loaded} / {reserve}`
+
+	ammoLabel.Visible = false
+	ammoLabel.Text = ""
 end
 
 local function watchEquipped(tool: Tool?)
@@ -125,6 +153,52 @@ local function hookCharacter(character: Model)
 	end
 end
 
+local function applyVisibility()
+	if panel then
+		panel.Visible = atSea
+	end
+end
+
+local function setAtSea(value: boolean)
+	if atSea == value then
+		return
+	end
+	atSea = value
+	applyVisibility()
+end
+
+-- Detect lobby vs. out-at-sea the same way WeatherController does: seed from the
+-- GetLobbyState RemoteFunction, then follow PartyUpdated. Panel hides on the pier
+-- (no party) and appears once you're on a crew.
+local function watchPartyState()
+	task.spawn(function()
+		local ok, folder = pcall(function()
+			return Remotes.getFolder()
+		end)
+		if not ok or not folder then
+			return
+		end
+		local getLobbyState = folder:WaitForChild("GetLobbyState", 30)
+		if getLobbyState and getLobbyState:IsA("RemoteFunction") then
+			local success, lobbyState = pcall(function()
+				return getLobbyState:InvokeServer()
+			end)
+			if success and typeof(lobbyState) == "table" then
+				setAtSea(typeof(lobbyState.party) == "table")
+			end
+		end
+		local partyUpdated = folder:WaitForChild("PartyUpdated", 30)
+		if partyUpdated and partyUpdated:IsA("RemoteEvent") then
+			partyUpdated.OnClientEvent:Connect(function(party)
+				if typeof(party) == "table" and party.__openCreate then
+					return
+				end
+				setAtSea(typeof(party) == "table")
+			end)
+		end
+	end)
+end
+
 function InventoryHUD.start()
 	local gui = Instance.new("ScreenGui")
 	gui.Name = "InventoryHUD"
@@ -133,8 +207,10 @@ function InventoryHUD.start()
 	gui.DisplayOrder = 22
 	gui.Parent = player:WaitForChild("PlayerGui")
 
-	local panel = Instance.new("Frame")
+	panel = Instance.new("Frame")
 	panel.Name = "Panel"
+	-- Hidden until watchPartyState confirms we're on a crew (out at sea).
+	panel.Visible = false
 	panel.AnchorPoint = Vector2.new(0, 0)
 	panel.Position = UDim2.new(0, 16, 0, 96)
 	panel.Size = UDim2.fromOffset(190, 108)
@@ -174,6 +250,10 @@ function InventoryHUD.start()
 		hookCharacter(player.Character)
 	end
 	player.CharacterAdded:Connect(hookCharacter)
+
+	-- Gate the whole panel on lobby vs. at-sea state (starts hidden on the pier).
+	applyVisibility()
+	watchPartyState()
 end
 
 return InventoryHUD
