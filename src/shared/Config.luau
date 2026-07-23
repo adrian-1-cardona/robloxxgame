@@ -41,23 +41,28 @@ local Config = {
 	-- CanBeDropped = true so Roblox backpack drop works (Backspace / Xbox X / etc.).
 	Club = {
 		ToolName = "Club",
-		Damage = 22,
-		SwingCooldown = 0.55,
+		-- Buffed starter club: hits harder, swings a touch faster, and reaches further
+		-- with a wider arc so the opening weapon actually feels good to fight with.
+		Damage = 30,
+		SwingCooldown = 0.48,
 		-- Forward reach from HumanoidRootPart for hit checks
-		Range = 7.5,
-		HitRadius = 3.2,
+		Range = 9,
+		HitRadius = 3.8,
 		-- How long the swing hit window stays open (server)
-		HitWindow = 0.22,
+		HitWindow = 0.24,
 		-- Client swing visual duration
-		SwingDuration = 0.35,
+		SwingDuration = 0.32,
+		-- A solid two-handed swing shoves lighter foes back a step.
+		Knockback = 14,
 	},
 
 	-- Starter raft kit: vertical steering column + upright look-steered helm wheel.
 	-- Take the helm → locked standing at the wheel; look steers; W / stick / arrows drive;
 	-- jump / gamepad B to unlock and step away.
 	Helm = {
-		-- Open-ocean sprint — islands are huge and far; the raft needs to feel FAST
-		SpeedStudsPerSecond = 340,
+		-- Open-ocean sprint — the raft needs to feel FAST so the (now moderately
+		-- spaced) isles are reached in a handful of seconds, not a long slog.
+		SpeedStudsPerSecond = 520,
 		TurnLerp = 7.5,
 		-- Stand offset from deck center (aft). Y is ignored — stand sits on deck top.
 		StandLocalOffset = Vector3.new(0, 0, 22),
@@ -74,12 +79,16 @@ local Config = {
 	},
 
 	-- Stationary open-sea isles. Visit → leave on the raft → sail far enough away → locked forever for that crew.
-	-- Huge beach-vibe flats: sand ring → grass → jungle/village heart, palms everywhere, widely spaced.
+	-- Beach-vibe flats: sand ring → grass → jungle/village heart, palms everywhere.
+	-- Packed into a consistent MODERATE distance band (centers ~3000-5900 studs from the
+	-- raft's Origin) and spread across a wide fan of bearings so no two isles overlap.
+	-- Not so far you slog for a minute, not so close they crowd the spawn — a quick sail
+	-- (a handful of seconds at the current helm speed) reaches the nearest one.
 	Islands = {
 		Thickness = 16,
 		TopY = 3.4,
 		-- Distance from isle center after a visit before the isle locks. Must clear the
-		-- whole sand pad of even the largest isle (radius ~1200), so it's set well beyond it.
+		-- whole sand pad of even the largest isle (radius ~900), so it's set well beyond it.
 		LockoutStuds = 2000,
 		-- Extra pad outside the sand when a locked crew tries to sail back in
 		ApproachPadStuds = 220,
@@ -139,17 +148,30 @@ local Config = {
 			GreetRange = 14,
 		},
 
-		-- Themed catalog. HUGE footprints (1500–2400 studs across) so each isle is a real
-		-- place you can walk end-to-end — full villages, sprawling towns, thick jungles,
-		-- and quiet abandoned ruins. Spread far apart so sailing between them is a genuine
-		-- open-ocean voyage. Abandoned isles are rarer (2 of 8). Every isle carries loot.
-		--   Theme: "wild" | "fishing_village" | "village" | "town" | "stone_town" | "abandoned"
+		-- Themed catalog. HUGE footprints so each isle is a real place you can walk
+		-- end-to-end — full villages, sprawling towns lit up with life, thick Amazonian
+		-- jungles, towering castles, and quiet abandoned ruins. Spread far apart so sailing
+		-- between them is a genuine open-ocean voyage. Every isle carries loot.
+		--
+		--   Theme: "wild" | "fishing_village" | "village" | "town" | "stone_town"
+		--        | "castle" | "abandoned"
+		-- Optional per-isle flags read by VillageBuilder / IslandService:
+		--   Church   = true → raise a stone church with a steeple, bell & cross
+		--   Mansions = <n>  → n grand multi-storey manor houses in the settlement
+		--   Lit      = true → street lamps + braziers so the town glows day and night
+		--   Castle   = true → build a huge castle keep (used by the "castle" theme)
+		--
+		-- NOTE: villagers no longer spawn at world-gen. Islands start empty of people and
+		-- come to life the moment a crew first sets foot on them (see IslandService
+		-- populateIsland) — so there are no villagers at the start, but a living town when
+		-- you land.
 		Catalog = {
 			{
 				Id = "tide_flat",
 				Name = "Tide Flat",
-				Offset = Vector3.new(2800, 0, -3200),
-				SizeStuds = 1500,
+				-- Nearest isle: ~3000 studs out (a few seconds of sailing).
+				Offset = Vector3.new(-2599, 0, -1500),
+				SizeStuds = 1300,
 				Biome = "beach",
 				Theme = "wild",
 				Abandoned = false,
@@ -160,8 +182,8 @@ local Config = {
 			{
 				Id = "quiet_sand",
 				Name = "Quiet Sand",
-				Offset = Vector3.new(8200, 0, -2200),
-				SizeStuds = 1700,
+				Offset = Vector3.new(-2401, 0, -3073),
+				SizeStuds = 1450,
 				Biome = "beach",
 				Theme = "fishing_village",
 				Abandoned = false,
@@ -170,10 +192,24 @@ local Config = {
 				Loot = { Weapons = 5, Chests = 3, Armor = 2 },
 			},
 			{
+				Id = "chapel_isle",
+				Name = "Chapel Isle",
+				Offset = Vector3.new(760, 0, -3010),
+				SizeStuds = 1500,
+				Biome = "palm",
+				-- A quiet greenery-fringed village gathered around its little stone chapel.
+				Theme = "village",
+				Abandoned = false,
+				Merchant = true,
+				Church = true,
+				Villagers = { Passive = 10, Hostile = 0 },
+				Loot = { Weapons = 5, Chests = 4, Armor = 3 },
+			},
+			{
 				Id = "smuggler_hut",
 				Name = "Smuggler Hollow",
-				Offset = Vector3.new(1000, 0, -10200),
-				SizeStuds = 1900,
+				Offset = Vector3.new(-936, 0, -4402),
+				SizeStuds = 1550,
 				Biome = "palm",
 				Theme = "village",
 				Abandoned = false,
@@ -183,45 +219,71 @@ local Config = {
 			},
 			{
 				Id = "raid_cove",
-				Name = "Raid Cove",
-				Offset = Vector3.new(-3000, 0, -8000),
-				SizeStuds = 2400,
+				Name = "Verde Town",
+				Offset = Vector3.new(1147, 0, -4969),
+				SizeStuds = 2000,
 				Biome = "jungle",
+				-- The flagship: a big town lit up with people and life, a church and grand
+				-- manors at its heart, all wrapped in dense Amazonian jungle and greenery.
 				Theme = "town",
 				Abandoned = false,
 				Merchant = true,
-				Villagers = { Passive = 14, Hostile = 7 },
-				Loot = { Weapons = 9, Chests = 6, Armor = 4 },
+				Church = true,
+				Mansions = 2,
+				Lit = true,
+				-- Lively and mostly friendly — lots of townsfolk, only a small watch.
+				Villagers = { Passive = 20, Hostile = 4 },
+				Loot = { Weapons = 9, Chests = 7, Armor = 5 },
 			},
 			{
 				Id = "crow_cay",
 				Name = "Crow Cay",
-				Offset = Vector3.new(6400, 0, -6800),
-				SizeStuds = 2200,
+				Offset = Vector3.new(2758, 0, -2758),
+				SizeStuds = 1750,
 				Biome = "jungle",
 				Theme = "stone_town",
 				Abandoned = false,
 				Merchant = true,
-				Villagers = { Passive = 8, Hostile = 9 },
+				Church = true,
+				Mansions = 1,
+				Lit = true,
+				Villagers = { Passive = 10, Hostile = 8 },
 				Loot = { Weapons = 8, Chests = 6, Armor = 4 },
 			},
 			{
 				Id = "buccaneer_flat",
-				Name = "Bastion Reach",
-				Offset = Vector3.new(-7800, 0, -3400),
-				SizeStuds = 2300,
+				Name = "Bastion Keep",
+				Offset = Vector3.new(4605, 0, -1676),
+				SizeStuds = 1900,
 				Biome = "jungle",
-				Theme = "stone_town",
+				-- Some islands are just one huge castle rising out of the jungle.
+				Theme = "castle",
 				Abandoned = false,
 				Merchant = false,
-				Villagers = { Passive = 5, Hostile = 11 },
-				Loot = { Weapons = 9, Chests = 6, Armor = 4 },
+				Castle = true,
+				Villagers = { Passive = 0, Hostile = 12 }, -- castle garrison
+				Loot = { Weapons = 9, Chests = 7, Armor = 5 },
+			},
+			{
+				Id = "kings_hold",
+				Name = "King's Hold",
+				Offset = Vector3.new(-4400, 0, -3600),
+				SizeStuds = 2000,
+				Biome = "jungle",
+				-- A second, mightier castle isle — a walled keep among the trees, torch-lit.
+				Theme = "castle",
+				Abandoned = false,
+				Merchant = true,
+				Castle = true,
+				Lit = true,
+				Villagers = { Passive = 4, Hostile = 14 },
+				Loot = { Weapons = 10, Chests = 8, Armor = 6 },
 			},
 			{
 				Id = "drift_shack",
 				Name = "Drift Shack",
-				Offset = Vector3.new(-6000, 0, -8400),
-				SizeStuds = 1800,
+				Offset = Vector3.new(-2633, 0, -5168),
+				SizeStuds = 1500,
 				Biome = "jungle",
 				-- A whole town, long abandoned and reclaimed by the jungle (ruined houses,
 				-- cold pits, only a few feral scavengers left).
@@ -234,8 +296,10 @@ local Config = {
 			{
 				Id = "wreck_spit",
 				Name = "Wreck Spit",
-				Offset = Vector3.new(4400, 0, -10800),
-				SizeStuds = 1600,
+				-- Farthest isle: ~5950 studs out (still a short voyage at helm speed).
+				-- Kept clear of Verde Town so the raft can sail the channel between them.
+				Offset = Vector3.new(3300, 0, -4950),
+				SizeStuds = 1400,
 				Biome = "palm",
 				Theme = "abandoned",
 				Abandoned = true,

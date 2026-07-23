@@ -31,8 +31,8 @@
       "$properties": {
         "FilteringEnabled": true,
         "StreamingEnabled": true,
-        "StreamingMinRadius": 512,
-        "StreamingTargetRadius": 768,
+        "StreamingMinRadius": 768,
+        "StreamingTargetRadius": 1536,
         "StreamingIntegrityMode": "Disabled"
       },
       "$ignoreUnknownInstances": true,
