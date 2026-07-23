@@ -153,13 +153,21 @@ local Config = {
 		-- jungles, towering castles, and quiet abandoned ruins. Spread far apart so sailing
 		-- between them is a genuine open-ocean voyage. Every isle carries loot.
 		--
+		--   Biome: "beach" | "palm" | "jungle" | "highland" | "volcanic" | "mountain"
+		--     beach/palm/jungle → sandy tropical isles; highland → temperate grass + pines
+		--     (medieval seaside look); volcanic → tropical isle around a smoking lava cone;
+		--     mountain → snow-capped peak + a freshwater lake with a waterfall off the cliff.
 		--   Theme: "wild" | "fishing_village" | "village" | "town" | "stone_town"
 		--        | "castle" | "abandoned"
 		-- Optional per-isle flags read by VillageBuilder / IslandService:
-		--   Church   = true → raise a stone church with a steeple, bell & cross
-		--   Mansions = <n>  → n grand multi-storey manor houses in the settlement
-		--   Lit      = true → street lamps + braziers so the town glows day and night
-		--   Castle   = true → build a huge castle keep (used by the "castle" theme)
+		--   Church     = true → raise a stone church with a steeple, bell & cross
+		--   Mansions   = <n>  → n grand multi-storey manor houses in the settlement
+		--   Lit        = true → street lamps + braziers so the town glows day and night
+		--   Castle     = true → build a huge castle keep (used by the "castle" theme)
+		--   Docks      = <n>  → n wooden piers reaching out over the water (moored rowboats,
+		--                       barrels & crates); on mountain isles the first pier is on the lake
+		--   Lighthouse = true → a tall banded stone lighthouse on the shore (seaside towns)
+		--   Volcano    = true → force/allow the central lava cone on a "volcanic" biome isle
 		--
 		-- NOTE: villagers no longer spawn at world-gen. Islands start empty of people and
 		-- come to life the moment a crew first sets foot on them (see IslandService
@@ -169,54 +177,67 @@ local Config = {
 			{
 				Id = "tide_flat",
 				Name = "Tide Flat",
-				-- Nearest isle: ~3000 studs out (a few seconds of sailing).
+				-- Nearest isle: ~3000 studs out (a few seconds of sailing). A quiet sandy
+				-- cove with a single weathered pier to tie up at — the gentle first landfall.
 				Offset = Vector3.new(-2599, 0, -1500),
 				SizeStuds = 1300,
 				Biome = "beach",
 				Theme = "wild",
 				Abandoned = false,
 				Merchant = false,
+				Docks = 1,
 				Villagers = { Passive = 0, Hostile = 0 },
 				Loot = { Weapons = 3, Chests = 1, Armor = 1 },
 			},
 			{
 				Id = "quiet_sand",
 				Name = "Quiet Sand",
+				-- A snug medieval fishing village on a temperate headland: timber cottages,
+				-- fish-drying racks, a banded stone lighthouse and two piers out over the water.
 				Offset = Vector3.new(-2401, 0, -3073),
 				SizeStuds = 1450,
-				Biome = "beach",
+				Biome = "highland",
 				Theme = "fishing_village",
 				Abandoned = false,
 				Merchant = true,
+				Lighthouse = true,
+				Docks = 2,
 				Villagers = { Passive = 9, Hostile = 0 },
 				Loot = { Weapons = 5, Chests = 3, Armor = 2 },
 			},
 			{
 				Id = "smuggler_hut",
 				Name = "Smuggler Hollow",
+				-- A small tropical isle built around a smoking lava cone — palms, gems and a
+				-- single hidden smugglers' pier.
 				Offset = Vector3.new(-936, 0, -4402),
 				SizeStuds = 1550,
-				Biome = "palm",
+				Biome = "volcanic",
 				Theme = "village",
 				Abandoned = false,
 				Merchant = true,
+				Volcano = true,
+				Docks = 1,
 				Villagers = { Passive = 8, Hostile = 3 },
 				Loot = { Weapons = 6, Chests = 4, Armor = 3 },
 			},
 			{
 				Id = "raid_cove",
 				Name = "Verde Town",
+				-- The flagship: a big medieval seaside town lit up with people and life — a
+				-- church and grand manors at its heart, a lighthouse on the point, and three
+				-- busy piers along the harbour front (the postcard "seaside village" isle).
 				Offset = Vector3.new(1147, 0, -4969),
 				SizeStuds = 2000,
-				Biome = "jungle",
-				-- The flagship: a big town lit up with people and life, a church and grand
-				-- manors at its heart, all wrapped in dense Amazonian jungle and greenery.
+				Biome = "highland",
 				Theme = "town",
 				Abandoned = false,
 				Merchant = true,
 				Church = true,
 				Mansions = 2,
 				Lit = true,
+				Lighthouse = true,
+				Docks = 3,
 				-- Lively and mostly friendly — lots of townsfolk, only a small watch.
 				Villagers = { Passive = 20, Hostile = 4 },
 				Loot = { Weapons = 9, Chests = 7, Armor = 5 },
@@ -224,44 +245,52 @@ local Config = {
 			{
 				Id = "crow_cay",
 				Name = "Crow Cay",
+				-- A tropical stone town clinging to the slopes of an active volcano — lava glow
+				-- over cobblestone streets, a church, and two harbour piers.
 				Offset = Vector3.new(2758, 0, -2758),
 				SizeStuds = 1750,
-				Biome = "jungle",
+				Biome = "volcanic",
 				Theme = "stone_town",
 				Abandoned = false,
 				Merchant = true,
 				Church = true,
 				Mansions = 1,
 				Lit = true,
+				Volcano = true,
+				Docks = 2,
 				Villagers = { Passive = 10, Hostile = 8 },
 				Loot = { Weapons = 8, Chests = 6, Armor = 4 },
 			},
 			{
 				Id = "buccaneer_flat",
 				Name = "Bastion Keep",
+				-- A castle on a green mountain isle: a snow-capped peak behind the keep and a
+				-- glassy lake below with its own jetty.
 				Offset = Vector3.new(4605, 0, -1676),
 				SizeStuds = 1900,
-				Biome = "jungle",
-				-- Some islands are just one huge castle rising out of the jungle.
+				Biome = "mountain",
 				Theme = "castle",
 				Abandoned = false,
 				Merchant = false,
 				Castle = true,
+				Docks = 1,
 				Villagers = { Passive = 0, Hostile = 12 }, -- castle garrison
 				Loot = { Weapons = 9, Chests = 7, Armor = 5 },
 			},
 			{
 				Id = "kings_hold",
 				Name = "King's Hold",
+				-- A mightier mountain-lake stronghold — a torch-lit walled keep beside a
+				-- waterfall-fed lake, a lakeside jetty and a sea pier below the cliffs.
 				Offset = Vector3.new(-4400, 0, -3600),
 				SizeStuds = 2000,
-				Biome = "jungle",
-				-- A second, mightier castle isle — a walled keep among the trees, torch-lit.
+				Biome = "mountain",
 				Theme = "castle",
 				Abandoned = false,
 				Merchant = true,
 				Castle = true,
 				Lit = true,
+				Docks = 2,
 				Villagers = { Passive = 4, Hostile = 14 },
 				Loot = { Weapons = 10, Chests = 8, Armor = 6 },
 			},
@@ -272,10 +301,11 @@ local Config = {
 				SizeStuds = 1500,
 				Biome = "jungle",
 				-- A whole town, long abandoned and reclaimed by the jungle (ruined houses,
-				-- cold pits, only a few feral scavengers left).
+				-- cold pits, a rotting pier and only a few feral scavengers left).
 				Theme = "town",
 				Abandoned = true,
 				Merchant = false,
+				Docks = 1,
 				Villagers = { Passive = 0, Hostile = 3 }, -- feral scavengers
 				Loot = { Weapons = 6, Chests = 5, Armor = 3 },
 			},
@@ -284,12 +314,16 @@ local Config = {
 				Name = "Wreck Spit",
 				-- Farthest isle: ~5950 studs out (still a short voyage at helm speed).
 				-- Kept clear of Verde Town so the raft can sail the channel between them.
+				-- A dead volcanic spit strewn with shipwrecks — a smoking cone and one
+				-- half-collapsed pier.
 				Offset = Vector3.new(3300, 0, -4950),
 				SizeStuds = 1400,
-				Biome = "palm",
+				Biome = "volcanic",
 				Theme = "abandoned",
 				Abandoned = true,
 				Merchant = false,
+				Volcano = true,
+				Docks = 1,
 				Villagers = { Passive = 0, Hostile = 2 },
 				Loot = { Weapons = 5, Chests = 4, Armor = 2 },
 			},

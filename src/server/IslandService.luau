@@ -430,31 +430,169 @@ local function buildDune(model: Model, topY: number, x: number, z: number, grass
 	})
 end
 
-local function scatterVegetation(model: Model, center: Vector3, size: number, topY: number, biome: string)
+-- A conifer/pine — the signature tree of temperate "highland" and cold "mountain" isles.
+-- Brown trunk with 3 stacked green cones; on mountain isles the tip gets a snowy cap.
+local function buildPine(model: Model, topY: number, x: number, z: number, snowy: boolean?, scale: number?)
+	local s = scale or (0.85 + math.random() * 0.5)
+	local trunkH = (5 + math.random() * 3) * s
+	makePart({
+		Name = "PineTrunk",
+		Parent = model,
+		Size = Vector3.new(1.1 * s, trunkH, 1.1 * s),
+		CFrame = CFrame.new(x, topY + trunkH * 0.5, z),
+		Color = Color3.fromRGB(84, 58, 36),
+		Material = Enum.Material.Wood,
+		CanCollide = false,
+	})
+	local tiers = 3
+	local tierH = 5 * s
+	for i = 0, tiers - 1 do
+		local w = (8 - i * 2.2) * s
+		makePart({
+			Name = `PineTier_{i}`,
+			Parent = model,
+			Size = Vector3.new(w, tierH, w),
+			CFrame = CFrame.new(x, topY + trunkH + i * tierH * 0.62 + tierH * 0.4, z),
+			Color = Color3.fromRGB(30 + i * 6, 82 + i * 8, 44 + i * 4),
+			Material = Enum.Material.Grass,
+			CanCollide = false,
+			CastShadow = i == 0,
+		})
+	end
+	-- Snowy cap tip for cold isles.
+	if snowy then
+		makePart({
+			Name = "PineSnow",
+			Parent = model,
+			Size = Vector3.new(2.4 * s, 1.6 * s, 2.4 * s),
+			CFrame = CFrame.new(x, topY + trunkH + tiers * tierH * 0.62 + 0.4, z),
+			Color = Color3.fromRGB(238, 244, 250),
+			Material = Enum.Material.Snow,
+			CanCollide = false,
+			CastShadow = false,
+			Shape = Enum.PartType.Ball,
+		})
+	end
+end
+
+-- A cluster of glowing emerald crystals poking out of the ground — the loot-y "green
+-- gems" seen on tropical + mountain isles. Cheap, shadowless Neon shards.
+local function buildGem(model: Model, topY: number, x: number, z: number)
+	local shards = math.random(2, 4)
+	for i = 1, shards do
+		local h = 1.4 + math.random() * 2.2
+		local a = math.rad(math.random(0, 360))
+		local off = i == 1 and 0 or (0.6 + math.random() * 1.0)
+		local gx = x + math.cos(a) * off
+		local gz = z + math.sin(a) * off
+		makePart({
+			Name = "Gem",
+			Parent = model,
+			Size = Vector3.new(0.9, h, 0.9),
+			CFrame = CFrame.new(gx, topY + h * 0.4, gz)
+				* CFrame.Angles(math.rad((math.random() - 0.5) * 26), a, math.rad((math.random() - 0.5) * 26)),
+			Color = Color3.fromRGB(70, 220, 130),
+			Material = Enum.Material.Neon,
+			CanCollide = false,
+			CastShadow = false,
+		})
+	end
+end
+
+local function scatterVegetation(model: Model, center: Vector3, size: number, topY: number, biome: string, features: { [string]: any }?)
 	local half = size * 0.5
 	local beachBand = half * 0.78 -- outer ring stays sandier; vegetation denser inward
+
+	-- Feature exclusion: never scatter flora inside a lake, on top of a volcano cone, or
+	-- on a mountain peak — those get their own treatment. Returns true if (x,z) is blocked.
+	local feat = features or {}
+	local function blocked(x: number, z: number): boolean
+		local lake = feat.lake
+		if lake then
+			local dx, dz = x - lake.pos.X, z - lake.pos.Z
+			if dx * dx + dz * dz < (lake.radius + 6) * (lake.radius + 6) then
+				return true
+			end
+		end
+		local volcano = feat.volcano
+		if volcano then
+			local dx, dz = x - volcano.pos.X, z - volcano.pos.Z
+			if dx * dx + dz * dz < (volcano.baseR + 4) * (volcano.baseR + 4) then
+				return true
+			end
+		end
+		local peak = feat.peak
+		if peak then
+			local dx, dz = x - peak.pos.X, z - peak.pos.Z
+			if dx * dx + dz * dz < (peak.baseR + 4) * (peak.baseR + 4) then
+				return true
+			end
+		end
+		return false
+	end
+
+	-- Which flora suits this biome. Tropical isles get palms; temperate highlands and cold
+	-- mountains get pines instead; volcanic + mountain isles also grow loot-y gem clusters.
+	local hasPalms = biome ~= "highland" and biome ~= "mountain"
+	local hasPines = biome == "highland" or biome == "mountain"
+	local hasGems = biome == "volcanic" or biome == "mountain"
+	local snowy = biome == "mountain"
 
 	-- Density divisors are tuned so isles stay lush and explorable while keeping the
 	-- per-isle part count LOW (island area grows with the square of the radius, and a
 	-- fast raft streams several isles' worth of parts in quickly — a big divisor keeps
 	-- the approach smooth and lag-free instead of dumping thousands of parts at once).
-	local palmCount = math.floor(size / 28)
-	if biome == "beach" then
-		palmCount = math.floor(size / 32)
-	elseif biome == "jungle" then
-		palmCount = math.floor(size / 28)
+	if hasPalms then
+		local palmCount = math.floor(size / 28)
+		if biome == "beach" then
+			palmCount = math.floor(size / 32)
+		elseif biome == "jungle" then
+			palmCount = math.floor(size / 28)
+		end
+		for _ = 1, palmCount do
+			local angle = math.random() * math.pi * 2
+			-- Prefer shoreline palms for beach vibe
+			local r = half * (0.55 + math.random() * 0.38)
+			if biome == "jungle" and math.random() < 0.35 then
+				r = half * (0.15 + math.random() * 0.4)
+			end
+			local x = center.X + math.cos(angle) * r
+			local z = center.Z + math.sin(angle) * r
+			if blocked(x, z) then
+				continue
+			end
+			buildPalm(model, topY, x, z)
+		end
 	end
 
-	for _ = 1, palmCount do
-		local angle = math.random() * math.pi * 2
-		-- Prefer shoreline palms for beach vibe
-		local r = half * (0.55 + math.random() * 0.38)
-		if biome == "jungle" and math.random() < 0.35 then
-			r = half * (0.15 + math.random() * 0.4)
+	-- Conifer forest for highland / mountain isles.
+	if hasPines then
+		local pineCount = if biome == "mountain" then math.floor(size / 26) else math.floor(size / 22)
+		for _ = 1, pineCount do
+			local angle = math.random() * math.pi * 2
+			local r = half * (0.18 + math.random() * 0.68)
+			local x = center.X + math.cos(angle) * r
+			local z = center.Z + math.sin(angle) * r
+			if blocked(x, z) then
+				continue
+			end
+			buildPine(model, topY, x, z, snowy)
 		end
-		local x = center.X + math.cos(angle) * r
-		local z = center.Z + math.sin(angle) * r
-		buildPalm(model, topY, x, z)
+	end
+
+	-- Glowing emerald gem clusters (tropical volcanic + mountain isles).
+	if hasGems then
+		local gemCount = math.clamp(math.floor(size / 90), 3, 14)
+		for _ = 1, gemCount do
+			local angle = math.random() * math.pi * 2
+			local r = half * (0.2 + math.random() * 0.66)
+			local x = center.X + math.cos(angle) * r
+			local z = center.Z + math.sin(angle) * r
+			if blocked(x, z) then
+				continue
+			end
+			buildGem(model, topY, x, z)
+		end
 	end
 
 	local bushCount = math.floor(size / 22)
@@ -464,43 +602,71 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 		if r > beachBand and biome == "beach" then
 			continue
 		end
-		buildBush(model, topY, center.X + math.cos(angle) * r, center.Z + math.sin(angle) * r, biome == "jungle")
+		local x = center.X + math.cos(angle) * r
+		local z = center.Z + math.sin(angle) * r
+		if blocked(x, z) then
+			continue
+		end
+		buildBush(model, topY, x, z, biome == "jungle")
 	end
 
 	local tuftCount = math.floor(size / 17)
 	for _ = 1, tuftCount do
 		local angle = math.random() * math.pi * 2
 		local r = half * (0.2 + math.random() * 0.65)
-		buildGrassTuft(model, topY, center.X + math.cos(angle) * r, center.Z + math.sin(angle) * r)
+		local x = center.X + math.cos(angle) * r
+		local z = center.Z + math.sin(angle) * r
+		if blocked(x, z) then
+			continue
+		end
+		buildGrassTuft(model, topY, x, z)
 	end
 
-	if biome == "jungle" or biome == "palm" then
-		local treeCount = if biome == "jungle" then math.floor(size / 42) else math.floor(size / 68)
+	-- Broadleaf trees for jungle / palm / volcanic isles (volcanic isles are lush tropical
+	-- slopes around a bare cone).
+	local leafy = biome == "jungle" or biome == "palm" or biome == "volcanic"
+	if leafy then
+		local treeCount = if biome == "jungle" then math.floor(size / 42) else math.floor(size / 60)
 		for _ = 1, treeCount do
 			local angle = math.random() * math.pi * 2
 			-- Keep the very center clear for the hill/village heart, then spread trees
 			-- across most of the interior so a huge jungle isle is dense to explore.
 			local r = half * (0.22 + math.random() * 0.6)
-			buildJungleTree(model, topY, center.X + math.cos(angle) * r, center.Z + math.sin(angle) * r)
+			local x = center.X + math.cos(angle) * r
+			local z = center.Z + math.sin(angle) * r
+			if blocked(x, z) then
+				continue
+			end
+			buildJungleTree(model, topY, x, z)
 		end
 	end
 
 	-- Amazon rainforest layer: buttressed canopy giants, thick ferns on the floor, and
 	-- climbable vines out on the peaks so the relief is scalable ("places to climb").
-	-- Denser on jungle isles, a lighter touch on palm isles.
-	if biome == "jungle" or biome == "palm" then
+	-- Denser on jungle isles, a lighter touch on palm / volcanic isles.
+	if leafy then
 		local giantCount = if biome == "jungle" then math.floor(size / 120) else math.floor(size / 220)
 		for _ = 1, giantCount do
 			local angle = math.random() * math.pi * 2
 			local r = half * (0.25 + math.random() * 0.5)
-			buildGiantTree(model, topY, center.X + math.cos(angle) * r, center.Z + math.sin(angle) * r)
+			local x = center.X + math.cos(angle) * r
+			local z = center.Z + math.sin(angle) * r
+			if blocked(x, z) then
+				continue
+			end
+			buildGiantTree(model, topY, x, z)
 		end
 
 		local fernCount = if biome == "jungle" then math.floor(size / 18) else math.floor(size / 32)
 		for _ = 1, fernCount do
 			local angle = math.random() * math.pi * 2
 			local r = half * (0.15 + math.random() * 0.7)
-			buildFern(model, topY, center.X + math.cos(angle) * r, center.Z + math.sin(angle) * r)
+			local x = center.X + math.cos(angle) * r
+			local z = center.Z + math.sin(angle) * r
+			if blocked(x, z) then
+				continue
+			end
+			buildFern(model, topY, x, z)
 		end
 
 		local vineCount = math.clamp(math.floor(size / 160), 2, 7)
@@ -508,7 +674,12 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 			local angle = math.random() * math.pi * 2
 			local r = half * (0.62 + math.random() * 0.28)
 			local h = 24 + math.random() * 18
-			buildClimbVine(model, topY, center.X + math.cos(angle) * r, center.Z + math.sin(angle) * r, h)
+			local x = center.X + math.cos(angle) * r
+			local z = center.Z + math.sin(angle) * r
+			if blocked(x, z) then
+				continue
+			end
+			buildClimbVine(model, topY, x, z, h)
 		end
 	end
 
@@ -517,13 +688,12 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 	for _ = 1, duneCount do
 		local angle = math.random() * math.pi * 2
 		local r = half * (0.2 + math.random() * 0.62)
-		buildDune(
-			model,
-			topY,
-			center.X + math.cos(angle) * r,
-			center.Z + math.sin(angle) * r,
-			math.random() < 0.6
-		)
+		local x = center.X + math.cos(angle) * r
+		local z = center.Z + math.sin(angle) * r
+		if blocked(x, z) then
+			continue
+		end
+		buildDune(model, topY, x, z, math.random() < 0.6)
 	end
 
 	-- Rock outcrops — a few inland, more clustered near the shoreline
@@ -531,7 +701,12 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 	for _ = 1, rockCount do
 		local angle = math.random() * math.pi * 2
 		local r = half * (0.35 + math.random() * 0.55)
-		buildRock(model, topY, center.X + math.cos(angle) * r, center.Z + math.sin(angle) * r)
+		local x = center.X + math.cos(angle) * r
+		local z = center.Z + math.sin(angle) * r
+		if blocked(x, z) then
+			continue
+		end
+		buildRock(model, topY, x, z)
 	end
 
 	-- Weathered driftwood logs washed up along the beach ring
@@ -542,12 +717,19 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 		buildDriftwood(model, topY, center.X + math.cos(angle) * r, center.Z + math.sin(angle) * r)
 	end
 
-	-- Scattered tropical flowers for colour (shadowless, so nearly free).
-	local flowerCount = math.floor(size / 46)
-	for _ = 1, flowerCount do
-		local angle = math.random() * math.pi * 2
-		local r = half * (0.18 + math.random() * 0.62)
-		buildFlower(model, topY, center.X + math.cos(angle) * r, center.Z + math.sin(angle) * r)
+	-- Scattered flowers for colour (shadowless, so nearly free). Tropical + temperate only.
+	if biome ~= "mountain" then
+		local flowerCount = math.floor(size / 46)
+		for _ = 1, flowerCount do
+			local angle = math.random() * math.pi * 2
+			local r = half * (0.18 + math.random() * 0.62)
+			local x = center.X + math.cos(angle) * r
+			local z = center.Z + math.sin(angle) * r
+			if blocked(x, z) then
+				continue
+			end
+			buildFlower(model, topY, x, z)
+		end
 	end
 end
 
@@ -713,7 +895,8 @@ local function generateIslandTerrain(
 	topY: number,
 	size: number,
 	biome: string,
-	theme: string
+	theme: string,
+	features: { [string]: any }
 )
 	local Terrain = Workspace.Terrain
 	local rng = Random.new(seedFromId(id))
@@ -722,7 +905,9 @@ local function generateIslandTerrain(
 	local surfaceY = OceanConfig.SurfaceY
 	local isTown = theme == "town" or theme == "stone_town"
 
-	local grassMat = if biome == "jungle" then Enum.Material.LeafyGrass else Enum.Material.Grass
+	local grassMat = if biome == "jungle" or biome == "volcanic"
+		then Enum.Material.LeafyGrass
+		else Enum.Material.Grass
 	local sandMat = Enum.Material.Sand
 
 	-- Solid land column from a submerged base up to a flat top face at `topAt`.
@@ -762,31 +947,109 @@ local function generateIslandTerrain(
 		Terrain:FillCylinder(CFrame.new(cx + math.cos(a) * d, capY, cz + math.sin(a) * d), capH, r, grassMat)
 	end
 
-	-- 3) Relief (hills / peaks) — always in the outer band, well clear of the settlement
-	-- heart, so houses and villagers keep flat ground. Towns spread wider, so their
-	-- relief is pushed even further out.
-	local peakExtra, hillCount
-	if biome == "jungle" then
-		peakExtra, hillCount = rng:NextNumber(34, 66), rng:NextInteger(2, 3)
-	elseif biome == "palm" then
-		peakExtra, hillCount = rng:NextNumber(16, 32), rng:NextInteger(1, 2)
-	else
-		peakExtra, hillCount = rng:NextNumber(5, 13), rng:NextInteger(0, 1)
-	end
-	local hillBandMin = if isTown then 0.84 else 0.6
-	local hillBandMax = 0.94
-	local rockMat = if biome == "jungle" then Enum.Material.Rock else grassMat
-	for _ = 1, hillCount do
-		local a = rng:NextNumber(0, math.pi * 2)
-		local d = half * rng:NextNumber(hillBandMin, hillBandMax)
-		local hx, hz = cx + math.cos(a) * d, cz + math.sin(a) * d
-		local baseR = half * (if isTown then rng:NextNumber(0.06, 0.11) else rng:NextNumber(0.12, 0.2))
-		local steps = 6
+	-- 3) Biome relief + signature landforms. Beaches/palms/jungles/highlands keep the
+	-- classic dune→hill→peak treatment in the OUTER band (settlement heart stays flat).
+	-- Volcanic isles grow a central basalt volcano; mountain isles a snow-capped peak plus
+	-- a sunken lake. All feature geometry is precomputed in planIslandFeatures so terrain
+	-- and the decorative pass (lava, waterfall, docks) agree on exact positions.
+	local rockMat = Enum.Material.Rock
+
+	if biome == "volcanic" and features.volcano then
+		local v = features.volcano
+		-- Stacked balls taper from a wide grassy/rocky base to a basalt crater rim.
+		local steps = 12
 		for s = 0, steps do
 			local t = s / steps
-			local y = topY + peakExtra * t
-			local r = baseR * (1 - t * 0.72)
-			Terrain:FillBall(Vector3.new(hx, y, hz), math.max(r, 3), if t > 0.55 then rockMat else grassMat)
+			local y = topY + v.height * t
+			local r = v.baseR * (1 - t * 0.82)
+			if t > 0.9 then
+				r = math.max(r, v.craterR + 3)
+			end
+			local mat = if t < 0.18 then grassMat elseif t > 0.62 then Enum.Material.Basalt else rockMat
+			Terrain:FillBall(Vector3.new(v.pos.X, y, v.pos.Z), math.max(r, v.craterR + 2), mat)
+		end
+		-- Hollow out the summit crater (lava is filled by decorateShore).
+		local rimY = topY + v.height
+		Terrain:FillCylinder(CFrame.new(v.pos.X, rimY - 4, v.pos.Z), 14, v.craterR, Enum.Material.Air)
+		-- A couple of low tropical hillocks around the base.
+		for _ = 1, rng:NextInteger(2, 4) do
+			local a = rng:NextNumber(0, math.pi * 2)
+			local d = half * rng:NextNumber(0.55, 0.82)
+			local hx, hz = cx + math.cos(a) * d, cz + math.sin(a) * d
+			for s = 0, 4 do
+				local t = s / 4
+				Terrain:FillBall(Vector3.new(hx, topY + 14 * t, hz), math.max(half * 0.09 * (1 - t * 0.7), 3), grassMat)
+			end
+		end
+	elseif biome == "mountain" then
+		-- One tall snow-capped peak on the back band.
+		local pk = features.peak
+		if pk then
+			local steps = 12
+			for s = 0, steps do
+				local t = s / steps
+				local y = topY + pk.height * t
+				local r = pk.baseR * (1 - t * 0.78)
+				local mat = if t > 0.72 then Enum.Material.Snow elseif t > 0.3 then rockMat else grassMat
+				Terrain:FillBall(Vector3.new(pk.pos.X, y, pk.pos.Z), math.max(r, 3), mat)
+			end
+		end
+		-- Rolling grassy hummocks across the rest of the interior.
+		for _ = 1, rng:NextInteger(2, 4) do
+			local a = rng:NextNumber(0, math.pi * 2)
+			local d = half * rng:NextNumber(0.5, 0.86)
+			local hx, hz = cx + math.cos(a) * d, cz + math.sin(a) * d
+			for s = 0, 4 do
+				local t = s / 4
+				Terrain:FillBall(Vector3.new(hx, topY + 20 * t, hz), math.max(half * 0.12 * (1 - t * 0.7), 3), grassMat)
+			end
+		end
+		-- Carve a basin and flood it: a real sunken freshwater lake.
+		local lake = features.lake
+		if lake then
+			local clearTop = topY + 6
+			local clearH = clearTop - lake.bedY
+			Terrain:FillCylinder(
+				CFrame.new(lake.pos.X, (clearTop + lake.bedY) * 0.5, lake.pos.Z),
+				clearH,
+				lake.radius,
+				Enum.Material.Air
+			)
+			local waterH = lake.surfaceY - lake.bedY
+			Terrain:FillCylinder(
+				CFrame.new(lake.pos.X, (lake.surfaceY + lake.bedY) * 0.5, lake.pos.Z),
+				waterH,
+				lake.radius - 1,
+				Enum.Material.Water
+			)
+		end
+	else
+		-- Beach / palm / jungle / highland relief.
+		local peakExtra, hillCount
+		if biome == "jungle" then
+			peakExtra, hillCount = rng:NextNumber(34, 66), rng:NextInteger(2, 3)
+		elseif biome == "palm" then
+			peakExtra, hillCount = rng:NextNumber(16, 32), rng:NextInteger(1, 2)
+		elseif biome == "highland" then
+			peakExtra, hillCount = rng:NextNumber(20, 40), rng:NextInteger(2, 3)
+		else
+			peakExtra, hillCount = rng:NextNumber(5, 13), rng:NextInteger(0, 1)
+		end
+		local hillBandMin = if isTown then 0.84 else 0.6
+		local hillBandMax = 0.94
+		local hillRock = if biome == "jungle" then Enum.Material.Rock else grassMat
+		for _ = 1, hillCount do
+			local a = rng:NextNumber(0, math.pi * 2)
+			local d = half * rng:NextNumber(hillBandMin, hillBandMax)
+			local hx, hz = cx + math.cos(a) * d, cz + math.sin(a) * d
+			local baseR = half * (if isTown then rng:NextNumber(0.06, 0.11) else rng:NextNumber(0.12, 0.2))
+			local steps = 6
+			for s = 0, steps do
+				local t = s / steps
+				local y = topY + peakExtra * t
+				local r = baseR * (1 - t * 0.72)
+				Terrain:FillBall(Vector3.new(hx, y, hz), math.max(r, 3), if t > 0.55 then hillRock else grassMat)
+			end
 		end
 	end
 
@@ -800,6 +1063,502 @@ local function generateIslandTerrain(
 			rng:NextNumber(3, 7),
 			Enum.Material.Rock
 		)
+	end
+end
+
+-- =====================================================================================
+-- Signature landform effects + shoreline structures (docks, lighthouses, boats)
+-- =====================================================================================
+
+local DOCK_PLANK = Color3.fromRGB(122, 86, 52)
+local DOCK_POST = Color3.fromRGB(84, 58, 36)
+
+-- A short wooden barrel standing on end (dock / harbour clutter).
+local function buildBarrel(model: Model, pos: Vector3)
+	makePart({
+		Name = "Barrel",
+		Parent = model,
+		Size = Vector3.new(2.4, 1.9, 1.9),
+		CFrame = CFrame.new(pos + Vector3.new(0, 1.2, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.fromRGB(112, 76, 44),
+		Material = Enum.Material.Wood,
+		Shape = Enum.PartType.Cylinder,
+		CanCollide = false,
+	})
+	makePart({
+		Name = "BarrelBand",
+		Parent = model,
+		Size = Vector3.new(2.5, 2.0, 0.6),
+		CFrame = CFrame.new(pos + Vector3.new(0, 1.2, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.fromRGB(60, 44, 30),
+		Material = Enum.Material.Wood,
+		Shape = Enum.PartType.Cylinder,
+		CanCollide = false,
+	})
+end
+
+-- A little open rowboat that floats on the water beside a dock (or lies beached/broken
+-- on an abandoned isle). `cf` sits at the waterline; `broken` tilts + darkens it.
+local function buildRowboat(model: Model, cf: CFrame, broken: boolean?)
+	local hull = Color3.fromRGB(104, 72, 42)
+	if broken then
+		hull = Color3.fromRGB(78, 60, 44)
+		cf = cf * CFrame.Angles(math.rad(12), 0, math.rad(18))
+	end
+	local boat = Instance.new("Model")
+	boat.Name = if broken then "Shipwreck" else "Rowboat"
+	boat.Parent = model
+	local function part(name, size, off, color)
+		return makePart({
+			Name = name,
+			Parent = boat,
+			Size = size,
+			CFrame = cf * off,
+			Color = color or hull,
+			Material = Enum.Material.Wood,
+			CanCollide = false,
+		})
+	end
+	part("Floor", Vector3.new(4.6, 0.4, 10), CFrame.new(0, 0.2, 0))
+	part("SideL", Vector3.new(0.4, 1.6, 10), CFrame.new(-2.3, 0.9, 0) * CFrame.Angles(0, 0, math.rad(-12)))
+	part("SideR", Vector3.new(0.4, 1.6, 10), CFrame.new(2.3, 0.9, 0) * CFrame.Angles(0, 0, math.rad(12)))
+	part("Bow", Vector3.new(4.4, 1.6, 1.4), CFrame.new(0, 0.9, -5) * CFrame.Angles(math.rad(20), 0, 0))
+	part("Stern", Vector3.new(4.4, 1.6, 1.2), CFrame.new(0, 0.9, 5))
+	if not broken then
+		part("Bench", Vector3.new(4.2, 0.35, 1.3), CFrame.new(0, 1.4, 0))
+		part("Oar", Vector3.new(0.3, 0.3, 6), CFrame.new(2.7, 1.6, 0) * CFrame.Angles(math.rad(6), math.rad(18), 0), Color3.fromRGB(122, 90, 58))
+	end
+	local prim = boat:FindFirstChild("Floor")
+	if prim and prim:IsA("BasePart") then
+		boat.PrimaryPart = prim
+	end
+end
+
+-- A wooden pier reaching out over the water: plank walkway on pilings, side rails, a wider
+-- T-head at the end, and a little harbour clutter (barrels + a draggable crate). Optionally
+-- moors a rowboat alongside the head. `origin` is the body the dock reaches out from (the
+-- island for a sea dock, or the lake centre for a lake dock).
+local function buildDock(
+	model: Model,
+	origin: Vector3,
+	surfaceY: number,
+	angle: number,
+	startR: number,
+	endR: number,
+	opts: { [string]: any }?
+)
+	opts = opts or {}
+	local o = opts :: { [string]: any }
+	local dir = Vector3.new(math.cos(angle), 0, math.sin(angle))
+	local yaw = math.atan2(dir.X, dir.Z)
+	local length = math.abs(endR - startR)
+	if length < 6 then
+		return
+	end
+	local midR = (startR + endR) * 0.5
+	local width = (o.width :: number?) or 7
+	local deckY = (o.deckY :: number?) or (surfaceY + 1.4)
+	local base = Vector3.new(origin.X + dir.X * midR, deckY, origin.Z + dir.Z * midR)
+	local cf = CFrame.new(base) * CFrame.Angles(0, yaw, 0)
+
+	makePart({
+		Name = "DockDeck",
+		Parent = model,
+		Size = Vector3.new(width, 0.5, length),
+		CFrame = cf,
+		Color = DOCK_PLANK,
+		Material = Enum.Material.WoodPlanks,
+	})
+
+	-- Pilings + short rail posts down both sides.
+	local pileTop = deckY - 0.2
+	local pileBot = surfaceY - 6
+	local pileH = pileTop - pileBot
+	local pileY = (pileTop + pileBot) * 0.5
+	local posts = math.max(2, math.floor(length / 8))
+	for i = 0, posts do
+		local along = -length * 0.5 + (i / posts) * length
+		for _, sx in { -width * 0.5 + 0.7, width * 0.5 - 0.7 } do
+			local p = cf * CFrame.new(sx, 0, along)
+			makePart({
+				Name = "DockPiling",
+				Parent = model,
+				Size = Vector3.new(0.9, pileH, 0.9),
+				CFrame = CFrame.new(p.X, pileY, p.Z),
+				Color = DOCK_POST,
+				Material = Enum.Material.Wood,
+			})
+			makePart({
+				Name = "RailPost",
+				Parent = model,
+				Size = Vector3.new(0.4, 2.4, 0.4),
+				CFrame = cf * CFrame.new(sx, 1.4, along),
+				Color = DOCK_POST,
+				Material = Enum.Material.Wood,
+				CanCollide = false,
+			})
+		end
+	end
+	-- Continuous top rails.
+	for _, sx in { -width * 0.5 + 0.7, width * 0.5 - 0.7 } do
+		makePart({
+			Name = "DockRail",
+			Parent = model,
+			Size = Vector3.new(0.35, 0.35, length),
+			CFrame = cf * CFrame.new(sx, 2.5, 0),
+			Color = DOCK_PLANK,
+			Material = Enum.Material.Wood,
+			CanCollide = false,
+		})
+	end
+
+	-- Wider T-head platform at the far (water) end.
+	local headSign = if endR >= startR then 1 else -1
+	local headCf = cf * CFrame.new(0, 0, headSign * (length * 0.5 - 3))
+	makePart({
+		Name = "DockHead",
+		Parent = model,
+		Size = Vector3.new(width + 7, 0.5, 6.5),
+		CFrame = headCf,
+		Color = DOCK_PLANK,
+		Material = Enum.Material.WoodPlanks,
+	})
+
+	-- Harbour clutter near the land end: a couple of barrels + a draggable crate.
+	local landCf = cf * CFrame.new(0, 0, -headSign * (length * 0.5 - 3.5))
+	buildBarrel(model, (landCf * CFrame.new(width * 0.5 - 1.2, 0.25, 0)).Position)
+	if math.random() < 0.7 then
+		buildBarrel(model, (landCf * CFrame.new(width * 0.5 - 2.6, 0.25, 1.4)).Position)
+	end
+	if o.islandId then
+		local crate = LootPropFactory.createCrateWorld(model, landCf * CFrame.new(-width * 0.5 + 1.4, 1.2, 0))
+		crate:SetAttribute("IslandId", o.islandId)
+	end
+
+	-- Moor a rowboat alongside the head.
+	if o.rowboat ~= false then
+		local boatCf = headCf * CFrame.new(width * 0.5 + 4, surfaceY - deckY + 0.4, 0) * CFrame.Angles(0, math.rad(90), 0)
+		buildRowboat(model, boatCf)
+	end
+end
+
+-- A tall coastal lighthouse — banded stone tower, a glassed lantern room that glows, and
+-- a conical cap. The signature landmark of the medieval fishing town / seaside village.
+local function buildLighthouse(model: Model, topY: number, x: number, z: number)
+	local lh = Instance.new("Model")
+	lh.Name = "Lighthouse"
+	lh.Parent = model
+	local baseY = topY
+	local towerH = 34
+	-- Rocky footing.
+	makePart({
+		Name = "LHFooting",
+		Parent = lh,
+		Size = Vector3.new(13, 4, 13),
+		CFrame = CFrame.new(x, baseY + 1, z),
+		Color = Color3.fromRGB(120, 120, 124),
+		Material = Enum.Material.Rock,
+		Shape = Enum.PartType.Cylinder,
+	}).CFrame = CFrame.new(x, baseY + 1, z) * CFrame.Angles(0, 0, math.rad(90))
+	-- Tapered banded tower (alternating white / red segments).
+	local segs = 6
+	for i = 0, segs - 1 do
+		local segH = towerH / segs
+		local r = 5.2 - i * 0.45
+		local y = baseY + 3 + segH * (i + 0.5)
+		makePart({
+			Name = `LHSeg_{i}`,
+			Parent = lh,
+			Size = Vector3.new(segH + 0.1, r * 2, r * 2),
+			CFrame = CFrame.new(x, y, z) * CFrame.Angles(0, 0, math.rad(90)),
+			Color = if i % 2 == 0 then Color3.fromRGB(232, 232, 232) else Color3.fromRGB(178, 58, 52),
+			Material = Enum.Material.Concrete,
+			Shape = Enum.PartType.Cylinder,
+		})
+	end
+	local topOfTower = baseY + 3 + towerH
+	-- Gallery deck.
+	makePart({
+		Name = "LHGallery",
+		Parent = lh,
+		Size = Vector3.new(1.0, 8.4, 8.4),
+		CFrame = CFrame.new(x, topOfTower, z) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.fromRGB(70, 72, 78),
+		Material = Enum.Material.Metal,
+		Shape = Enum.PartType.Cylinder,
+	})
+	-- Lantern room (glowing).
+	local lantern = makePart({
+		Name = "LHLantern",
+		Parent = lh,
+		Size = Vector3.new(4.2, 5, 4.2),
+		CFrame = CFrame.new(x, topOfTower + 3, z) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.fromRGB(255, 226, 150),
+		Material = Enum.Material.Neon,
+		Shape = Enum.PartType.Cylinder,
+	})
+	local light = Instance.new("PointLight")
+	light.Brightness = 4
+	light.Range = 90
+	light.Color = Color3.fromRGB(255, 226, 160)
+	light.Shadows = false
+	light.Parent = lantern
+	-- Conical cap.
+	makePart({
+		Name = "LHCap",
+		Parent = lh,
+		Size = Vector3.new(3.4, 5.6, 5.6),
+		CFrame = CFrame.new(x, topOfTower + 6.6, z) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.fromRGB(60, 62, 68),
+		Material = Enum.Material.Metal,
+		Shape = Enum.PartType.Cylinder,
+	})
+	-- Climbable ladder up the tower.
+	local truss = Instance.new("TrussPart")
+	truss.Name = "LHLadder"
+	truss.Anchored = true
+	truss.CanCollide = true
+	truss.Color = Color3.fromRGB(70, 72, 78)
+	truss.Material = Enum.Material.Metal
+	truss.Size = Vector3.new(2, towerH, 2)
+	truss.CFrame = CFrame.new(x + 5, baseY + 3 + towerH * 0.5, z)
+	truss.CastShadow = false
+	truss.Parent = lh
+end
+
+-- Fill a volcano crater with glowing lava, embers, smoke and a warm glow, plus a couple of
+-- cooled lava streaks running down the cone. `pos` is the cone centre, `rimY` the summit.
+local function buildLavaCrater(model: Model, pos: Vector3, craterR: number, rimY: number, baseR: number, topY: number)
+	local lava = makePart({
+		Name = "Lava",
+		Parent = model,
+		Size = Vector3.new(1.4, (craterR - 1) * 2, (craterR - 1) * 2),
+		CFrame = CFrame.new(pos.X, rimY - 3.5, pos.Z) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.fromRGB(255, 104, 28),
+		Material = Enum.Material.Neon,
+		Shape = Enum.PartType.Cylinder,
+		CanCollide = false,
+	})
+	local fire = Instance.new("Fire")
+	fire.Size = 30
+	fire.Heat = 18
+	fire.Color = Color3.fromRGB(255, 128, 40)
+	fire.SecondaryColor = Color3.fromRGB(120, 30, 10)
+	fire.Parent = lava
+	local smoke = Instance.new("Smoke")
+	smoke.Size = 10
+	smoke.Opacity = 0.4
+	smoke.RiseVelocity = 12
+	smoke.Color = Color3.fromRGB(70, 66, 62)
+	smoke.Parent = lava
+	local light = Instance.new("PointLight")
+	light.Brightness = 5
+	light.Range = 80
+	light.Color = Color3.fromRGB(255, 130, 50)
+	light.Shadows = false
+	light.Parent = lava
+	-- Glowing lava streaks down the flanks.
+	for i = 1, 3 do
+		local a = math.rad(i * 120 + math.random(-25, 25))
+		local dx, dz = math.cos(a), math.sin(a)
+		makePart({
+			Name = `LavaStreak_{i}`,
+			Parent = model,
+			Size = Vector3.new(2.2, rimY - topY - 6, 1.2),
+			CFrame = CFrame.new(pos.X + dx * baseR * 0.5, topY + (rimY - topY) * 0.5, pos.Z + dz * baseR * 0.5)
+				* CFrame.Angles(0, -a, math.rad(14)),
+			Color = Color3.fromRGB(226, 72, 24),
+			Material = Enum.Material.Neon,
+			CanCollide = false,
+			CastShadow = false,
+		})
+	end
+end
+
+-- A translucent waterfall sheet with a foamy splash pool + drifting mist, cascading from
+-- `topPos` down to `bottomY`. Used off the mountain isle's peak-side cliff.
+local function buildWaterfall(model: Model, topPos: Vector3, bottomY: number)
+	local h = math.max(topPos.Y - bottomY, 8)
+	for i = -1, 1 do
+		makePart({
+			Name = "Waterfall",
+			Parent = model,
+			Size = Vector3.new(6, h, 1.4),
+			CFrame = CFrame.new(topPos.X + i * 5.5, (topPos.Y + bottomY) * 0.5, topPos.Z) * CFrame.Angles(math.rad(4), 0, 0),
+			Color = Color3.fromRGB(222, 240, 250),
+			Material = Enum.Material.Glass,
+			Transparency = 0.32,
+			CanCollide = false,
+			CastShadow = false,
+		})
+	end
+	local splash = makePart({
+		Name = "WaterfallSplash",
+		Parent = model,
+		Size = Vector3.new(20, 2, 8),
+		CFrame = CFrame.new(topPos.X, bottomY + 1, topPos.Z),
+		Color = Color3.fromRGB(230, 244, 252),
+		Material = Enum.Material.Foil,
+		Transparency = 0.3,
+		CanCollide = false,
+		CastShadow = false,
+		Shape = Enum.PartType.Ball,
+	})
+	local mist = Instance.new("Smoke")
+	mist.Size = 8
+	mist.Opacity = 0.18
+	mist.RiseVelocity = 3
+	mist.Color = Color3.fromRGB(235, 245, 250)
+	mist.Parent = splash
+end
+
+-- Precompute the deterministic geometry of an island's signature features (volcano cone,
+-- mountain peak + lake, dock directions, lighthouse). Computed ONCE per isle and shared by
+-- both the terrain sculptor and the decorative pass so they agree on exact positions.
+local function planIslandFeatures(
+	id: string,
+	center: Vector3,
+	topY: number,
+	size: number,
+	biome: string,
+	entry: { [string]: any }
+): { [string]: any }
+	local rng = Random.new(seedFromId(id) * 3 + 17)
+	local half = size * 0.5
+	local features: { [string]: any } = { docks = {} }
+
+	if biome == "volcanic" and entry.Volcano ~= false then
+		-- Rise the cone on the "back" flank (−Z-ish) so the town core, harbour front
+		-- (+Z) and the merchant/campfire keep flat ground — the village then climbs the
+		-- lower slopes just like the reference tropical isle.
+		local vAngle = math.pi * 1.5 + rng:NextNumber(-0.4, 0.4)
+		features.volcano = {
+			pos = Vector3.new(center.X + math.cos(vAngle) * half * 0.5, center.Y, center.Z + math.sin(vAngle) * half * 0.5),
+			baseR = half * 0.32,
+			height = rng:NextNumber(135, 180),
+			craterR = half * 0.08,
+			angle = vAngle,
+		}
+	end
+
+	if biome == "mountain" then
+		local peakAngle = rng:NextNumber(0, math.pi * 2)
+		features.peak = {
+			pos = Vector3.new(center.X + math.cos(peakAngle) * half * 0.74, topY, center.Z + math.sin(peakAngle) * half * 0.74),
+			baseR = half * 0.24,
+			height = rng:NextNumber(150, 210),
+			angle = peakAngle,
+		}
+		local lakeAngle = peakAngle + math.pi
+		features.lake = {
+			pos = Vector3.new(center.X + math.cos(lakeAngle) * half * 0.52, topY, center.Z + math.sin(lakeAngle) * half * 0.52),
+			radius = half * 0.17,
+			surfaceY = topY - 1.2,
+			bedY = topY - 12,
+			angle = lakeAngle,
+		}
+	end
+
+	-- Dock directions: evenly spaced around the coast, biased away from the tall side
+	-- (peak / volcano) so a pier never tries to climb the mountain.
+	local dcount = tonumber(entry.Docks) or 0
+	if dcount > 0 then
+		local baseA = rng:NextNumber(0, math.pi * 2)
+		if features.peak then
+			baseA = features.peak.angle + math.pi -- start opposite the peak
+		elseif features.volcano then
+			baseA = features.volcano.angle + math.pi * 0.5
+		end
+		for i = 1, dcount do
+			local a = baseA + (i - 1) * (math.pi * 2 / dcount) * 0.55
+			table.insert(features.docks, { angle = a, target = "sea" })
+		end
+		-- On mountain isles the first pier reaches out over the lake instead of the sea.
+		if biome == "mountain" and features.lake then
+			features.docks[1].target = "lake"
+		end
+	end
+
+	if entry.Lighthouse == true then
+		local a = if #features.docks > 0 then features.docks[1].angle + 0.5 else 0.8
+		if features.docks[1] and features.docks[1].target == "lake" and #features.docks > 1 then
+			a = features.docks[2].angle + 0.5
+		end
+		features.lighthouse = { angle = a }
+	end
+
+	return features
+end
+
+-- Decorative + structural pass run after terrain + vegetation: crater lava, waterfalls,
+-- docks/piers, a lighthouse, moored + beached boats. Everything here is Parts parented to
+-- the island model (terrain is already sculpted). Positions come from planIslandFeatures.
+local function decorateShore(
+	model: Model,
+	center: Vector3,
+	size: number,
+	topY: number,
+	biome: string,
+	entry: { [string]: any },
+	features: { [string]: any }
+)
+	local half = size * 0.5
+	local surfaceY = OceanConfig.SurfaceY
+	local islandId = entry.Id
+
+	-- Volcano lava + smoke.
+	if features.volcano then
+		local v = features.volcano
+		buildLavaCrater(model, v.pos, v.craterR, topY + v.height, v.baseR, topY)
+	end
+
+	-- Mountain waterfall off the peak-side cliff.
+	if features.peak then
+		local pk = features.peak
+		local wx = center.X + math.cos(pk.angle) * half * 0.98
+		local wz = center.Z + math.sin(pk.angle) * half * 0.98
+		buildWaterfall(model, Vector3.new(wx, topY + 22, wz), surfaceY)
+	end
+
+	-- Docks / piers.
+	for _, dock in features.docks do
+		if dock.target == "lake" and features.lake then
+			local lake = features.lake
+			-- Reach out from the settlement-facing shore across the lake.
+			local toCenter = math.atan2(center.Z - lake.pos.Z, center.X - lake.pos.X)
+			buildDock(model, lake.pos, lake.surfaceY, toCenter, lake.radius + 1, lake.radius * 0.18, {
+				islandId = islandId,
+				deckY = lake.surfaceY + 1.2,
+				width = 6,
+				rowboat = true,
+			})
+			-- A rowboat drifting on the lake.
+			local bx = lake.pos.X + math.cos(toCenter + 1.2) * lake.radius * 0.4
+			local bz = lake.pos.Z + math.sin(toCenter + 1.2) * lake.radius * 0.4
+			buildRowboat(model, CFrame.new(bx, lake.surfaceY + 0.4, bz) * CFrame.Angles(0, toCenter, 0))
+		else
+			local startR = half * 0.8
+			local endR = half + Config.Islands.RaftCollisionPad + 30
+			buildDock(model, center, surfaceY, dock.angle, startR, endR, {
+				islandId = islandId,
+				rowboat = true,
+			})
+		end
+	end
+
+	-- Lighthouse on the shore of medieval seaside isles.
+	if features.lighthouse then
+		local a = features.lighthouse.angle
+		local lx = center.X + math.cos(a) * half * 0.72
+		local lz = center.Z + math.sin(a) * half * 0.72
+		buildLighthouse(model, topY, lx, lz)
+	end
+
+	-- A beached shipwreck on abandoned isles (washed-up wreck to poke around in).
+	if entry.Abandoned == true then
+		local a = math.random() * math.pi * 2
+		local r = half * 0.82
+		buildRowboat(model, CFrame.new(center.X + math.cos(a) * r, topY + 0.6, center.Z + math.sin(a) * r) * CFrame.Angles(0, a, 0), true)
 	end
 end
 
@@ -829,12 +1588,20 @@ local function buildFlatIsland(entry: { [string]: any }, folder: Folder): Island
 	})
 	model.PrimaryPart = anchor
 
-	-- Carve the organic, biome-specific terrain island (beaches, grass/jungle interior,
-	-- hills / rocky peaks). Seeded per isle so every island's shape is different.
-	generateIslandTerrain(entry.Id, center, topY, size, biome, entry.Theme or "wild")
+	-- Precompute this isle's signature landforms + shoreline layout so the terrain sculptor
+	-- and the decorative pass agree on exact positions (volcano, lake, docks, lighthouse).
+	local features = planIslandFeatures(entry.Id, center, topY, size, biome, entry)
 
-	scatterVegetation(model, center, size, topY, biome)
+	-- Carve the organic, biome-specific terrain island (beaches, grass/jungle/highland
+	-- interior, hills, rocky peaks, volcanic cones, snow peaks + lakes). Seeded per isle so
+	-- every island's shape is different.
+	generateIslandTerrain(entry.Id, center, topY, size, biome, entry.Theme or "wild", features)
+
+	scatterVegetation(model, center, size, topY, biome, features)
 	scatterLooseLoot(model, center, size, topY, entry.Id)
+
+	-- Docks / piers, lighthouse, crater lava, waterfalls, moored + beached boats.
+	decorateShore(model, center, size, topY, biome, entry, features)
 
 	local marker = makePart({
 		Name = "IsleMarker",
@@ -1091,8 +1858,8 @@ end
 
 local function pointOnIsland(pos: Vector3, isle: IslandRecord): boolean
 	-- Anywhere from just below the shore up to the top of the tallest terrain peak counts
-	-- as "on the isle" (peaks can rise well above the walkable plateau at topY).
-	if pos.Y < isle.topY - 8 or pos.Y > isle.topY + 130 then
+	-- as "on the isle" (volcano cones + snow peaks can rise ~200+ studs above the plateau).
+	if pos.Y < isle.topY - 8 or pos.Y > isle.topY + 260 then
 		return false
 	end
 	return flatDistance(pos, isle.center) <= isle.size * 0.5 + 3
