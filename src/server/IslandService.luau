@@ -1204,15 +1204,27 @@ function IslandService.start(
 
 	IslandService.ensure()
 
-	local accum = 0
+	-- The NPC AI pass is O(NPCs x players) and used to run every Heartbeat (60 Hz) even
+	-- with nobody online. Run it on a fixed ~15 Hz tick, feeding it the accumulated dt so
+	-- movement stays time-correct, and skip it entirely when no players are present.
+	local npcAccum = 0
+	local NPC_INTERVAL = 1 / 15
+	local lockAccum = 0
 	RunService.Heartbeat:Connect(function(dt)
-		updateNpcs(dt)
-		accum += dt
-		if accum < 0.2 then
-			return
+		npcAccum += dt
+		if npcAccum >= NPC_INTERVAL then
+			local step = npcAccum
+			npcAccum = 0
+			if #Players:GetPlayers() > 0 then
+				updateNpcs(step)
+			end
 		end
-		accum = 0
-		updateVisitLockouts()
+
+		lockAccum += dt
+		if lockAccum >= 0.2 then
+			lockAccum = 0
+			updateVisitLockouts()
+		end
 	end)
 end
 
