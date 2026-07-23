@@ -160,6 +160,8 @@ local Config = {
 		--   Theme: "wild" | "fishing_village" | "village" | "town" | "stone_town"
 		--        | "castle" | "abandoned"
 		-- Optional per-isle flags read by VillageBuilder / IslandService:
+		--   TropicalTerrace = true → terraced grass rings, stone retaining walls,
+		--     spiral cliff path, stilt huts with pyramid thatch roofs over the water
 		--   Church     = true → raise a stone church with a steeple, bell & cross
 		--   Mansions   = <n>  → n grand multi-storey manor houses in the settlement
 		--   Lit        = true → street lamps + braziers so the town glows day and night
@@ -176,13 +178,15 @@ local Config = {
 		Catalog = {
 			{
 				Id = "tide_flat",
-				Name = "Tide Flat",
-				-- Nearest isle: ~3000 studs out (a few seconds of sailing). A quiet sandy
-				-- cove with a single weathered pier to tie up at — the gentle first landfall.
+				Name = "Palm Terrace",
+				-- Nearest isle: ~3000 studs out (a few seconds of sailing). Low-poly tropical
+				-- terrace — sandy beach, grassy tiers with stone walls, a spiral cliff path,
+				-- and thatched stilt huts over the water linked by boardwalks.
 				Offset = Vector3.new(-2599, 0, -1500),
 				SizeStuds = 1300,
-				Biome = "beach",
+				Biome = "palm",
 				Theme = "wild",
+				TropicalTerrace = true,
 				Abandoned = false,
 				Merchant = false,
 				Docks = 1,
