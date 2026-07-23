@@ -192,8 +192,6 @@ local Config = {
 				Loot = { Weapons = 5, Chests = 3, Armor = 2 },
 			},
 			{
-			-- Chapel Isle removed per request
-			{
 				Id = "smuggler_hut",
 				Name = "Smuggler Hollow",
 				Offset = Vector3.new(-936, 0, -4402),
