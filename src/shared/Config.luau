@@ -192,19 +192,7 @@ local Config = {
 				Loot = { Weapons = 5, Chests = 3, Armor = 2 },
 			},
 			{
-				Id = "chapel_isle",
-				Name = "Chapel Isle",
-				Offset = Vector3.new(760, 0, -3010),
-				SizeStuds = 1500,
-				Biome = "palm",
-				-- A quiet greenery-fringed village gathered around its little stone chapel.
-				Theme = "village",
-				Abandoned = false,
-				Merchant = true,
-				Church = true,
-				Villagers = { Passive = 10, Hostile = 0 },
-				Loot = { Weapons = 5, Chests = 4, Armor = 3 },
-			},
+			-- Chapel Isle removed per request
 			{
 				Id = "smuggler_hut",
 				Name = "Smuggler Hollow",
