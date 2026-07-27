@@ -74,6 +74,11 @@ local LootPlace = remoteFolder:WaitForChild("LootPlace")
 local MerchantTrade = remoteFolder:WaitForChild("MerchantTrade")
 local MerchantShop = remoteFolder:WaitForChild("MerchantShop")
 
+-- A raft must never be handed to a crew until its opening waters already contain
+-- the island ring.  World generation can yield between the large islands, so this
+-- stays false while the server finishes preparing the voyage.
+local voyageWorldReady = false
+
 -- Shared accessors used by several services below.
 local function getPartyCode(player: Player): string?
 	return PartyService.getPartyCode(player)
@@ -100,6 +105,10 @@ GetLobbyState.OnServerInvoke = function(player)
 end
 
 CreateParty.OnServerEvent:Connect(function(player, portalIndex, maxPlayers, _privacy)
+	if not voyageWorldReady then
+		Toast:FireClient(player, "Preparing the voyage islands — please try again in a moment.", "info")
+		return
+	end
 	if typeof(portalIndex) ~= "number" or typeof(maxPlayers) ~= "number" then
 		Toast:FireClient(player, "Invalid boarding request.", "error")
 		return
@@ -281,13 +290,17 @@ safeStart("WaterRescue", function()
 	end)
 end)
 
--- Heavy world generation (huge islands, loot props, streaming terrain water)
--- runs off the main boot thread so it can never stall or break the pier above.
-task.spawn(function()
-	safeStart("OceanTerrainService", OceanTerrainService.start)
-	safeStart("IslandService", function()
-		IslandService.start(Toast :: RemoteEvent, getPartyCode, getMemberUserIds)
-	end)
+-- Build the opening sea before a crew can board.  IslandService yields between
+-- islands, which keeps the server responsive while ensuring the full ring and its
+-- water have replicated before the first raft is created.
+local voyageWorldOk, voyageWorldErr = pcall(function()
+	IslandService.start(Toast :: RemoteEvent, getPartyCode, getMemberUserIds)
+	OceanTerrainService.start()
 end)
+if voyageWorldOk then
+	voyageWorldReady = true
+else
+	warn("[SurviveAtSea] Voyage world failed to prepare:", voyageWorldErr)
+end
 
-print(`[SurviveAtSea] Lobby ready — private crews only, max {Config.MaxPartySize} per run, portals are reusable.`)
+print(`[SurviveAtSea] Lobby ready — private crews only, max {Config.MaxPartySize} per run, portals are reusable, opening islands ready: {voyageWorldReady}.`)

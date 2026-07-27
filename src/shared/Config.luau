@@ -80,9 +80,8 @@ local Config = {
 
 	-- Stationary open-sea isles. Visit → leave on the raft → sail far enough away → locked forever for that crew.
 	-- Beach-vibe flats: sand ring → grass → jungle/village heart, palms everywhere.
-	-- The opening ring is intentionally packed close enough to fill every horizon from a
-	-- fresh raft. Ten huge isles are built at boot, evenly around the origin, so players
-	-- never begin in an empty ocean or need to sail before discovering the world.
+	-- The opening set is built before boarding. The first island's beach sits directly
+	-- beside the raft, while the remaining isles fill the surrounding horizon.
 	Islands = {
 		Thickness = 16,
 		TopY = 3.4,
@@ -196,10 +195,12 @@ local Config = {
 			{
 				Id = "tide_flat",
 				Name = "Twin Peaks",
-				-- North of spawn: a few seconds of sailing. Two blocky
+				-- Directly north of spawn: the beach begins at the raft's bow. Two blocky
 				-- low-poly rock stacks on sandy pads, linked by a sagging rope bridge —
-				-- the gentle first landfall with a climb to the span.
-				Offset = Vector3.new(0, 0, -2500),
+				-- the immediate first landfall with a climb to the span.
+				-- A 1,400-stud island has a 700-stud shore radius. Its centre sits 750
+				-- studs ahead, leaving only a ~14-stud gap from the raft's front edge.
+				Offset = Vector3.new(0, 0, -750),
 				SizeStuds = 1400,
 				Biome = "twin_peaks",
 				Theme = "wild",

@@ -75,7 +75,9 @@ local function buildHelmWheel(kit: Folder, deck: BasePart, center: Vector3)
 	})
 
 	-- Axle stub sticking out of the post toward the helmsman (+Z local)
-	local wheelCenter = standCf * CFrame.new(0, 3.15, 0.95)
+	-- Keep the wheel at a natural hand height while leaving a clear sightline for
+	-- a standard-height Roblox character standing at the helm.
+	local wheelCenter = standCf * CFrame.new(0, 2.65, 0.95)
 	-- Upright wheel: cylinder axis points at helmsman (world ±stand Look flipped → local +Z)
 	local wheelCf = wheelCenter * CFrame.Angles(0, math.rad(90), 0)
 
