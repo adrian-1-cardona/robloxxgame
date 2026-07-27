@@ -115,6 +115,10 @@ local function flatDistance(a: Vector3, b: Vector3): number
 	return math.sqrt(dx * dx + dz * dz)
 end
 
+-- Shared wood colours for docks, boardwalks and stilt decks.
+local DOCK_PLANK = Color3.fromRGB(122, 86, 52)
+local DOCK_POST = Color3.fromRGB(84, 58, 36)
+
 local function worldCenterForOffset(offset: Vector3, topY: number, thickness: number): Vector3
 	local origin = Config.StarterBase.Origin
 	return Vector3.new(origin.X + offset.X, topY - thickness * 0.5, origin.Z + offset.Z)
@@ -187,6 +191,312 @@ local function buildPalm(model: Model, topY: number, x: number, z: number, scale
 			CanCollide = false,
 			CastShadow = false,
 			Shape = Enum.PartType.Ball,
+		})
+	end
+end
+
+-- Classic "ball on a stick" tree — dark green sphere canopy on a simple trunk.
+local function buildBallTree(model: Model, topY: number, x: number, z: number, scale: number?)
+	local s = scale or (0.85 + math.random() * 0.35)
+	local trunkH = (7 + math.random() * 4) * s
+	makePart({
+		Name = "BallTrunk",
+		Parent = model,
+		Size = Vector3.new(0.7 * s, trunkH, 0.7 * s),
+		CFrame = CFrame.new(x, topY + trunkH * 0.5, z),
+		Color = Color3.fromRGB(78, 54, 32),
+		Material = Enum.Material.Wood,
+		CanCollide = false,
+	})
+	local canopy = (4.5 + math.random() * 1.8) * s
+	makePart({
+		Name = "BallCanopy",
+		Parent = model,
+		Size = Vector3.new(canopy, canopy, canopy),
+		CFrame = CFrame.new(x, topY + trunkH + canopy * 0.28, z),
+		Color = Color3.fromRGB(34, 96, 46),
+		Material = Enum.Material.Grass,
+		CanCollide = false,
+		Shape = Enum.PartType.Ball,
+	})
+end
+
+-- Four WedgeParts meeting at the peak — reads as a pyramid thatch roof.
+local function buildPyramidRoof(parent: Instance, cf: CFrame, footprint: number, color: Color3)
+	local h = footprint * 0.42
+	local half = footprint * 0.5
+	for i = 0, 3 do
+		local yaw = math.rad(i * 90)
+		local wedge = Instance.new("WedgePart")
+		wedge.Name = "PyramidRoof"
+		wedge.Anchored = true
+		wedge.CanCollide = true
+		wedge.CastShadow = true
+		wedge.Material = Enum.Material.Grass
+		wedge.Color = color
+		wedge.Size = Vector3.new(footprint, h, half)
+		wedge.CFrame = cf * CFrame.Angles(0, yaw, 0) * CFrame.new(0, h * 0.5, half * 0.5)
+		wedge.TopSurface = Enum.SurfaceType.Smooth
+		wedge.BottomSurface = Enum.SurfaceType.Smooth
+		wedge.Parent = parent
+	end
+end
+
+local STILT_WALL = Color3.fromRGB(148, 158, 110)
+local STILT_ROOF = Color3.fromRGB(186, 148, 72)
+local STILT_WOOD = Color3.fromRGB(110, 78, 48)
+local TERRACE_STONE = Color3.fromRGB(168, 170, 172)
+
+-- Open-window hut on stilts over the water (or a summit pavilion when overLand).
+local function buildStiltHut(
+	model: Model,
+	pos: Vector3,
+	surfaceY: number,
+	yaw: number,
+	opts: { [string]: any }?
+)
+	local o = opts or {}
+	local s = (o.scale :: number?) or 1
+	local overLand = o.overLand == true
+	local hut = Instance.new("Model")
+	hut.Name = if overLand then "SummitPavilion" else "StiltHut"
+	hut.Parent = model
+
+	local w, d, wallH = 14 * s, 12 * s, 7 * s
+	local deckY = if overLand then pos.Y else (surfaceY + 5.5 * s)
+	local floorCf = CFrame.new(pos.X, deckY, pos.Z) * CFrame.Angles(0, yaw, 0)
+
+	if not overLand then
+		local pileBot = surfaceY - 8
+		local pileH = deckY - pileBot
+		local pileY = (deckY + pileBot) * 0.5
+		for _, ox in { -w * 0.42, w * 0.42 } do
+			for _, oz in { -d * 0.42, d * 0.42 } do
+				local p = floorCf * CFrame.new(ox, 0, oz)
+				makePart({
+					Name = "Stilt",
+					Parent = hut,
+					Size = Vector3.new(1.1 * s, pileH, 1.1 * s),
+					CFrame = CFrame.new(p.X, pileY, p.Z),
+					Color = STILT_WOOD,
+					Material = Enum.Material.Wood,
+					CastShadow = true,
+				})
+			end
+		end
+	end
+
+	makePart({
+		Name = "HutFloor",
+		Parent = hut,
+		Size = Vector3.new(w, 0.6 * s, d),
+		CFrame = floorCf,
+		Color = DOCK_PLANK,
+		Material = Enum.Material.WoodPlanks,
+		CastShadow = true,
+	})
+
+	-- Four walls with a big open window in each face.
+	local walls = {
+		{ offset = CFrame.new(0, wallH * 0.5, -d * 0.5), size = Vector3.new(w, wallH, 0.55 * s), win = "z" },
+		{ offset = CFrame.new(0, wallH * 0.5, d * 0.5), size = Vector3.new(w, wallH, 0.55 * s), win = "z" },
+		{ offset = CFrame.new(-w * 0.5, wallH * 0.5, 0), size = Vector3.new(0.55 * s, wallH, d), win = "x" },
+		{ offset = CFrame.new(w * 0.5, wallH * 0.5, 0), size = Vector3.new(0.55 * s, wallH, d), win = "x" },
+	}
+	for i, wall in walls do
+		local along = if wall.win == "z" then wall.size.X else wall.size.Z
+		local side = along * 0.22
+		local winW = along * 0.46
+		local sillH = wallH * 0.28
+		local headH = wallH * 0.22
+		if wall.win == "z" then
+			makePart({
+				Name = `WallL_{i}`,
+				Parent = hut,
+				Size = Vector3.new(side, wallH, wall.size.Z),
+				CFrame = floorCf * wall.offset * CFrame.new(-(winW * 0.5 + side * 0.5), 0, 0),
+				Color = STILT_WALL,
+				Material = Enum.Material.Wood,
+			})
+			makePart({
+				Name = `WallR_{i}`,
+				Parent = hut,
+				Size = Vector3.new(side, wallH, wall.size.Z),
+				CFrame = floorCf * wall.offset * CFrame.new(winW * 0.5 + side * 0.5, 0, 0),
+				Color = STILT_WALL,
+				Material = Enum.Material.Wood,
+			})
+			makePart({
+				Name = `WallSill_{i}`,
+				Parent = hut,
+				Size = Vector3.new(winW, sillH, wall.size.Z),
+				CFrame = floorCf * wall.offset * CFrame.new(0, -wallH * 0.5 + sillH * 0.5, 0),
+				Color = STILT_WALL,
+				Material = Enum.Material.Wood,
+			})
+			makePart({
+				Name = `WallHead_{i}`,
+				Parent = hut,
+				Size = Vector3.new(winW, headH, wall.size.Z),
+				CFrame = floorCf * wall.offset * CFrame.new(0, wallH * 0.5 - headH * 0.5, 0),
+				Color = STILT_WALL,
+				Material = Enum.Material.Wood,
+			})
+		else
+			makePart({
+				Name = `WallL_{i}`,
+				Parent = hut,
+				Size = Vector3.new(wall.size.X, wallH, side),
+				CFrame = floorCf * wall.offset * CFrame.new(0, 0, -(winW * 0.5 + side * 0.5)),
+				Color = STILT_WALL,
+				Material = Enum.Material.Wood,
+			})
+			makePart({
+				Name = `WallR_{i}`,
+				Parent = hut,
+				Size = Vector3.new(wall.size.X, wallH, side),
+				CFrame = floorCf * wall.offset * CFrame.new(0, 0, winW * 0.5 + side * 0.5),
+				Color = STILT_WALL,
+				Material = Enum.Material.Wood,
+			})
+			makePart({
+				Name = `WallSill_{i}`,
+				Parent = hut,
+				Size = Vector3.new(wall.size.X, sillH, winW),
+				CFrame = floorCf * wall.offset * CFrame.new(0, -wallH * 0.5 + sillH * 0.5, 0),
+				Color = STILT_WALL,
+				Material = Enum.Material.Wood,
+			})
+			makePart({
+				Name = `WallHead_{i}`,
+				Parent = hut,
+				Size = Vector3.new(wall.size.X, headH, winW),
+				CFrame = floorCf * wall.offset * CFrame.new(0, wallH * 0.5 - headH * 0.5, 0),
+				Color = STILT_WALL,
+				Material = Enum.Material.Wood,
+			})
+		end
+	end
+
+	buildPyramidRoof(hut, floorCf * CFrame.new(0, wallH + 0.15 * s, 0), math.max(w, d) + 2.5 * s, STILT_ROOF)
+	return Vector3.new(pos.X, deckY, pos.Z)
+end
+
+-- Straight wooden boardwalk between two deck points (stilts + planks + rails).
+local function buildBoardwalk(model: Model, from: Vector3, to: Vector3, surfaceY: number, width: number?)
+	local flat = Vector3.new(to.X - from.X, 0, to.Z - from.Z)
+	local length = flat.Magnitude
+	if length < 4 then
+		return
+	end
+	local w = width or 5.5
+	local deckY = (from.Y + to.Y) * 0.5
+	local mid = Vector3.new((from.X + to.X) * 0.5, deckY, (from.Z + to.Z) * 0.5)
+	local yaw = math.atan2(flat.X, flat.Z)
+	local cf = CFrame.new(mid) * CFrame.Angles(0, yaw, 0)
+
+	makePart({
+		Name = "BoardwalkDeck",
+		Parent = model,
+		Size = Vector3.new(w, 0.45, length),
+		CFrame = cf,
+		Color = DOCK_PLANK,
+		Material = Enum.Material.WoodPlanks,
+		CastShadow = true,
+	})
+
+	local pileBot = surfaceY - 6
+	local pileH = deckY - 0.2 - pileBot
+	local pileY = (deckY - 0.2 + pileBot) * 0.5
+	local posts = math.max(2, math.floor(length / 10))
+	for i = 0, posts do
+		local along = -length * 0.5 + (i / posts) * length
+		for _, sx in { -w * 0.5 + 0.55, w * 0.5 - 0.55 } do
+			local p = cf * CFrame.new(sx, 0, along)
+			makePart({
+				Name = "BoardwalkPiling",
+				Parent = model,
+				Size = Vector3.new(0.75, pileH, 0.75),
+				CFrame = CFrame.new(p.X, pileY, p.Z),
+				Color = DOCK_POST,
+				Material = Enum.Material.Wood,
+			})
+			makePart({
+				Name = "BoardwalkRailPost",
+				Parent = model,
+				Size = Vector3.new(0.35, 2.1, 0.35),
+				CFrame = cf * CFrame.new(sx, 1.2, along),
+				Color = DOCK_POST,
+				Material = Enum.Material.Wood,
+				CanCollide = false,
+			})
+		end
+	end
+	for _, sx in { -w * 0.5 + 0.55, w * 0.5 - 0.55 } do
+		makePart({
+			Name = "BoardwalkRail",
+			Parent = model,
+			Size = Vector3.new(0.3, 0.3, length),
+			CFrame = cf * CFrame.new(sx, 2.2, 0),
+			Color = DOCK_PLANK,
+			Material = Enum.Material.Wood,
+			CanCollide = false,
+		})
+	end
+end
+
+local function buildRetainingRing(
+	model: Model,
+	cx: number,
+	cz: number,
+	radius: number,
+	yBottom: number,
+	height: number
+)
+	local segs = math.max(18, math.floor(radius / 10))
+	local chord = (2 * math.pi * radius) / segs + 0.6
+	for i = 0, segs - 1 do
+		local a = (i / segs) * math.pi * 2
+		local x = cx + math.cos(a) * radius
+		local z = cz + math.sin(a) * radius
+		makePart({
+			Name = "RetainingWall",
+			Parent = model,
+			Size = Vector3.new(chord, height, 1.4),
+			CFrame = CFrame.new(x, yBottom + height * 0.5, z) * CFrame.Angles(0, -a, 0),
+			Color = TERRACE_STONE,
+			Material = Enum.Material.Concrete,
+			CastShadow = true,
+		})
+	end
+end
+
+-- Spiral walkway climbing the central cliff.
+local function buildSpiralPath(
+	model: Model,
+	cx: number,
+	cz: number,
+	cliffR: number,
+	y0: number,
+	y1: number
+)
+	local turns = 2.15
+	local steps = 30
+	for i = 0, steps - 1 do
+		local t = i / steps
+		local a = t * math.pi * 2 * turns
+		local y = y0 + (y1 - y0) * t
+		local r = cliffR + 7
+		local x = cx + math.cos(a) * r
+		local z = cz + math.sin(a) * r
+		makePart({
+			Name = "SpiralStep",
+			Parent = model,
+			Size = Vector3.new(8, 1.15, 5.2),
+			CFrame = CFrame.new(x, y, z) * CFrame.Angles(0, -a + math.rad(90), math.rad(-6)),
+			Color = Color3.fromRGB(96, 98, 102),
+			Material = Enum.Material.Rock,
+			CastShadow = true,
 		})
 	end
 end
@@ -525,6 +835,13 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 		if peak then
 			local dx, dz = x - peak.pos.X, z - peak.pos.Z
 			if dx * dx + dz * dz < (peak.baseR + 4) * (peak.baseR + 4) then
+				return true
+			end
+		end
+		local tt = feat.tropicalTerrace
+		if tt then
+			local dx, dz = x - tt.cx, z - tt.cz
+			if dx * dx + dz * dz < (tt.cliffR + 10) * (tt.cliffR + 10) then
 				return true
 			end
 		end
@@ -1098,7 +1415,25 @@ local function generateIslandTerrain(
 				Enum.Material.Water
 			)
 		end
-		
+	elseif features.tropicalTerrace then
+		-- Stacked grassy terraces + a central rocky cliff (low-poly tropical look).
+		local tt = features.tropicalTerrace
+		landColumn(cx, cz, tt.midR, tt.midY, grassMat)
+		landColumn(cx, cz, tt.topR, tt.topY, grassMat)
+		local cliffSteps = 10
+		for s = 0, cliffSteps do
+			local t = s / cliffSteps
+			local y = topY + (tt.cliffTop - topY) * t
+			local r = tt.cliffR * (1 - t * 0.22)
+			Terrain:FillBall(Vector3.new(cx, y, cz), math.max(r, 5), rockMat)
+		end
+		-- Flat grassy summit pad on the cliff.
+		Terrain:FillCylinder(
+			CFrame.new(cx, tt.cliffTop - 0.5, cz),
+			3.5,
+			tt.cliffR * 0.78,
+			grassMat
+		)
 	else
 		-- Enhanced relief for other biomes with village considerations
 		local peakExtra, hillCount
@@ -1171,9 +1506,6 @@ end
 -- =====================================================================================
 -- Signature landform effects + shoreline structures (docks, lighthouses, boats)
 -- =====================================================================================
-
-local DOCK_PLANK = Color3.fromRGB(122, 86, 52)
-local DOCK_POST = Color3.fromRGB(84, 58, 36)
 
 -- A short wooden barrel standing on end (dock / harbour clutter).
 local function buildBarrel(model: Model, pos: Vector3)
@@ -1709,6 +2041,21 @@ local function planIslandFeatures(
 		}
 	end
 
+	-- Low-poly tropical terrace isle (Palm Terrace): stacked grass rings, stone walls,
+	-- spiral cliff, and stilt huts over the water on the harbour side.
+	if entry.TropicalTerrace == true then
+		features.tropicalTerrace = {
+			cx = center.X,
+			cz = center.Z,
+			midR = half * 0.48,
+			midY = topY + 9,
+			topR = half * 0.26,
+			topY = topY + 20,
+			cliffR = half * 0.13,
+			cliffTop = topY + 34,
+		}
+	end
+
 	-- Dock directions: evenly spaced around the coast, biased away from the tall side
 	-- (peak / volcano) so a pier never tries to climb the mountain.
 	local dcount = tonumber(entry.Docks) or 0
@@ -1718,6 +2065,9 @@ local function planIslandFeatures(
 			baseA = features.peak.angle + math.pi -- start opposite the peak
 		elseif features.volcano then
 			baseA = features.volcano.angle + math.pi * 0.5
+		elseif features.tropicalTerrace then
+			-- Keep the pier on the +Z-ish harbour side so stilts cluster near it.
+			baseA = math.pi * 0.5
 		end
 		for i = 1, dcount do
 			local a = baseA + (i - 1) * (math.pi * 2 / dcount) * 0.55
@@ -1743,6 +2093,97 @@ end
 -- Decorative + structural pass run after terrain + vegetation: crater lava, waterfalls,
 -- docks/piers, a lighthouse, moored + beached boats. Everything here is Parts parented to
 -- the island model (terrain is already sculpted). Positions come from planIslandFeatures.
+local function decorateTropicalTerrace(
+	model: Model,
+	size: number,
+	topY: number,
+	surfaceY: number,
+	features: { [string]: any }
+)
+	local tt = features.tropicalTerrace
+	if not tt then
+		return
+	end
+	local half = size * 0.5
+	local cx, cz = tt.cx, tt.cz
+
+	-- Stone retaining walls at each grassy terrace rim.
+	buildRetainingRing(model, cx, cz, tt.midR + 1.2, topY - 0.5, tt.midY - topY + 1.2)
+	buildRetainingRing(model, cx, cz, tt.topR + 1.0, tt.midY - 0.5, tt.topY - tt.midY + 1.0)
+
+	-- Spiral path up the central cliff to the summit pad.
+	buildSpiralPath(model, cx, cz, tt.cliffR, tt.topY + 1, tt.cliffTop - 1)
+
+	-- Short stair ramps from beach → mid terrace and mid → upper (harbour-facing).
+	local harbourA = if #features.docks > 0 then features.docks[1].angle else math.pi * 0.5
+	for _, ramp in {
+		{ r0 = half * 0.72, r1 = tt.midR - 4, y0 = topY + 0.4, y1 = tt.midY + 0.4, w = 10 },
+		{ r0 = tt.midR - 2, r1 = tt.topR - 3, y0 = tt.midY + 0.4, y1 = tt.topY + 0.4, w = 8 },
+	} do
+		local steps = 8
+		for i = 0, steps - 1 do
+			local t = i / steps
+			local r = ramp.r0 + (ramp.r1 - ramp.r0) * t
+			local y = ramp.y0 + (ramp.y1 - ramp.y0) * t
+			local x = cx + math.cos(harbourA) * r
+			local z = cz + math.sin(harbourA) * r
+			makePart({
+				Name = "TerraceStep",
+				Parent = model,
+				Size = Vector3.new(ramp.w, 1.1, 5.5),
+				CFrame = CFrame.new(x, y, z) * CFrame.Angles(0, -harbourA + math.rad(90), 0),
+				Color = TERRACE_STONE,
+				Material = Enum.Material.Concrete,
+				CastShadow = true,
+			})
+		end
+	end
+
+	-- Ball-on-stick trees in neat rows along the grassy terrace edges.
+	for _, ring in {
+		{ r = tt.midR - 8, y = tt.midY, count = 14, scale = 1.05 },
+		{ r = tt.topR - 6, y = tt.topY, count = 8, scale = 0.9 },
+	} do
+		for i = 0, ring.count - 1 do
+			local a = (i / ring.count) * math.pi * 2 + 0.15
+			-- Leave a gap at the harbour stair.
+			local delta = math.abs(((a - harbourA + math.pi) % (math.pi * 2)) - math.pi)
+			if delta > 0.35 then
+				buildBallTree(model, ring.y, cx + math.cos(a) * ring.r, cz + math.sin(a) * ring.r, ring.scale)
+			end
+		end
+	end
+
+	-- Three stilt huts over the water near the pier, linked by boardwalks.
+	local hutAngles = { harbourA - 0.7, harbourA - 0.28, harbourA + 0.22 }
+	local hutRadii = { half * 1.06, half * 1.1, half * 1.05 }
+	local hutDecks = {}
+	for i, a in hutAngles do
+		local r = hutRadii[i]
+		local pos = Vector3.new(cx + math.cos(a) * r, 0, cz + math.sin(a) * r)
+		local scale = if i == 2 then 1.05 else 0.92
+		hutDecks[i] = buildStiltHut(model, pos, surfaceY, a + math.pi, { scale = scale })
+	end
+	-- Boardwalks: hut ↔ hut, and a spur from the middle hut toward the beach.
+	buildBoardwalk(model, hutDecks[1], hutDecks[2], surfaceY, 5.2)
+	buildBoardwalk(model, hutDecks[2], hutDecks[3], surfaceY, 5.2)
+	local shore = Vector3.new(
+		cx + math.cos(harbourA - 0.28) * half * 0.86,
+		hutDecks[2].Y,
+		cz + math.sin(harbourA - 0.28) * half * 0.86
+	)
+	buildBoardwalk(model, hutDecks[2], shore, surfaceY, 5.0)
+
+	-- Larger pavilion on the cliff summit.
+	buildStiltHut(
+		model,
+		Vector3.new(cx, tt.cliffTop + 0.4, cz),
+		surfaceY,
+		harbourA,
+		{ scale = 1.35, overLand = true }
+	)
+end
+
 local function decorateShore(
 	model: Model,
 	center: Vector3,
@@ -1794,6 +2235,11 @@ local function decorateShore(
 				rowboat = true,
 			})
 		end
+	end
+
+	-- Low-poly tropical terrace props (stilts, walls, spiral, ball trees).
+	if features.tropicalTerrace then
+		decorateTropicalTerrace(model, size, topY, surfaceY, features)
 	end
 
 	-- Lighthouse on the shore of medieval seaside isles.
