@@ -22,6 +22,7 @@
         }
       },
       "$properties": {
+        "CameraMode": "LockFirstPerson",
         "CameraMaxZoomDistance": 120,
         "CameraMinZoomDistance": 0.5
       }
