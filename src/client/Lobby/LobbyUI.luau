@@ -6,6 +6,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
+local GuiService = game:GetService("GuiService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
@@ -37,6 +38,35 @@ local clockLabel: TextLabel? = nil
 local clockStroke: UIStroke? = nil
 -- Top-of-panel heading, repurposed as the live voyage day counter ("Day 3").
 local dayLabel: TextLabel? = nil
+
+-- First person is the default voyage view, but Roblox captures a PC cursor while
+-- it is active.  A crew dialog is a mouse / focus driven surface, so temporarily
+-- opt out while it is visible and put the player straight back into first person
+-- when it closes.
+local menuCameraReleased = false
+
+local function setMenuCameraReleased(released: boolean)
+	if menuCameraReleased == released then
+		return
+	end
+
+	menuCameraReleased = released
+	player.CameraMode = if released then Enum.CameraMode.Classic else Enum.CameraMode.LockFirstPerson
+	UserInputService.MouseBehavior = if released then Enum.MouseBehavior.Default else Enum.MouseBehavior.LockCenter
+	UserInputService.MouseIconEnabled = released
+end
+
+local function selectForGamepad(target: GuiObject?)
+	if not PlatformInput.isGamepadPreferred() or not target then
+		return
+	end
+
+	task.defer(function()
+		if target.Parent and PlatformInput.isGamepadPreferred() then
+			GuiService.SelectedObject = target
+		end
+	end)
+end
 
 -- Objective directions HUD (top-left one-liners that fade out after a while).
 local objectiveFrame: CanvasGroup? = nil
@@ -303,10 +333,12 @@ local function openCreate(portalIndex: number)
 	state.selectedMax = Config.DefaultPartySize
 	if createPanel then
 		createPanel.Visible = true
+		setMenuCameraReleased(true)
 		local sliderLabel = createPanel:FindFirstChild("MaxLabel") :: TextLabel
 		if sliderLabel then
 			sliderLabel.Text = `Crew size: {state.selectedMax}`
 		end
+		selectForGamepad(createPanel:FindFirstChild("Minus") :: GuiObject?)
 	end
 	if joinPanel then
 		joinPanel.Visible = false
@@ -403,6 +435,7 @@ local function buildGui()
 	createPanel.AnchorPoint = Vector2.new(0.5, 0.5)
 	createPanel.Visible = false
 	createPanel.Parent = root
+	createPanel.SelectionGroup = true
 	corner(createPanel, 18)
 	stroke(createPanel, Config.Theme.SeaTeal, 2)
 
@@ -435,7 +468,7 @@ local function buildGui()
 		MaxTextSize = 20,
 	})
 
-	button({
+	local minusButton = button({
 		Name = "Minus",
 		Parent = createPanel,
 		Text = "−",
@@ -449,7 +482,7 @@ local function buildGui()
 		end,
 	})
 
-	button({
+	local plusButton = button({
 		Name = "Plus",
 		Parent = createPanel,
 		Text = "+",
@@ -463,7 +496,7 @@ local function buildGui()
 		end,
 	})
 
-	button({
+	local confirmCreateButton = button({
 		Name = "ConfirmCreate",
 		Parent = createPanel,
 		Text = "Spawn Base",
@@ -472,10 +505,11 @@ local function buildGui()
 		OnClick = function()
 			remotes.CreateParty:FireServer(state.createPortalIndex, state.selectedMax)
 			createPanel.Visible = false
+			setMenuCameraReleased(false)
 		end,
 	})
 
-	button({
+	local cancelCreateButton = button({
 		Name = "CancelCreate",
 		Parent = createPanel,
 		Text = "Cancel",
@@ -485,11 +519,23 @@ local function buildGui()
 		TextColor3 = Config.Theme.Foam,
 		OnClick = function()
 			createPanel.Visible = false
+			setMenuCameraReleased(false)
 			if joinPanel and not state.party then
 				joinPanel.Visible = true
 			end
 		end,
 	})
+
+	-- Explicit links make D-pad navigation reliable on every console layout,
+	-- instead of relying on screen-position heuristics.
+	minusButton.NextSelectionRight = plusButton
+	minusButton.NextSelectionDown = confirmCreateButton
+	plusButton.NextSelectionLeft = minusButton
+	plusButton.NextSelectionDown = cancelCreateButton
+	confirmCreateButton.NextSelectionRight = cancelCreateButton
+	confirmCreateButton.NextSelectionUp = minusButton
+	cancelCreateButton.NextSelectionLeft = confirmCreateButton
+	cancelCreateButton.NextSelectionUp = plusButton
 
 	createPanel.Size = UDim2.new(0, 360, 0, 250)
 
@@ -695,7 +741,7 @@ local function buildGui()
 	if PlatformInput.isGamepadPreferred() then
 		local joinButton = joinPanel:FindFirstChild("JoinButton")
 		if joinButton and joinButton:IsA("GuiButton") then
-			game:GetService("GuiService").SelectedObject = joinButton
+			GuiService.SelectedObject = joinButton
 		end
 	end
 end
