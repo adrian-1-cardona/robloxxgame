@@ -44,6 +44,16 @@ local dayLabel: TextLabel? = nil
 -- opt out while it is visible and put the player straight back into first person
 -- when it closes.
 local menuCameraReleased = false
+local MENU_INPUT_RENDER_STEP = "SurviveAtSeaMenuInput"
+
+-- The default Roblox camera controller re-applies LockCenter after normal input
+-- handlers run. Keep this one frame after the camera so an open menu always has
+-- a usable cursor on PC, even though the voyage itself remains first person.
+local function enforceReleasedMenuInput()
+	player.CameraMode = Enum.CameraMode.Classic
+	UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+	UserInputService.MouseIconEnabled = true
+end
 
 local function setMenuCameraReleased(released: boolean)
 	if menuCameraReleased == released then
@@ -51,9 +61,15 @@ local function setMenuCameraReleased(released: boolean)
 	end
 
 	menuCameraReleased = released
-	player.CameraMode = if released then Enum.CameraMode.Classic else Enum.CameraMode.LockFirstPerson
-	UserInputService.MouseBehavior = if released then Enum.MouseBehavior.Default else Enum.MouseBehavior.LockCenter
-	UserInputService.MouseIconEnabled = released
+	if released then
+		enforceReleasedMenuInput()
+		RunService:BindToRenderStep(MENU_INPUT_RENDER_STEP, Enum.RenderPriority.Camera.Value + 1, enforceReleasedMenuInput)
+	else
+		RunService:UnbindFromRenderStep(MENU_INPUT_RENDER_STEP)
+		player.CameraMode = Enum.CameraMode.LockFirstPerson
+		UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+		UserInputService.MouseIconEnabled = false
+	end
 end
 
 local function selectForGamepad(target: GuiObject?)
@@ -735,7 +751,14 @@ local function buildGui()
 	if workspace.CurrentCamera then
 		workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(relayout)
 	end
-	UserInputService.LastInputTypeChanged:Connect(relayout)
+	UserInputService.LastInputTypeChanged:Connect(function()
+		relayout()
+		-- A controller may be connected after the UI is created. Give its D-pad a
+		-- deterministic starting point whenever the spawn dialog is already open.
+		if createPanel and createPanel.Visible then
+			selectForGamepad(createPanel:FindFirstChild("Minus") :: GuiObject?)
+		end
+	end)
 
 	-- Gamepad focus defaults
 	if PlatformInput.isGamepadPreferred() then
