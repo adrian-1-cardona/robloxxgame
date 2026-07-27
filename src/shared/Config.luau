@@ -199,7 +199,7 @@ local Config = {
 				-- Nearest isle: ~3000 studs out (a few seconds of sailing). Two blocky
 				-- low-poly rock stacks on sandy pads, linked by a sagging rope bridge —
 				-- the gentle first landfall with a climb to the span.
-				Offset = Vector3.new(-2599, 0, -1500),
+				Offset = Vector3.new(0, 0, -2700),
 				SizeStuds = 1300,
 				Biome = "twin_peaks",
 				Theme = "wild",

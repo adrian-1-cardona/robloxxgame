@@ -2831,7 +2831,6 @@ local function buildFlatIsland(entry: { [string]: any }, folder: Folder): Island
 			scatterSettlementForest(model, center, size, topY)
 		end
 	end
-
 	scatterLooseLoot(model, center, size, topY, entry.Id)
 
 	-- Docks / piers, lighthouse, crater lava, waterfalls, moored + beached boats.
