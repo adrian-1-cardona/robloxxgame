@@ -244,7 +244,7 @@ local function ensureMobileGui()
 	local function makeBtn(name: string, text: string, pos: UDim2, color: Color3): TextButton
 		local btn = Instance.new("TextButton")
 		btn.Name = name
-		btn.AnchorPoint = Vector2.new(1, 1)
+		btn.AnchorPoint = Vector2.new(0, 1)
 		btn.Position = pos
 		btn.Size = UDim2.fromOffset(size, size)
 		btn.BackgroundColor3 = color
@@ -262,9 +262,9 @@ local function ensureMobileGui()
 		return btn
 	end
 
-	local dragBtn = makeBtn("Drag", "DRAG", UDim2.new(1, -20, 1, -170), Color3.fromRGB(48, 88, 78))
-	local weldBtn = makeBtn("Weld", "WELD", UDim2.new(1, -20, 1, -240), Color3.fromRGB(72, 56, 28))
-	local placeBtn = makeBtn("Place", "PLACE", UDim2.new(1, -88, 1, -170), Color3.fromRGB(58, 72, 96))
+	local dragBtn = makeBtn("Drag", "DRAG", UDim2.new(0, 20, 1, -170), Color3.fromRGB(48, 88, 78))
+	local weldBtn = makeBtn("Weld", "WELD", UDim2.new(0, 20, 1, -240), Color3.fromRGB(72, 56, 28))
+	local placeBtn = makeBtn("Place", "PLACE", UDim2.new(0, 88, 1, -170), Color3.fromRGB(58, 72, 96))
 
 	dragBtn.MouseButton1Down:Connect(function()
 		tryStartHold()
