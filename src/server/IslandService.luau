@@ -1483,10 +1483,11 @@ local function generateIslandTerrain(
 		local skipKnob = false
 		if features.docks then
 			for _, dock in features.docks do
-				local knobAngle = math.atan2(math.sin(a), math.cos(a))
-				local dockAngle = math.atan2(dock.dir.Z, dock.dir.X)
-				local angleDiff = math.abs(knobAngle - dockAngle)
-				if angleDiff < math.rad(45) or angleDiff > math.rad(315) then
+				local angleDiff = math.abs(math.atan2(
+					math.sin(a - dock.angle),
+					math.cos(a - dock.angle)
+				))
+				if angleDiff < math.rad(45) then
 					skipKnob = true
 					break
 				end
