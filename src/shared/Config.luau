@@ -87,6 +87,20 @@ local Config = {
 	Islands = {
 		Thickness = 16,
 		TopY = 3.4,
+		-- Beyond the handcrafted opening ring, procedural cells keep the horizon full.
+		-- Each cell produces one deterministic tropical isle and is only built when a
+		-- crew sails close enough, so the sea can continue indefinitely without a huge
+		-- up-front terrain cost.
+		Endless = {
+			Enabled = true,
+		CellStuds = 5200,
+		BuildRadiusCells = 1,
+		PulseSeconds = 2.5,
+			MinSizeStuds = 850,
+			MaxSizeStuds = 1250,
+			-- The channel is deliberately much wider than the 72-stud starter raft.
+			RiverWidth = 190,
+		},
 		-- Distance from isle center after a visit before the isle locks. Must clear the
 		-- whole sand pad of even the largest isle (radius ~900), so it's set well beyond it.
 		LockoutStuds = 2000,

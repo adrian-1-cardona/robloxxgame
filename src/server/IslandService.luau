@@ -86,6 +86,9 @@ IslandService._Toast = nil :: RemoteEvent?
 IslandService._getPartyCode = nil :: ((Player) -> string?)?
 IslandService._getMemberUserIds = nil :: ((string) -> { number })?
 IslandService._started = false
+IslandService._folder = nil :: Folder?
+IslandService._endlessQueued = {} :: { [string]: boolean }
+IslandService._endlessBuildActive = false
 
 local function lobbyRoot(): Folder
 	local root = Workspace:FindFirstChild("SurviveAtSeaLobby")
@@ -2564,6 +2567,116 @@ local function buildFlatIsland(entry: { [string]: any }, folder: Folder): Island
 	return record
 end
 
+-- The opening ring is handcrafted, but the rest of the ocean is a deterministic grid of
+-- tropical islands.  We generate a cell only as a crew gets close to it; that makes the
+-- map genuinely endless without paying to create a continent at server boot.
+local function endlessEntryForCell(cellX: number, cellZ: number): { [string]: any }
+	local cfg = Config.Islands.Endless
+	local id = `endless_{cellX}_{cellZ}`
+	local rng = Random.new(seedFromId(id))
+	local cell = cfg.CellStuds
+	local origin = Config.StarterBase.Origin
+	local jitter = cell * 0.12
+	local centerX = origin.X + (cellX + 0.5) * cell + rng:NextNumber(-jitter, jitter)
+	local centerZ = origin.Z + (cellZ + 0.5) * cell + rng:NextNumber(-jitter, jitter)
+	local volcanic = rng:NextNumber() < 0.34
+	return {
+		Id = id,
+		Name = if volcanic then "Emberwater Atoll" else "Verdant River Atoll",
+		Offset = Vector3.new(centerX - origin.X, 0, centerZ - origin.Z),
+		SizeStuds = rng:NextInteger(cfg.MinSizeStuds, cfg.MaxSizeStuds),
+		Biome = if volcanic then "volcanic" else (if rng:NextNumber() < 0.56 then "jungle" else "palm"),
+		Theme = "wild",
+		Volcano = volcanic,
+		River = true,
+		RiverAngle = rng:NextNumber(0, math.pi * 2),
+		RiverWidth = cfg.RiverWidth,
+		Docks = 1,
+		Loot = { Weapons = 2, Chests = 1, Armor = 1 },
+		Villagers = { Passive = 0, Hostile = 0 },
+	}
+end
+
+local function isEndlessCellClear(entry: { [string]: any }): boolean
+	local center = worldCenterForOffset(entry.Offset, Config.Islands.TopY, Config.Islands.Thickness)
+	local clearance = entry.SizeStuds * 0.5 + 780
+	for _, isle in IslandService._islands do
+		if flatDistance(center, isle.center) < clearance + isle.size * 0.5 then
+			return false
+		end
+	end
+	return true
+end
+
+local function buildQueuedEndlessIsland(entry: { [string]: any })
+	local folder = IslandService._folder
+	if not folder or IslandService._byId[entry.Id] then
+		return
+	end
+	local record = buildFlatIsland(entry, folder)
+	table.insert(IslandService._islands, record)
+	IslandService._byId[record.id] = record
+
+	-- The normal boot pass registers loot after all handcrafted islands are made. Dynamic
+	-- islands need the same registration immediately so their salvage remains draggable.
+	local LootPropService = require(script.Parent:WaitForChild("LootPropService"))
+	for _, desc in record.model:GetDescendants() do
+		if desc:IsA("Model") and desc:GetAttribute("IsLootProp") == true then
+			LootPropService.registerExisting(desc)
+		end
+	end
+	IslandService.paintTerrain()
+end
+
+local function queueEndlessIslandsNearRafts()
+	local cfg = Config.Islands.Endless
+	if cfg.Enabled ~= true or IslandService._endlessBuildActive then
+		return
+	end
+	local origin = Config.StarterBase.Origin
+	local cell = cfg.CellStuds
+	local candidates: { { x: number, z: number, distance: number } } = {}
+	local seen: { [string]: boolean } = {}
+	for _, raft in StarterBaseService._basesByCode do
+		local deck = raft.PrimaryPart or raft:FindFirstChild("Deck")
+		if not (deck and deck:IsA("BasePart")) then
+			continue
+		end
+		local cx = math.floor((deck.Position.X - origin.X) / cell)
+		local cz = math.floor((deck.Position.Z - origin.Z) / cell)
+		for dx = -cfg.BuildRadiusCells, cfg.BuildRadiusCells do
+			for dz = -cfg.BuildRadiusCells, cfg.BuildRadiusCells do
+				local x, z = cx + dx, cz + dz
+				local key = `{x},{z}`
+				if not seen[key] then
+					seen[key] = true
+					table.insert(candidates, { x = x, z = z, distance = dx * dx + dz * dz })
+				end
+			end
+		end
+	end
+	table.sort(candidates, function(a, b)
+		return a.distance < b.distance
+	end)
+
+	for _, candidate in candidates do
+		local entry = endlessEntryForCell(candidate.x, candidate.z)
+		if not IslandService._byId[entry.Id] and not IslandService._endlessQueued[entry.Id] and isEndlessCellClear(entry) then
+			IslandService._endlessQueued[entry.Id] = true
+			IslandService._endlessBuildActive = true
+			task.spawn(function()
+				local ok, err = pcall(buildQueuedEndlessIsland, entry)
+				if not ok then
+					warn(`[SurviveAtSea] Endless island {entry.Id} failed:`, err)
+				end
+				IslandService._endlessQueued[entry.Id] = nil
+				IslandService._endlessBuildActive = false
+			end)
+			return
+		end
+	end
+end
+
 function IslandService.getWorldCenters(): { Vector3 }
 	local centers = {}
 	for _, isle in IslandService._islands do
@@ -2964,6 +3077,7 @@ end
 function IslandService.ensure(): Folder
 	local folder = lobbyRoot():FindFirstChild("DriveIslands")
 	if folder and folder:IsA("Folder") and #IslandService._islands > 0 then
+		IslandService._folder = folder
 		IslandService.paintTerrain()
 		return folder
 	end
@@ -2974,11 +3088,13 @@ function IslandService.ensure(): Folder
 	folder = Instance.new("Folder")
 	folder.Name = "DriveIslands"
 	folder.Parent = lobbyRoot()
+	IslandService._folder = folder
 
 	table.clear(IslandService._islands)
 	table.clear(IslandService._byId)
 	table.clear(IslandService._npcs)
 	table.clear(IslandService._dockColliders)
+	table.clear(IslandService._endlessQueued)
 
 	for i, entry in Config.Islands.Catalog do
 		local record = buildFlatIsland(entry, folder)
@@ -3026,6 +3142,7 @@ function IslandService.start(
 	local npcAccum = 0
 	local NPC_INTERVAL = 1 / 15
 	local lockAccum = 0
+	local endlessAccum = 0
 	RunService.Heartbeat:Connect(function(dt)
 		npcAccum += dt
 		if npcAccum >= NPC_INTERVAL then
@@ -3040,6 +3157,12 @@ function IslandService.start(
 		if lockAccum >= 0.2 then
 			lockAccum = 0
 			updateVisitLockouts()
+		end
+
+		endlessAccum += dt
+		if endlessAccum >= Config.Islands.Endless.PulseSeconds then
+			endlessAccum = 0
+			queueEndlessIslandsNearRafts()
 		end
 	end)
 end
