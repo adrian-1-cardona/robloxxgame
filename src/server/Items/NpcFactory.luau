@@ -121,8 +121,8 @@ local function buildBody(parent: Instance, cf: CFrame, gearColor: Color3): (Mode
 	end
 
 	-- Head top lands 2.5 studs above the root, giving the rig an overall height of
-	-- ~5 studs (feet at -2.5, head top at +2.5) so villagers stand eye-to-eye with a
-	-- standard-scale player character.
+	-- ~5 studs (feet at -2.5, head top at +2.5): the same regular Roblox character
+	-- height that PlayerAppearance.server.luau enforces for every player.
 	local head = makePart({
 		Name = "Head",
 		Parent = model,
