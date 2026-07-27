@@ -286,13 +286,32 @@ end
 
 -- A dense outer woodland keeps the view from each village framed by hills and trees,
 -- while leaving the centre open for streets, houses, and safe player movement.
-local function scatterSettlementForest(model: Model, center: Vector3, size: number, topY: number)
+local function scatterSettlementForest(
+	model: Model,
+	center: Vector3,
+	size: number,
+	topY: number,
+	features: { [string]: any }?
+)
 	local half = size * 0.5
 	local count = math.clamp(math.floor(size / 25), 34, 88)
+	local river = features and features.river
 	for _ = 1, count do
 		local a = math.random() * math.pi * 2
 		local r = half * (0.68 + math.random() * 0.22)
-		buildVillageForestTree(model, topY, center.X + math.cos(a) * r, center.Z + math.sin(a) * r)
+		local x = center.X + math.cos(a) * r
+		local z = center.Z + math.sin(a) * r
+		-- Keep the navigable waterway clear: floating forest props make a river feel
+		-- broken and can block the raft even though the terrain channel is open.
+		if river then
+			local yaw = math.atan2(math.cos(river.angle), math.sin(river.angle))
+			local localPos = (CFrame.new(center.X, 0, center.Z) * CFrame.Angles(0, yaw, 0))
+				:PointToObjectSpace(Vector3.new(x, 0, z))
+			if math.abs(localPos.X) < river.width * 0.5 + 14 then
+				continue
+			end
+		end
+		buildVillageForestTree(model, topY, x, z)
 	end
 end
 
@@ -892,6 +911,15 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 	-- on a mountain peak — those get their own treatment. Returns true if (x,z) is blocked.
 	local feat = features or {}
 	local function blocked(x: number, z: number): boolean
+		local river = feat.river
+		if river then
+			local yaw = math.atan2(math.cos(river.angle), math.sin(river.angle))
+			local localPos = (CFrame.new(center.X, 0, center.Z) * CFrame.Angles(0, yaw, 0))
+				:PointToObjectSpace(Vector3.new(x, 0, z))
+			if math.abs(localPos.X) < river.width * 0.5 + 10 and math.abs(localPos.Z) < river.length * 0.5 + 8 then
+				return true
+			end
+		end
 		local lake = feat.lake
 		if lake then
 			local dx, dz = x - lake.pos.X, z - lake.pos.Z
@@ -2118,6 +2146,55 @@ local function buildWaterfall(model: Model, topPos: Vector3, bottomY: number)
 	mist.Parent = splash
 end
 
+-- A simple footbridge gives river isles a readable landmark from the water and keeps
+-- both halves of the island connected on foot. The channel remains completely open
+-- beneath it for crews sailing their raft through.
+local function buildRiverBridge(model: Model, center: Vector3, topY: number, river: { [string]: any })
+	local yaw = math.atan2(math.cos(river.angle), math.sin(river.angle))
+	local bridgeCf = CFrame.new(center.X, topY + 2.1, center.Z) * CFrame.Angles(0, yaw, 0)
+	local span = river.width + 22
+	local plankCount = math.max(8, math.floor(span / 7))
+	for i = 1, plankCount do
+		local x = -span * 0.5 + (i - 0.5) * (span / plankCount)
+		makePart({
+			Name = "RiverBridgePlank",
+			Parent = model,
+			Size = Vector3.new(span / plankCount + 0.25, 0.65, 8),
+			CFrame = bridgeCf * CFrame.new(x, math.sin(i * 1.7) * 0.12, 0),
+			Color = DOCK_PLANK,
+			Material = Enum.Material.WoodPlanks,
+			CanCollide = true,
+			CastShadow = true,
+		})
+	end
+	for _, side in { -1, 1 } do
+		makePart({
+			Name = "RiverBridgeRail",
+			Parent = model,
+			Size = Vector3.new(span, 1.1, 0.34),
+			CFrame = bridgeCf * CFrame.new(0, 1.15, side * 3.65),
+			Color = DOCK_POST,
+			Material = Enum.Material.Wood,
+			CanCollide = false,
+			CastShadow = true,
+		})
+	end
+	for _, x in { -span * 0.5 + 4, span * 0.5 - 4 } do
+		for _, side in { -1, 1 } do
+			makePart({
+				Name = "RiverBridgePost",
+				Parent = model,
+				Size = Vector3.new(0.7, 4, 0.7),
+				CFrame = bridgeCf * CFrame.new(x, -0.6, side * 3.65),
+				Color = DOCK_POST,
+				Material = Enum.Material.Wood,
+				CanCollide = false,
+				CastShadow = true,
+			})
+		end
+	end
+end
+
 -- Precompute the deterministic geometry of an island's signature features (volcano cone,
 -- mountain peak + lake, dock directions, lighthouse). Computed ONCE per isle and shared by
 -- both the terrain sculptor and the decorative pass so they agree on exact positions.
@@ -2730,6 +2807,10 @@ local function decorateShore(
 		buildWaterfall(model, Vector3.new(wx, topY + 22, wz), surfaceY)
 	end
 
+	if features.river then
+		buildRiverBridge(model, center, topY, features.river)
+	end
+
 	-- Docks / piers.
 	for _, dock in features.docks do
 		if dock.target == "lake" and features.lake then
@@ -2828,7 +2909,7 @@ local function buildFlatIsland(entry: { [string]: any }, folder: Folder): Island
 		-- Settlement woodland belongs only on the normal terrain isles. Twin Peaks keeps
 		-- its open-water gap clear for the rope bridge traversal.
 		if (entry.Theme or "village") ~= "wild" then
-			scatterSettlementForest(model, center, size, topY)
+			scatterSettlementForest(model, center, size, topY, features)
 		end
 	end
 	scatterLooseLoot(model, center, size, topY, entry.Id)

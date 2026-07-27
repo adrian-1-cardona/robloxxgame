@@ -221,6 +221,11 @@ local Config = {
 				Abandoned = false,
 				Merchant = true,
 				Lighthouse = true,
+				-- A winding harbour channel and bridge make this one of the first
+				-- proper river landfalls crews see after leaving the spawn raft.
+				River = true,
+				RiverAngle = 0.82,
+				RiverWidth = 118,
 				Docks = 2,
 				Villagers = { Passive = 9, Hostile = 0 },
 				Loot = { Weapons = 5, Chests = 3, Armor = 2 },
@@ -257,6 +262,10 @@ local Config = {
 				Mansions = 2,
 				Lit = true,
 				Lighthouse = true,
+				-- Verde is a huge, forest-framed town split by a navigable canal.
+				River = true,
+				RiverAngle = 2.22,
+				RiverWidth = 132,
 				Docks = 3,
 				-- Lively and mostly friendly — lots of townsfolk, only a small watch.
 				Villagers = { Passive = 20, Hostile = 4 },
@@ -343,6 +352,10 @@ local Config = {
 				Theme = "town",
 				Abandoned = true,
 				Merchant = false,
+				-- The jungle reclaimed both banks of this old river settlement.
+				River = true,
+				RiverAngle = 1.38,
+				RiverWidth = 138,
 				Docks = 1,
 				Villagers = { Passive = 0, Hostile = 3 }, -- feral scavengers
 				Loot = { Weapons = 6, Chests = 5, Armor = 3 },
