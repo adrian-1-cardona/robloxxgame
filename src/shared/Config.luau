@@ -153,10 +153,11 @@ local Config = {
 		-- jungles, towering castles, and quiet abandoned ruins. Spread far apart so sailing
 		-- between them is a genuine open-ocean voyage. Every isle carries loot.
 		--
-		--   Biome: "beach" | "palm" | "jungle" | "highland" | "volcanic" | "mountain"
+		--   Biome: "beach" | "palm" | "jungle" | "highland" | "volcanic" | "mountain" | "twin_peaks"
 		--     beach/palm/jungle → sandy tropical isles; highland → temperate grass + pines
 		--     (medieval seaside look); volcanic → tropical isle around a smoking lava cone;
-		--     mountain → snow-capped peak + a freshwater lake with a waterfall off the cliff.
+		--     mountain → snow-capped peak + a freshwater lake with a waterfall off the cliff;
+		--     twin_peaks → two blocky low-poly rock stacks on sand pads, linked by a rope bridge.
 		--   Theme: "wild" | "fishing_village" | "village" | "town" | "stone_town"
 		--        | "castle" | "abandoned"
 		-- Optional per-isle flags read by VillageBuilder / IslandService:
@@ -180,17 +181,14 @@ local Config = {
 			-- are immediately visible from the helm and each is only a short voyage away.
 			{
 				Id = "tide_flat",
-				Name = "Palm Terrace",
-				-- Nearest isle: ~3000 studs out (a few seconds of sailing). Low-poly tropical
-				-- terrace — sandy beach, grassy tiers with stone walls, a spiral cliff path,
-				-- and thatched stilt huts over the water linked by boardwalks.
+				Name = "Twin Peaks",
+				-- Nearest isle: ~3000 studs out (a few seconds of sailing). Two blocky
+				-- low-poly rock stacks on sandy pads, linked by a sagging rope bridge —
+				-- the gentle first landfall with a climb to the span.
 				Offset = Vector3.new(0, 0, -2700),
 				SizeStuds = 1300,
-				Biome = "palm",
-				-- Even the smallest island is now a settlement: a weathered but inhabited
-				-- harbour hamlet inside the palm terraces, rather than empty wilderness.
-				Theme = "village",
-				TropicalTerrace = true,
+				Biome = "twin_peaks",
+				Theme = "wild",
 				Abandoned = false,
 				Merchant = true,
 				Docks = 1,
