@@ -1,4 +1,4 @@
--- Melee input for equipped Club: right-click (PC), RT / ButtonR2 (console), tap Attack (mobile).
+-- Melee input for equipped Club: right-click (PC), RT / ButtonR2 (console), tap the world (mobile).
 -- Drop uses default Roblox backpack (Backspace / Xbox X / backpack drop) via CanBeDropped.
 
 local Players = game:GetService("Players")
@@ -33,79 +33,12 @@ local MeleeController = {}
 
 local player = Players.LocalPlayer
 local MeleeAttack: RemoteEvent? = nil
-local attackGui: ScreenGui? = nil
 local lastClientSwing = 0
 local equippedTool: Tool? = nil
 local swinging = false
 
 local function isMeleeTool(tool: Instance?): boolean
 	return tool ~= nil and tool:IsA("Tool") and tool:GetAttribute("MeleeWeapon") == true
-end
-
-local function destroyAttackButton()
-	if attackGui then
-		attackGui:Destroy()
-		attackGui = nil
-	end
-end
-
-local function showMobileAttackButton()
-	destroyAttackButton()
-	local kind = PlatformInput.getDeviceKind()
-	if kind ~= "Phone" and kind ~= "Tablet" then
-		return
-	end
-	if not equippedTool then
-		return
-	end
-
-	local scale = PlatformInput.scaleForDevice()
-	local size = math.floor(64 * scale)
-
-	local gui = Instance.new("ScreenGui")
-	gui.Name = "MeleeAttackButton"
-	gui.ResetOnSpawn = false
-	gui.IgnoreGuiInset = true
-	gui.DisplayOrder = 35
-	gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-	gui.Parent = player:WaitForChild("PlayerGui")
-
-	local btn = Instance.new("TextButton")
-	btn.Name = "Attack"
-	btn.AnchorPoint = Vector2.new(1, 1)
-	-- Left of jump; avoids helm arrows on the far right
-	btn.Position = UDim2.new(1, -96, 1, -88)
-	btn.Size = UDim2.fromOffset(size, size)
-	btn.BackgroundColor3 = Color3.fromRGB(72, 48, 28)
-	btn.BackgroundTransparency = 0.08
-	btn.BorderSizePixel = 0
-	btn.Font = Config.UI.Font
-	btn.Text = "ATK"
-	btn.TextColor3 = Config.Theme.Foam
-	btn.TextScaled = true
-	btn.AutoButtonColor = true
-	btn.Parent = gui
-
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 14)
-	corner.Parent = btn
-
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = Config.Theme.Lantern
-	stroke.Thickness = 1.4
-	stroke.Transparency = 0.25
-	stroke.Parent = btn
-
-	local sizeConstraint = Instance.new("UITextSizeConstraint")
-	sizeConstraint.MinTextSize = 12
-	sizeConstraint.MaxTextSize = 22
-	sizeConstraint.Parent = btn
-
-	btn.MouseButton1Click:Connect(function()
-		MeleeController.requestSwing()
-	end)
-
-	attackGui = gui
 end
 
 local function playLocalSwing(tool: Tool)
@@ -166,13 +99,11 @@ end
 
 local function onEquipped(tool: Tool)
 	equippedTool = tool
-	showMobileAttackButton()
 end
 
 local function onUnequipped(tool: Tool)
 	if equippedTool == tool then
 		equippedTool = nil
-		destroyAttackButton()
 		swinging = false
 	end
 end
@@ -279,6 +210,16 @@ function MeleeController.start()
 		end
 	end)
 
+	-- Mobile players attack by tapping the world. UI taps are marked processed, so
+	-- this does not conflict with the boat, loot, or Roblox's built-in controls.
+	UserInputService.TouchTap:Connect(function(_touchPositions, processed)
+		local kind = PlatformInput.getDeviceKind()
+		if processed or (kind ~= "Phone" and kind ~= "Tablet") then
+			return
+		end
+		MeleeController.requestSwing()
+	end)
+
 	local function onBackpack(backpack: Instance)
 		backpack.ChildAdded:Connect(function(child)
 			if child:IsA("Tool") then
@@ -301,7 +242,6 @@ function MeleeController.start()
 	end
 	player.CharacterAdded:Connect(function(character)
 		equippedTool = nil
-		destroyAttackButton()
 		swinging = false
 		hookCharacter(character)
 		task.defer(scanContainers)

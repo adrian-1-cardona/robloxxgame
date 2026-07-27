@@ -166,11 +166,11 @@ local function showMobileArrows()
 	gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	gui.Parent = player:WaitForChild("PlayerGui")
 
-	-- Small stack near bottom-right, above the default jump button
+	-- Keep steering clear of the default mobile jump button on the right.
 	local stack = Instance.new("Frame")
 	stack.Name = "ArrowStack"
-	stack.AnchorPoint = Vector2.new(1, 1)
-	stack.Position = UDim2.new(1, -18, 1, -160)
+	stack.AnchorPoint = Vector2.new(0, 1)
+	stack.Position = UDim2.new(0, 18, 1, -160)
 	stack.Size = UDim2.fromOffset(size, size * 2 + gap)
 	stack.BackgroundTransparency = 1
 	stack.Parent = gui
