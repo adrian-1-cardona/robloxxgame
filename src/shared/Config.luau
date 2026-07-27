@@ -176,21 +176,25 @@ local Config = {
 		-- populateIsland) — so there are no villagers at the start, but a living town when
 		-- you land.
 		Catalog = {
+			-- Five close islands form the first sailing ring around every fresh raft. They
+			-- are immediately visible from the helm and each is only a short voyage away.
 			{
 				Id = "tide_flat",
 				Name = "Palm Terrace",
 				-- Nearest isle: ~3000 studs out (a few seconds of sailing). Low-poly tropical
 				-- terrace — sandy beach, grassy tiers with stone walls, a spiral cliff path,
 				-- and thatched stilt huts over the water linked by boardwalks.
-				Offset = Vector3.new(-2599, 0, -1500),
+				Offset = Vector3.new(0, 0, -2700),
 				SizeStuds = 1300,
 				Biome = "palm",
-				Theme = "wild",
+				-- Even the smallest island is now a settlement: a weathered but inhabited
+				-- harbour hamlet inside the palm terraces, rather than empty wilderness.
+				Theme = "village",
 				TropicalTerrace = true,
 				Abandoned = false,
-				Merchant = false,
+				Merchant = true,
 				Docks = 1,
-				Villagers = { Passive = 0, Hostile = 0 },
+				Villagers = { Passive = 6, Hostile = 0 },
 				Loot = { Weapons = 3, Chests = 1, Armor = 1 },
 			},
 			{
@@ -198,7 +202,7 @@ local Config = {
 				Name = "Quiet Sand",
 				-- A snug medieval fishing village on a temperate headland: timber cottages,
 				-- fish-drying racks, a banded stone lighthouse and two piers out over the water.
-				Offset = Vector3.new(-2401, 0, -3073),
+				Offset = Vector3.new(2560, 0, -830),
 				SizeStuds = 1450,
 				Biome = "highland",
 				Theme = "fishing_village",
@@ -214,7 +218,7 @@ local Config = {
 				Name = "Smuggler Hollow",
 				-- A small tropical isle built around a smoking lava cone — palms, gems and a
 				-- single hidden smugglers' pier.
-				Offset = Vector3.new(-936, 0, -4402),
+				Offset = Vector3.new(1580, 0, 2170),
 				SizeStuds = 1550,
 				Biome = "volcanic",
 				Theme = "village",
@@ -231,7 +235,7 @@ local Config = {
 				-- The flagship: a big medieval seaside town lit up with people and life — a
 				-- church and grand manors at its heart, a lighthouse on the point, and three
 				-- busy piers along the harbour front (the postcard "seaside village" isle).
-				Offset = Vector3.new(1147, 0, -4969),
+				Offset = Vector3.new(-1580, 0, 2170),
 				SizeStuds = 2000,
 				Biome = "highland",
 				Theme = "town",
@@ -251,7 +255,7 @@ local Config = {
 				Name = "Crow Cay",
 				-- A tropical stone town clinging to the slopes of an active volcano — lava glow
 				-- over cobblestone streets, a church, and two harbour piers.
-				Offset = Vector3.new(2758, 0, -2758),
+				Offset = Vector3.new(-2560, 0, -830),
 				SizeStuds = 1750,
 				Biome = "volcanic",
 				Theme = "stone_town",
@@ -264,6 +268,24 @@ local Config = {
 				Docks = 2,
 				Villagers = { Passive = 10, Hostile = 8 },
 				Loot = { Weapons = 8, Chests = 6, Armor = 4 },
+			},
+			{
+				Id = "riverlands",
+				Name = "Riverlands",
+				-- A huge jungle island split by a sea-to-sea river. The channel is wide
+				-- enough for the starter raft, creating a proper helm voyage inland.
+				Offset = Vector3.new(0, 0, 5000),
+				SizeStuds = 2600,
+				Biome = "jungle",
+				Theme = "town",
+				Abandoned = false,
+				Merchant = true,
+				River = true,
+				RiverAngle = 0,
+				RiverWidth = 160,
+				Docks = 2,
+				Villagers = { Passive = 16, Hostile = 3 },
+				Loot = { Weapons = 10, Chests = 8, Armor = 6 },
 			},
 			{
 				Id = "buccaneer_flat",
