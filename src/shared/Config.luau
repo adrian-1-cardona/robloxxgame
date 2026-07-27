@@ -80,10 +80,9 @@ local Config = {
 
 	-- Stationary open-sea isles. Visit → leave on the raft → sail far enough away → locked forever for that crew.
 	-- Beach-vibe flats: sand ring → grass → jungle/village heart, palms everywhere.
-	-- Packed into a consistent MODERATE distance band (centers ~3000-5900 studs from the
-	-- raft's Origin) and spread across a wide fan of bearings so no two isles overlap.
-	-- Not so far you slog for a minute, not so close they crowd the spawn — a quick sail
-	-- (a handful of seconds at the current helm speed) reaches the nearest one.
+	-- The opening ring is intentionally packed close enough to fill every horizon from a
+	-- fresh raft. Ten huge isles are built at boot, evenly around the origin, so players
+	-- never begin in an empty ocean or need to sail before discovering the world.
 	Islands = {
 		Thickness = 16,
 		TopY = 3.4,
@@ -191,16 +190,17 @@ local Config = {
 		-- populateIsland) — so there are no villagers at the start, but a living town when
 		-- you land.
 		Catalog = {
-			-- Five close islands form the first sailing ring around every fresh raft. They
-			-- are immediately visible from the helm and each is only a short voyage away.
+			-- Ten huge islands form the opening ring around every fresh raft. Their shared
+			-- 2,500-stud radius and the opening streaming radius make all ten visible and
+			-- present immediately when the player spawns.
 			{
 				Id = "tide_flat",
 				Name = "Twin Peaks",
-				-- Nearest isle: ~3000 studs out (a few seconds of sailing). Two blocky
+				-- North of spawn: a few seconds of sailing. Two blocky
 				-- low-poly rock stacks on sandy pads, linked by a sagging rope bridge —
 				-- the gentle first landfall with a climb to the span.
-				Offset = Vector3.new(0, 0, -2700),
-				SizeStuds = 1300,
+				Offset = Vector3.new(0, 0, -2500),
+				SizeStuds = 1400,
 				Biome = "twin_peaks",
 				Theme = "wild",
 				Abandoned = false,
@@ -214,8 +214,8 @@ local Config = {
 				Name = "Quiet Sand",
 				-- A snug medieval fishing village on a temperate headland: timber cottages,
 				-- fish-drying racks, a banded stone lighthouse and two piers out over the water.
-				Offset = Vector3.new(2560, 0, -830),
-				SizeStuds = 1450,
+				Offset = Vector3.new(1469, 0, -2023),
+				SizeStuds = 1400,
 				Biome = "highland",
 				Theme = "fishing_village",
 				Abandoned = false,
@@ -235,8 +235,8 @@ local Config = {
 				Name = "Smuggler Hollow",
 				-- A small tropical isle built around a smoking lava cone — palms, gems and a
 				-- single hidden smugglers' pier.
-				Offset = Vector3.new(1580, 0, 2170),
-				SizeStuds = 1550,
+				Offset = Vector3.new(2378, 0, -773),
+				SizeStuds = 1400,
 				Biome = "volcanic",
 				Theme = "village",
 				Abandoned = false,
@@ -252,8 +252,8 @@ local Config = {
 				-- The flagship: a big medieval seaside town lit up with people and life — a
 				-- church and grand manors at its heart, a lighthouse on the point, and three
 				-- busy piers along the harbour front (the postcard "seaside village" isle).
-				Offset = Vector3.new(-1580, 0, 2170),
-				SizeStuds = 2000,
+				Offset = Vector3.new(2378, 0, 773),
+				SizeStuds = 1400,
 				Biome = "highland",
 				Theme = "town",
 				Abandoned = false,
@@ -276,8 +276,8 @@ local Config = {
 				Name = "Crow Cay",
 				-- A tropical stone town clinging to the slopes of an active volcano — lava glow
 				-- over cobblestone streets, a church, and two harbour piers.
-				Offset = Vector3.new(-2560, 0, -830),
-				SizeStuds = 1750,
+				Offset = Vector3.new(1469, 0, 2023),
+				SizeStuds = 1400,
 				Biome = "volcanic",
 				Theme = "stone_town",
 				Abandoned = false,
@@ -295,8 +295,8 @@ local Config = {
 				Name = "Riverlands",
 				-- A huge jungle island split by a sea-to-sea river. The channel is wide
 				-- enough for the starter raft, creating a proper helm voyage inland.
-				Offset = Vector3.new(0, 0, 5000),
-				SizeStuds = 2600,
+				Offset = Vector3.new(0, 0, 2500),
+				SizeStuds = 1400,
 				Biome = "jungle",
 				Theme = "town",
 				Abandoned = false,
@@ -313,8 +313,8 @@ local Config = {
 				Name = "Bastion Keep",
 				-- A castle on a green mountain isle: a snow-capped peak behind the keep and a
 				-- glassy lake below with its own jetty.
-				Offset = Vector3.new(4605, 0, -1676),
-				SizeStuds = 1900,
+				Offset = Vector3.new(-1469, 0, 2023),
+				SizeStuds = 1400,
 				Biome = "mountain",
 				Theme = "castle",
 				Abandoned = false,
@@ -329,8 +329,8 @@ local Config = {
 				Name = "King's Hold",
 				-- A mightier mountain-lake stronghold — a torch-lit walled keep beside a
 				-- waterfall-fed lake, a lakeside jetty and a sea pier below the cliffs.
-				Offset = Vector3.new(-4400, 0, -3600),
-				SizeStuds = 2000,
+				Offset = Vector3.new(-2378, 0, 773),
+				SizeStuds = 1400,
 				Biome = "mountain",
 				Theme = "castle",
 				Abandoned = false,
@@ -344,8 +344,8 @@ local Config = {
 			{
 				Id = "drift_shack",
 				Name = "Drift Shack",
-				Offset = Vector3.new(-2633, 0, -5168),
-				SizeStuds = 1500,
+				Offset = Vector3.new(-2378, 0, -773),
+				SizeStuds = 1400,
 				Biome = "jungle",
 				-- A whole town, long abandoned and reclaimed by the jungle (ruined houses,
 				-- cold pits, a rotting pier and only a few feral scavengers left).
@@ -363,11 +363,11 @@ local Config = {
 			{
 				Id = "wreck_spit",
 				Name = "Wreck Spit",
-				-- Farthest isle: ~5950 studs out (still a short voyage at helm speed).
-				-- Kept clear of Verde Town so the raft can sail the channel between them.
+				-- Northwest opening-ring isle; kept clear of its neighbours so crews can
+				-- sail the channels between every island.
 				-- A dead volcanic spit strewn with shipwrecks — a smoking cone and one
 				-- half-collapsed pier.
-				Offset = Vector3.new(3300, 0, -4950),
+				Offset = Vector3.new(-1469, 0, -2023),
 				SizeStuds = 1400,
 				Biome = "volcanic",
 				Theme = "abandoned",
