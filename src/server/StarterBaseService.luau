@@ -61,14 +61,13 @@ local function makePart(props: { [string]: any }): Part
 	return p
 end
 
--- Move every BasePart in a model by the same delta (keeps relative layout).
+-- Pivot the assembled raft in one engine operation.  Moving every decorative plank,
+-- wheel piece, and marker individually on every helm frame was needlessly expensive
+-- once several crews were sailing at the same time.
 local function shiftModel(model: Model, fromCFrame: CFrame, toCFrame: CFrame)
-	local delta = toCFrame * fromCFrame:Inverse()
-	for _, desc in model:GetDescendants() do
-		if desc:IsA("BasePart") then
-			desc.CFrame = delta * desc.CFrame
-		end
-	end
+	-- The model pivot follows PrimaryPart (Deck), so this places the deck exactly at
+	-- toCFrame while preserving all of the raft's local offsets.
+	model:PivotTo(toCFrame)
 end
 
 -- baseSlot is an independent raft index — not tied to pier PortalCount.

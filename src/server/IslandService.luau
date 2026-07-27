@@ -34,6 +34,9 @@ export type IslandRecord = {
 	model: Model,
 	label: TextLabel?,
 	npcs: { Model },
+	-- A channel cut all the way through a large island. The helm uses this to allow
+	-- boats through the river rather than treating the whole island as solid shore.
+	river: { cframe: CFrame, width: number, length: number }?,
 	-- Villagers are spawned lazily (see populateIsland) the first time a crew lands, so
 	-- the world starts with no villagers. This plan holds what to spawn and where.
 	villagerPlan: {
@@ -50,6 +53,12 @@ type CrewIslandState = {
 	locked: boolean,
 	notifiedLock: boolean,
 	notifiedVisit: boolean,
+}
+
+type DockCollider = {
+	cframe: CFrame,
+	size: Vector3,
+	islandName: string,
 }
 
 type NpcRuntime = {
@@ -70,10 +79,16 @@ IslandService._islands = {} :: { IslandRecord }
 IslandService._byId = {} :: { [string]: IslandRecord }
 IslandService._crewState = {} :: { [string]: { [string]: CrewIslandState } }
 IslandService._npcs = {} :: { NpcRuntime }
+-- Helm travel is kinematic (the raft is PivotTo'd), so it does not receive normal
+-- physics contacts.  Keep a tiny collision representation for the solid dock decks.
+IslandService._dockColliders = {} :: { DockCollider }
 IslandService._Toast = nil :: RemoteEvent?
 IslandService._getPartyCode = nil :: ((Player) -> string?)?
 IslandService._getMemberUserIds = nil :: ((string) -> { number })?
 IslandService._started = false
+IslandService._folder = nil :: Folder?
+IslandService._endlessQueued = {} :: { [string]: boolean }
+IslandService._endlessBuildActive = false
 
 local function lobbyRoot(): Folder
 	local root = Workspace:FindFirstChild("SurviveAtSeaLobby")
@@ -219,6 +234,66 @@ local function buildBallTree(model: Model, topY: number, x: number, z: number, s
 		CanCollide = false,
 		Shape = Enum.PartType.Ball,
 	})
+end
+
+-- Chunky broadleaf tree used as the common visual language around every settlement.
+-- The separate, offset canopy blocks intentionally match the low-poly forest silhouette
+-- from the island reference instead of reading as round Roblox "lollipop" trees.
+local function buildVillageForestTree(model: Model, topY: number, x: number, z: number, scale: number?)
+	local s = scale or (0.9 + math.random() * 0.45)
+	local trunkH = (12 + math.random() * 7) * s
+	local trunkCf = CFrame.new(x, topY + trunkH * 0.5, z)
+	makePart({
+		Name = "ForestTrunk",
+		Parent = model,
+		Size = Vector3.new(1.35 * s, trunkH, 1.35 * s),
+		CFrame = trunkCf,
+		Color = Color3.fromRGB(116, 76, 43),
+		Material = Enum.Material.Wood,
+		CanCollide = false,
+	})
+	for branch = 1, 3 do
+		local yaw = math.rad((branch - 1) * 120 + math.random(-18, 18))
+		local length = (4.5 + math.random() * 2.5) * s
+		makePart({
+			Name = "ForestBranch",
+			Parent = model,
+			Size = Vector3.new(0.9 * s, 0.9 * s, length),
+			CFrame = trunkCf * CFrame.new(0, trunkH * 0.23, 0) * CFrame.Angles(math.rad(-38), yaw, 0) * CFrame.new(0, 0, -length * 0.34),
+			Color = Color3.fromRGB(116, 76, 43),
+			Material = Enum.Material.Wood,
+			CanCollide = false,
+		})
+	end
+	local greens = { Color3.fromRGB(30, 112, 47), Color3.fromRGB(42, 137, 57), Color3.fromRGB(52, 150, 62) }
+	local canopyY = topY + trunkH + 1.5 * s
+	for i = 1, 5 do
+		local a = (i - 1) * (math.pi * 2 / 5)
+		local radius = i == 5 and 0 or 3.2 * s
+		local cube = (i == 5 and 7.2 or 5.7) * s
+		makePart({
+			Name = "ForestCanopyBlock",
+			Parent = model,
+			Size = Vector3.new(cube, cube * (0.72 + math.random() * 0.18), cube),
+			CFrame = CFrame.new(x + math.cos(a) * radius, canopyY + (i == 5 and 2.2 * s or math.random(-1, 1) * s), z + math.sin(a) * radius)
+				* CFrame.Angles(0, math.rad(math.random(0, 45)), 0),
+			Color = greens[((i - 1) % #greens) + 1],
+			Material = Enum.Material.Grass,
+			CanCollide = false,
+		})
+	end
+end
+
+-- A dense outer woodland keeps the view from each village framed by hills and trees,
+-- while leaving the centre open for streets, houses, and safe player movement.
+local function scatterSettlementForest(model: Model, center: Vector3, size: number, topY: number)
+	local half = size * 0.5
+	local count = math.clamp(math.floor(size / 25), 34, 88)
+	for _ = 1, count do
+		local a = math.random() * math.pi * 2
+		local r = half * (0.68 + math.random() * 0.22)
+		buildVillageForestTree(model, topY, center.X + math.cos(a) * r, center.Z + math.sin(a) * r)
+	end
 end
 
 -- Four WedgeParts meeting at the peak — reads as a pyramid thatch roof.
@@ -1502,6 +1577,44 @@ local function generateIslandTerrain(
 			)
 		end
 	end
+
+	-- Every settlement gets a few broad, climbable hills around its outer woodland.
+	-- They are deliberately kept beyond the street clearing so town paths remain usable.
+	if hasVillage then
+		for i = 1, 3 do
+			local a = (i / 3) * math.pi * 2 + rng:NextNumber(-0.35, 0.35)
+			local d = half * rng:NextNumber(0.68, 0.82)
+			local radius = half * rng:NextNumber(0.08, 0.13)
+			for step = 0, 5 do
+				local t = step / 5
+				Terrain:FillBall(
+					Vector3.new(cx + math.cos(a) * d, topY + t * rng:NextNumber(10, 18), cz + math.sin(a) * d),
+					math.max(radius * (1 - t * 0.72), 3),
+					if t > 0.58 then Enum.Material.Rock else grassMat
+				)
+			end
+		end
+	end
+
+	-- Carve a navigable sea-level river after all landforms are placed. It runs from
+	-- coast to coast, so a crew can enter the island, steer through it, and leave again.
+	local river = features.river
+	if river then
+		local yaw = math.atan2(math.cos(river.angle), math.sin(river.angle))
+		local riverCf = CFrame.new(cx, 0, cz) * CFrame.Angles(0, yaw, 0)
+		local clearTop = math.max(topY + 90, surfaceY + 18)
+		local clearBottom = surfaceY - 42
+		Terrain:FillBlock(
+			riverCf * CFrame.new(0, (clearTop + clearBottom) * 0.5, 0),
+			Vector3.new(river.width, clearTop - clearBottom, river.length),
+			Enum.Material.Air
+		)
+		Terrain:FillBlock(
+			riverCf * CFrame.new(0, (surfaceY - 16) * 0.5, 0),
+			Vector3.new(river.width - 5, surfaceY + 16, river.length + 12),
+			Enum.Material.Water
+		)
+	end
 end
 
 -- =====================================================================================
@@ -1604,6 +1717,11 @@ local function buildDock(
 		Color = DOCK_PLANK,
 		Material = Enum.Material.WoodPlanks,
 	})
+	table.insert(IslandService._dockColliders, {
+		cframe = cf,
+		size = Vector3.new(width, 0.5, length),
+		islandName = (o.islandName :: string?) or "the dock",
+	})
 
 	-- Pilings + short rail posts down both sides.
 	local pileTop = deckY - 0.2
@@ -1657,6 +1775,11 @@ local function buildDock(
 		CFrame = headCf,
 		Color = DOCK_PLANK,
 		Material = Enum.Material.WoodPlanks,
+	})
+	table.insert(IslandService._dockColliders, {
+		cframe = headCf,
+		size = Vector3.new(width + 7, 0.5, 6.5),
+		islandName = (o.islandName :: string?) or "the dock",
 	})
 
 	-- Harbour clutter near the land end: a couple of barrels + a draggable crate.
@@ -2083,6 +2206,17 @@ local function planIslandFeatures(
 			topY = topY + 20,
 			cliffR = half * 0.13,
 			cliffTop = topY + 34,
+		}
+	end
+
+	-- Large river islands have a sea-to-sea channel, wide enough for the starter raft.
+	-- Keep this deterministic so the carved terrain and helm collision agree exactly.
+	if entry.River == true then
+		local angle = tonumber(entry.RiverAngle) or rng:NextNumber(0, math.pi * 2)
+		features.river = {
+			angle = angle,
+			width = tonumber(entry.RiverWidth) or math.max(110, size * 0.07),
+			length = size * 1.16,
 		}
 	end
 
@@ -2691,6 +2825,11 @@ local function buildFlatIsland(entry: { [string]: any }, folder: Folder): Island
 		-- so every island's shape is different.
 		generateIslandTerrain(entry.Id, center, topY, size, biome, entry.Theme or "wild", features)
 		scatterVegetation(model, center, size, topY, biome, features)
+		-- Settlement woodland belongs only on the normal terrain isles. Twin Peaks keeps
+		-- its open-water gap clear for the rope bridge traversal.
+		if (entry.Theme or "village") ~= "wild" then
+			scatterSettlementForest(model, center, size, topY)
+		end
 	end
 
 	scatterLooseLoot(model, center, size, topY, entry.Id)
@@ -2746,6 +2885,15 @@ local function buildFlatIsland(entry: { [string]: any }, folder: Folder): Island
 		label = nil, -- No longer displaying island names in-game
 		npcs = {},
 	}
+	if features.river then
+		local river = features.river
+		local yaw = math.atan2(math.cos(river.angle), math.sin(river.angle))
+		record.river = {
+			cframe = CFrame.new(center.X, 0, center.Z) * CFrame.Angles(0, yaw, 0),
+			width = river.width,
+			length = river.length,
+		}
+	end
 
 	local villagerCfg = entry.Villagers or { Passive = 0, Hostile = 0 }
 
@@ -2818,6 +2966,116 @@ local function buildFlatIsland(entry: { [string]: any }, folder: Folder): Island
 	return record
 end
 
+-- The opening ring is handcrafted, but the rest of the ocean is a deterministic grid of
+-- tropical islands.  We generate a cell only as a crew gets close to it; that makes the
+-- map genuinely endless without paying to create a continent at server boot.
+local function endlessEntryForCell(cellX: number, cellZ: number): { [string]: any }
+	local cfg = Config.Islands.Endless
+	local id = `endless_{cellX}_{cellZ}`
+	local rng = Random.new(seedFromId(id))
+	local cell = cfg.CellStuds
+	local origin = Config.StarterBase.Origin
+	local jitter = cell * 0.12
+	local centerX = origin.X + (cellX + 0.5) * cell + rng:NextNumber(-jitter, jitter)
+	local centerZ = origin.Z + (cellZ + 0.5) * cell + rng:NextNumber(-jitter, jitter)
+	local volcanic = rng:NextNumber() < 0.34
+	return {
+		Id = id,
+		Name = if volcanic then "Emberwater Atoll" else "Verdant River Atoll",
+		Offset = Vector3.new(centerX - origin.X, 0, centerZ - origin.Z),
+		SizeStuds = rng:NextInteger(cfg.MinSizeStuds, cfg.MaxSizeStuds),
+		Biome = if volcanic then "volcanic" else (if rng:NextNumber() < 0.56 then "jungle" else "palm"),
+		Theme = "wild",
+		Volcano = volcanic,
+		River = true,
+		RiverAngle = rng:NextNumber(0, math.pi * 2),
+		RiverWidth = cfg.RiverWidth,
+		Docks = 1,
+		Loot = { Weapons = 2, Chests = 1, Armor = 1 },
+		Villagers = { Passive = 0, Hostile = 0 },
+	}
+end
+
+local function isEndlessCellClear(entry: { [string]: any }): boolean
+	local center = worldCenterForOffset(entry.Offset, Config.Islands.TopY, Config.Islands.Thickness)
+	local clearance = entry.SizeStuds * 0.5 + 780
+	for _, isle in IslandService._islands do
+		if flatDistance(center, isle.center) < clearance + isle.size * 0.5 then
+			return false
+		end
+	end
+	return true
+end
+
+local function buildQueuedEndlessIsland(entry: { [string]: any })
+	local folder = IslandService._folder
+	if not folder or IslandService._byId[entry.Id] then
+		return
+	end
+	local record = buildFlatIsland(entry, folder)
+	table.insert(IslandService._islands, record)
+	IslandService._byId[record.id] = record
+
+	-- The normal boot pass registers loot after all handcrafted islands are made. Dynamic
+	-- islands need the same registration immediately so their salvage remains draggable.
+	local LootPropService = require(script.Parent:WaitForChild("LootPropService"))
+	for _, desc in record.model:GetDescendants() do
+		if desc:IsA("Model") and desc:GetAttribute("IsLootProp") == true then
+			LootPropService.registerExisting(desc)
+		end
+	end
+	IslandService.paintTerrain()
+end
+
+local function queueEndlessIslandsNearRafts()
+	local cfg = Config.Islands.Endless
+	if cfg.Enabled ~= true or IslandService._endlessBuildActive then
+		return
+	end
+	local origin = Config.StarterBase.Origin
+	local cell = cfg.CellStuds
+	local candidates: { { x: number, z: number, distance: number } } = {}
+	local seen: { [string]: boolean } = {}
+	for _, raft in StarterBaseService._basesByCode do
+		local deck = raft.PrimaryPart or raft:FindFirstChild("Deck")
+		if not (deck and deck:IsA("BasePart")) then
+			continue
+		end
+		local cx = math.floor((deck.Position.X - origin.X) / cell)
+		local cz = math.floor((deck.Position.Z - origin.Z) / cell)
+		for dx = -cfg.BuildRadiusCells, cfg.BuildRadiusCells do
+			for dz = -cfg.BuildRadiusCells, cfg.BuildRadiusCells do
+				local x, z = cx + dx, cz + dz
+				local key = `{x},{z}`
+				if not seen[key] then
+					seen[key] = true
+					table.insert(candidates, { x = x, z = z, distance = dx * dx + dz * dz })
+				end
+			end
+		end
+	end
+	table.sort(candidates, function(a, b)
+		return a.distance < b.distance
+	end)
+
+	for _, candidate in candidates do
+		local entry = endlessEntryForCell(candidate.x, candidate.z)
+		if not IslandService._byId[entry.Id] and not IslandService._endlessQueued[entry.Id] and isEndlessCellClear(entry) then
+			IslandService._endlessQueued[entry.Id] = true
+			IslandService._endlessBuildActive = true
+			task.spawn(function()
+				local ok, err = pcall(buildQueuedEndlessIsland, entry)
+				if not ok then
+					warn(`[SurviveAtSea] Endless island {entry.Id} failed:`, err)
+				end
+				IslandService._endlessQueued[entry.Id] = nil
+				IslandService._endlessBuildActive = false
+			end)
+			return
+		end
+	end
+end
+
 function IslandService.getWorldCenters(): { Vector3 }
 	local centers = {}
 	for _, isle in IslandService._islands do
@@ -2869,45 +3127,86 @@ function IslandService.isLockedForCrew(code: string, islandId: string): boolean
 	return state ~= nil and state.locked == true
 end
 
--- Solid-shoreline collision. Rafts can NEVER drive up onto an isle: sailing into one
--- runs the hull aground at the sand's edge (forward progress into the isle is stopped).
--- You can still slide along the coast and steer away, but you can't climb aboard.
--- Applies to EVERY isle, visited or not — separate from the visit-lockout clamp below.
-function IslandService.collideRaft(fromPos: Vector3, toPos: Vector3): (Vector3, string?)
-	local result = toPos
-	local grounded: string? = nil
+-- Returns true when the horizontal movement segment enters a circle. Checking the whole
+-- segment (rather than only its destination) closes the gap a fast raft could otherwise
+-- skip through during a slow server frame.
+local function segmentHitsCircle(fromPos: Vector3, toPos: Vector3, center: Vector3, radius: number): boolean
+	local start = Vector3.new(fromPos.X - center.X, 0, fromPos.Z - center.Z)
+	if start.Magnitude <= radius then
+		return true
+	end
+	local delta = Vector3.new(toPos.X - fromPos.X, 0, toPos.Z - fromPos.Z)
+	local lengthSq = delta:Dot(delta)
+	if lengthSq < 0.0001 then
+		return false
+	end
+	local t = math.clamp(-start:Dot(delta) / lengthSq, 0, 1)
+	return (start + delta * t).Magnitude <= radius
+end
 
-	for _, isle in IslandService._islands do
-		local minDist = isle.size * 0.5 + Config.Islands.RaftCollisionPad
-		local toDist = flatDistance(result, isle.center)
-		if toDist >= minDist then
-			continue
-		end
+-- The raft moves as a kinematic model, so it needs a cheap 2D swept collision test for
+-- dock decks too. Expand the oriented dock rectangle by the raft's collision padding,
+-- then use a slab intersection against the attempted movement segment.
+local function segmentHitsDock(fromPos: Vector3, toPos: Vector3, dock: DockCollider): boolean
+	local start = dock.cframe:PointToObjectSpace(fromPos)
+	local finish = dock.cframe:PointToObjectSpace(toPos)
+	local delta = finish - start
+	local pad = Config.Islands.RaftCollisionPad
+	local halfX = dock.size.X * 0.5 + pad
+	local halfZ = dock.size.Z * 0.5 + pad
+	local enter, exit = 0, 1
 
-		-- Destination is inside the shoreline ring — push it back out to the ring so the
-		-- raft stops at the beach instead of driving over it.
-		local outward = Vector3.new(result.X - isle.center.X, 0, result.Z - isle.center.Z)
-		if outward.Magnitude < 0.05 then
-			outward = Vector3.new(fromPos.X - isle.center.X, 0, fromPos.Z - isle.center.Z)
-		end
-		if outward.Magnitude < 0.05 then
-			outward = Vector3.new(1, 0, 0)
-		end
-		outward = outward.Unit
-		result = Vector3.new(
-			isle.center.X + outward.X * minDist,
-			result.Y,
-			isle.center.Z + outward.Z * minDist
-		)
-
-		-- Only report "ran aground" when actually pushing toward the isle (approaching),
-		-- so idling against a coast doesn't spam feedback.
-		if toDist < flatDistance(fromPos, isle.center) then
-			grounded = isle.name
+	for _, axis in { "X", "Z" } do
+		local origin = if axis == "X" then start.X else start.Z
+		local direction = if axis == "X" then delta.X else delta.Z
+		local half = if axis == "X" then halfX else halfZ
+		if math.abs(direction) < 0.0001 then
+			if math.abs(origin) > half then
+				return false
+			end
+		else
+			local near = (-half - origin) / direction
+			local far = (half - origin) / direction
+			if near > far then
+				near, far = far, near
+			end
+			enter = math.max(enter, near)
+			exit = math.min(exit, far)
+			if enter > exit then
+				return false
+			end
 		end
 	end
 
-	return result, grounded
+	return exit >= 0 and enter <= 1
+end
+
+-- Solid shoreline and dock collision. Rafts can NEVER drive onto an isle or through a
+-- dock. Stop at the last safe position instead of pushing the raft through/over an edge.
+-- Applies to EVERY isle, visited or not — separate from the visit-lockout clamp below.
+function IslandService.collideRaft(fromPos: Vector3, toPos: Vector3): (Vector3, string?)
+	for _, isle in IslandService._islands do
+		-- A river is an intentional break in the shoreline: leave it open so the helm
+		-- can sail the channel. The rest of the island retains its normal grounding ring.
+		if isle.river then
+			local localPos = isle.river.cframe:PointToObjectSpace(toPos)
+			if math.abs(localPos.X) <= isle.river.width * 0.5 and math.abs(localPos.Z) <= isle.river.length * 0.5 then
+				continue
+			end
+		end
+		local minDist = isle.size * 0.5 + Config.Islands.RaftCollisionPad
+		if segmentHitsCircle(fromPos, toPos, isle.center, minDist) then
+			return fromPos, isle.name
+		end
+	end
+
+	for _, dock in IslandService._dockColliders do
+		if segmentHitsDock(fromPos, toPos, dock) then
+			return fromPos, dock.islandName
+		end
+	end
+
+	return toPos, nil
 end
 
 -- Keep rafts outside locked isles (can't sail back after leaving far enough away).
@@ -3177,6 +3476,7 @@ end
 function IslandService.ensure(): Folder
 	local folder = lobbyRoot():FindFirstChild("DriveIslands")
 	if folder and folder:IsA("Folder") and #IslandService._islands > 0 then
+		IslandService._folder = folder
 		IslandService.paintTerrain()
 		return folder
 	end
@@ -3187,10 +3487,13 @@ function IslandService.ensure(): Folder
 	folder = Instance.new("Folder")
 	folder.Name = "DriveIslands"
 	folder.Parent = lobbyRoot()
+	IslandService._folder = folder
 
 	table.clear(IslandService._islands)
 	table.clear(IslandService._byId)
 	table.clear(IslandService._npcs)
+	table.clear(IslandService._dockColliders)
+	table.clear(IslandService._endlessQueued)
 
 	for i, entry in Config.Islands.Catalog do
 		local record = buildFlatIsland(entry, folder)
@@ -3238,6 +3541,7 @@ function IslandService.start(
 	local npcAccum = 0
 	local NPC_INTERVAL = 1 / 15
 	local lockAccum = 0
+	local endlessAccum = 0
 	RunService.Heartbeat:Connect(function(dt)
 		npcAccum += dt
 		if npcAccum >= NPC_INTERVAL then
@@ -3252,6 +3556,12 @@ function IslandService.start(
 		if lockAccum >= 0.2 then
 			lockAccum = 0
 			updateVisitLockouts()
+		end
+
+		endlessAccum += dt
+		if endlessAccum >= Config.Islands.Endless.PulseSeconds then
+			endlessAccum = 0
+			queueEndlessIslandsNearRafts()
 		end
 	end)
 end
