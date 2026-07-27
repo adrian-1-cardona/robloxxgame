@@ -161,6 +161,8 @@ local Config = {
 		--   Theme: "wild" | "fishing_village" | "village" | "town" | "stone_town"
 		--        | "castle" | "abandoned"
 		-- Optional per-isle flags read by VillageBuilder / IslandService:
+		--   TropicalTerrace = true → terraced grass rings, stone retaining walls,
+		--     spiral cliff path, stilt huts with pyramid thatch roofs over the water
 		--   Church     = true → raise a stone church with a steeple, bell & cross
 		--   Mansions   = <n>  → n grand multi-storey manor houses in the settlement
 		--   Lit        = true → street lamps + braziers so the town glows day and night
