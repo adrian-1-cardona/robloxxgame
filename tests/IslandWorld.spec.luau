@@ -45,16 +45,15 @@ check("opening island ring sits within the 4K streaming target", string.find(cat
 check("opening islands use a high-detail 1,100-stud footprint", string.find(catalog, "SizeStuds = 1100", 1, true) ~= nil)
 check("spawn raft is presented as the central voyage hub", string.find(starterBase, 'hub.Name = "VoyageHub"', 1, true) ~= nil)
 check("flat cylinder preview disks stay removed", string.find(islands, 'Name = "ForestFloor"', 1, true) == nil)
+check("village residents spawn during island construction", string.find(islands, "populateIsland(record)", 1, true) ~= nil)
+check("river bridges are not added to the island decoration pass", string.find(islands, "buildRiverBridge(model, center", 1, true) == nil)
+check("peak bridges are not added to island decoration", string.find(islands, "buildRopeBridge(model, a, b)", 1, true) == nil)
 check(
 	"island surfaces use layered rolling shoulders",
 	string.find(islands, "local shoulderCount =", 1, true) ~= nil
 		and string.find(islands, "Layered spheres create climbable slopes", 1, true) ~= nil
 )
-check(
-	"river collision checks both movement endpoints",
-	string.find(islands, "math.abs(fromLocal.X) <= safeHalfWidth", 1, true) ~= nil
-		and string.find(islands, "math.abs(toLocal.X) <= safeHalfWidth", 1, true) ~= nil
-)
+check("raft collision has no through-island river exception", string.find(islands, "inNavigableRiver", 1, true) == nil)
 check(
 	"raft stops at its last safe position on first shoreline contact",
 	string.find(islands, "return fromPos, isle.name", 1, true) ~= nil
