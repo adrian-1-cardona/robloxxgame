@@ -197,21 +197,26 @@ local Config = {
 			-- present immediately when the player spawns.
 			{
 				Id = "tide_flat",
-				Name = "Twin Peaks",
-				-- Directly north of spawn: the beach begins at the raft's bow. Two blocky
-				-- low-poly rock stacks on sandy pads, linked by a sagging rope bridge —
-				-- the immediate first landfall with a climb to the span.
+				Name = "Greenwood Landing",
+				-- Directly north of spawn: a dense old-growth forest surrounds a medieval
+				-- village clearing. A navigable river cuts through the woods to the harbour;
+				-- sand is limited to a narrow shoreline instead of covering the whole island.
 				-- A 1,400-stud island has a 700-stud shore radius. Its centre sits 750
 				-- studs ahead, leaving only a ~14-stud gap from the raft's front edge.
 				Offset = Vector3.new(0, 0, -750),
 				SizeStuds = 1400,
-				Biome = "twin_peaks",
-				Theme = "wild",
+				Biome = "jungle",
+				Theme = "village",
 				Abandoned = false,
-				Merchant = false,
-				Docks = 1,
-				Villagers = { Passive = 0, Hostile = 0 },
-				Loot = { Weapons = 3, Chests = 1, Armor = 1 },
+				Merchant = true,
+				River = true,
+				RiverAngle = 0,
+				RiverWidth = 150,
+				Docks = 2,
+				Church = true,
+				Lit = true,
+				Villagers = { Passive = 14, Hostile = 2 },
+				Loot = { Weapons = 7, Chests = 5, Armor = 3 },
 			},
 			{
 				Id = "quiet_sand",

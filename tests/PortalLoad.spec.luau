@@ -505,6 +505,14 @@ it("lobby exposes at least one boarding portal", function()
 	assertTrue(Config.PortalCount >= 1, "there must be at least one pier portal")
 end)
 
+it("opening voyage contains the full ten-island ring", function()
+	assertEquals(#Config.Islands.Catalog, 10, "opening voyage must contain exactly ten islands")
+	local first = Config.Islands.Catalog[1]
+	assertEquals(first.Biome, "jungle", "first landfall must be forested")
+	assertEquals(first.Theme, "village", "first forest must contain a village")
+	assertTrue(first.River == true, "first forest must retain a navigable river")
+end)
+
 it("every pier portal reports Ready before anyone boards", function()
 	local svc = freshPartyService()
 	local infos = svc.getPortalInfos()
