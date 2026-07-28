@@ -140,87 +140,15 @@ local function worldCenterForOffset(offset: Vector3, topY: number, thickness: nu
 	return Vector3.new(origin.X + offset.X, topY - thickness * 0.5, origin.Z + offset.Z)
 end
 
--- Put a lightweight green foundation at every opening-ring location before the
--- expensive terrain, village, and loot passes begin. Players immediately see ten
--- distinct destinations on a cold server; each preview is removed only after its
--- fully detailed replacement succeeds.
+-- Reserve the opening-island folder without drawing placeholder land. The old
+-- cylinder previews were visible as flat sand/grass disks while the real islands
+-- loaded, which made the finished world look broken and hid its sculpted coastline.
 local function ensureOpeningPreviews(folder: Folder)
 	local previews = folder:FindFirstChild("OpeningPreviews")
 	if not previews then
 		previews = Instance.new("Folder")
 		previews.Name = "OpeningPreviews"
 		previews.Parent = folder
-	end
-
-	for _, entry in Config.Islands.Catalog do
-		local previewName = `Preview_{entry.Id}`
-		if previews:FindFirstChild(previewName) or IslandService._byId[entry.Id] then
-			continue
-		end
-
-		local center = worldCenterForOffset(entry.Offset, Config.Islands.TopY, Config.Islands.Thickness)
-		local size = entry.SizeStuds
-		local preview = Instance.new("Model")
-		preview.Name = previewName
-		preview.Parent = previews
-
-		-- A slim sand lip under a much broader grass cap keeps the opening ring green.
-		makePart({
-			Name = "Shore",
-			Parent = preview,
-			Size = Vector3.new(10, size * 0.96, size * 0.96),
-			CFrame = CFrame.new(center.X, Config.Islands.TopY - 4, center.Z)
-				* CFrame.Angles(0, 0, math.rad(90)),
-			Color = Color3.fromRGB(218, 199, 151),
-			Material = Enum.Material.Sand,
-			Shape = Enum.PartType.Cylinder,
-		})
-		makePart({
-			Name = "ForestFloor",
-			Parent = preview,
-			Size = Vector3.new(8, size * 0.88, size * 0.88),
-			CFrame = CFrame.new(center.X, Config.Islands.TopY, center.Z)
-				* CFrame.Angles(0, 0, math.rad(90)),
-			Color = Color3.fromRGB(45, 116, 52),
-			Material = Enum.Material.Grass,
-			Shape = Enum.PartType.Cylinder,
-		})
-
-		-- Cheap block-tree silhouettes communicate each island's biome immediately.
-		-- Greenwood gets a denser preview because it is the player's first landfall.
-		local previewSeed = 23
-		for index = 1, #entry.Id do
-			previewSeed = (previewSeed * 37 + string.byte(entry.Id, index)) % 2147483647
-		end
-		local rng = Random.new(previewSeed)
-		local treeCount = if entry.Id == "tide_flat" then 34 elseif entry.Biome == "jungle" then 16 else 8
-		for i = 1, treeCount do
-			local angle = rng:NextNumber(0, math.pi * 2)
-			local radius = rng:NextNumber(size * 0.16, size * 0.38)
-			local x = center.X + math.cos(angle) * radius
-			local z = center.Z + math.sin(angle) * radius
-			local trunkH = rng:NextNumber(24, 42)
-			makePart({
-				Name = `PreviewTrunk_{i}`,
-				Parent = preview,
-				Size = Vector3.new(3.5, trunkH, 3.5),
-				CFrame = CFrame.new(x, Config.Islands.TopY + trunkH * 0.5, z),
-				Color = Color3.fromRGB(105, 70, 40),
-				Material = Enum.Material.Wood,
-				CanCollide = false,
-				CastShadow = false,
-			})
-			makePart({
-				Name = `PreviewCanopy_{i}`,
-				Parent = preview,
-				Size = Vector3.new(18, 12, 18),
-				CFrame = CFrame.new(x, Config.Islands.TopY + trunkH + 3, z),
-				Color = Color3.fromRGB(35, rng:NextInteger(105, 145), 48),
-				Material = Enum.Material.Grass,
-				CanCollide = false,
-				CastShadow = false,
-			})
-		end
 	end
 end
 
@@ -1421,56 +1349,17 @@ local function generateIslandTerrain(
 		Terrain:FillCylinder(CFrame.new(px, (topAt + baseBottom) * 0.5, pz), h, radius, material)
 	end
 
-	-- Enhanced foundation for villages: create a flatter, more stable base
+	-- Keep only the settlement core buildable. The former foundation covered most of
+	-- the island with a perfect cylinder, producing the flat disk seen at spawn.
 	if hasVillage then
-		-- Create a larger, flatter foundation for villages with smoother terrain
-		local villageFoundationRadius = if isTown then half * 0.75 else half * 0.6
-		local foundationHeight = topY + 0.5
-
-		-- Main village foundation - perfectly flat for cobblestone streets
-		Terrain:FillCylinder(
-			CFrame.new(cx, (foundationHeight + topY) * 0.5, cz),
-			foundationHeight - topY,
-			villageFoundationRadius,
-			grassMat
-		)
-
-		-- Smooth transition zones around the village center
-		for ring = 1, 3 do
-			local ringRadius = villageFoundationRadius + (ring * half * 0.08)
-			local ringHeight = topY - (ring * 0.3)
-			if ringRadius < half * 0.95 then  -- Don't exceed island bounds
-				Terrain:FillCylinder(
-					CFrame.new(cx, (ringHeight + topY - 2) * 0.5, cz),
-					math.abs(ringHeight - topY + 2),
-					ringRadius,
-					if ring == 3 then sandMat else grassMat
-				)
-			end
-		end
-
-		-- Add subtle terracing for medieval hillside village aesthetic
-		if theme == "stone_town" or theme == "town" then
-			for tier = 1, 2 do
-				local tierAngle = rng:NextNumber(0, math.pi * 2)
-				local tierDistance = villageFoundationRadius * 0.7 * tier
-				local tierX = cx + math.cos(tierAngle) * tierDistance
-				local tierZ = cz + math.sin(tierAngle) * tierDistance
-				local tierRadius = villageFoundationRadius * (0.4 - tier * 0.1)
-				local tierHeight = topY + (tier * 1.2)
-
-				Terrain:FillCylinder(
-					CFrame.new(tierX, (tierHeight + topY) * 0.5, tierZ),
-					tierHeight - topY,
-					tierRadius,
-					grassMat
-				)
-			end
-		end
+		local villageFoundationRadius = half * (if isTown then 0.48 else 0.38)
+		landColumn(cx, cz, villageFoundationRadius, topY + 0.5, grassMat)
 	end
 
-	-- 1) Sand body: a main plateau plus several offset lobes give an irregular coast.
-	landColumn(cx, cz, half * 0.66, topY, sandMat)
+	-- 1) A submerged sand shelf supports an irregular grassy landmass. Sand remains a
+	-- narrow waterline detail rather than becoming the visible island surface.
+	landColumn(cx, cz, half * 0.68, surfaceY + 0.8, sandMat)
+	landColumn(cx, cz, half * 0.61, topY, grassMat)
 	local lobes = rng:NextInteger(4, 7)
 	for i = 1, lobes do
 		local a = (i / lobes) * math.pi * 2 + rng:NextNumber(-0.55, 0.55)
@@ -1488,7 +1377,8 @@ local function generateIslandTerrain(
 				continue  -- Skip this lobe to keep village area clear
 			end
 		end
-		landColumn(cx + math.cos(a) * dist, cz + math.sin(a) * dist, lobeR, topY, sandMat)
+		local lobeTop = topY + rng:NextNumber(1.5, 8)
+		landColumn(cx + math.cos(a) * dist, cz + math.sin(a) * dist, lobeR, lobeTop, grassMat)
 	end
 
 	-- 2) Enhanced grass/jungle cap with village considerations
@@ -1694,14 +1584,15 @@ local function generateIslandTerrain(
 	-- Every settlement gets a few broad, climbable hills around its outer woodland.
 	-- They are deliberately kept beyond the street clearing so town paths remain usable.
 	if hasVillage then
-		for i = 1, 3 do
-			local a = (i / 3) * math.pi * 2 + rng:NextNumber(-0.35, 0.35)
-			local d = half * rng:NextNumber(0.68, 0.82)
-			local radius = half * rng:NextNumber(0.08, 0.13)
-			for step = 0, 5 do
-				local t = step / 5
+		for i = 1, 8 do
+			local a = (i / 8) * math.pi * 2 + rng:NextNumber(-0.28, 0.28)
+			local d = half * rng:NextNumber(0.58, 0.84)
+			local radius = half * rng:NextNumber(0.09, 0.16)
+			local rise = rng:NextNumber(20, 48)
+			for step = 0, 6 do
+				local t = step / 6
 				Terrain:FillBall(
-					Vector3.new(cx + math.cos(a) * d, topY + t * rng:NextNumber(10, 18), cz + math.sin(a) * d),
+					Vector3.new(cx + math.cos(a) * d, topY + t * rise, cz + math.sin(a) * d),
 					math.max(radius * (1 - t * 0.72), 3),
 					if t > 0.58 then Enum.Material.Rock else grassMat
 				)
@@ -3351,16 +3242,24 @@ end
 -- Applies to EVERY isle, visited or not — separate from the visit-lockout clamp below.
 function IslandService.collideRaft(fromPos: Vector3, toPos: Vector3): (Vector3, string?)
 	for _, isle in IslandService._islands do
-		-- A river is an intentional break in the shoreline: leave it open so the helm
-		-- can sail the channel. The rest of the island retains its normal grounding ring.
+		-- A river only opens the two actual mouths. Both ends of the movement must fit
+		-- inside the channel's lateral bounds; checking only the destination allowed a
+		-- fast raft to cut sideways through solid island terrain.
+		local inNavigableRiver = false
 		if isle.river then
-			local localPos = isle.river.cframe:PointToObjectSpace(toPos)
-			if math.abs(localPos.X) <= isle.river.width * 0.5 and math.abs(localPos.Z) <= isle.river.length * 0.5 then
-				continue
-			end
+			local fromLocal = isle.river.cframe:PointToObjectSpace(fromPos)
+			local toLocal = isle.river.cframe:PointToObjectSpace(toPos)
+			local raftHalfWidth = Config.StarterBase.SizeStuds * 0.5
+			local safeHalfWidth = math.max(0, isle.river.width * 0.5 - raftHalfWidth - 4)
+			local halfLength = isle.river.length * 0.5
+			inNavigableRiver = safeHalfWidth > 0
+				and math.abs(fromLocal.X) <= safeHalfWidth
+				and math.abs(toLocal.X) <= safeHalfWidth
+				and math.abs(fromLocal.Z) <= halfLength + Config.Islands.RaftCollisionPad
+				and math.abs(toLocal.Z) <= halfLength + Config.Islands.RaftCollisionPad
 		end
 		local minDist = isle.size * 0.5 + Config.Islands.RaftCollisionPad
-		if segmentHitsCircle(fromPos, toPos, isle.center, minDist) then
+		if not inNavigableRiver and segmentHitsCircle(fromPos, toPos, isle.center, minDist) then
 			return fromPos, isle.name
 		end
 	end
