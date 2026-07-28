@@ -253,13 +253,13 @@ end
 -- The separate, offset canopy blocks intentionally match the low-poly forest silhouette
 -- from the island reference instead of reading as round Roblox "lollipop" trees.
 local function buildVillageForestTree(model: Model, topY: number, x: number, z: number, scale: number?)
-	local s = scale or (0.9 + math.random() * 0.45)
-	local trunkH = (12 + math.random() * 7) * s
+	local s = scale or (0.95 + math.random() * 0.55)
+	local trunkH = (24 + math.random() * 18) * s
 	local trunkCf = CFrame.new(x, topY + trunkH * 0.5, z)
 	makePart({
 		Name = "ForestTrunk",
 		Parent = model,
-		Size = Vector3.new(1.35 * s, trunkH, 1.35 * s),
+		Size = Vector3.new(2.1 * s, trunkH, 2.1 * s),
 		CFrame = trunkCf,
 		Color = Color3.fromRGB(116, 76, 43),
 		Material = Enum.Material.Wood,
@@ -267,11 +267,11 @@ local function buildVillageForestTree(model: Model, topY: number, x: number, z: 
 	})
 	for branch = 1, 3 do
 		local yaw = math.rad((branch - 1) * 120 + math.random(-18, 18))
-		local length = (4.5 + math.random() * 2.5) * s
+		local length = (8 + math.random() * 5) * s
 		makePart({
 			Name = "ForestBranch",
 			Parent = model,
-			Size = Vector3.new(0.9 * s, 0.9 * s, length),
+			Size = Vector3.new(1.25 * s, 1.25 * s, length),
 			CFrame = trunkCf * CFrame.new(0, trunkH * 0.23, 0) * CFrame.Angles(math.rad(-38), yaw, 0) * CFrame.new(0, 0, -length * 0.34),
 			Color = Color3.fromRGB(116, 76, 43),
 			Material = Enum.Material.Wood,
@@ -282,8 +282,8 @@ local function buildVillageForestTree(model: Model, topY: number, x: number, z: 
 	local canopyY = topY + trunkH + 1.5 * s
 	for i = 1, 5 do
 		local a = (i - 1) * (math.pi * 2 / 5)
-		local radius = i == 5 and 0 or 3.2 * s
-		local cube = (i == 5 and 7.2 or 5.7) * s
+		local radius = i == 5 and 0 or 6.2 * s
+		local cube = (i == 5 and 13.5 or 10.5) * s
 		makePart({
 			Name = "ForestCanopyBlock",
 			Parent = model,
@@ -307,7 +307,7 @@ local function scatterSettlementForest(
 	features: { [string]: any }?
 )
 	local half = size * 0.5
-	local count = math.clamp(math.floor(size / 25), 34, 88)
+	local count = math.clamp(math.floor(size / 16), 64, 110)
 	local river = features and features.river
 	for _ = 1, count do
 		local a = math.random() * math.pi * 2
