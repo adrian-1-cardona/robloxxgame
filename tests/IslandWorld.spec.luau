@@ -39,8 +39,10 @@ local _, islandCount = string.gsub(catalog, '\n\t\t\t\tId = "', "")
 
 check("opening catalog contains twelve islands around the hub", islandCount == 12)
 check("at least one opening island has a river", string.find(catalog, "River = true", 1, true) ~= nil)
-check("river is much wider than the 72-stud raft", string.find(catalog, "RiverWidth = 300", 1, true) ~= nil)
-check("nearest island leaves a clear central hub basin", string.find(catalog, "Offset = Vector3.new(0, 0, -2600)", 1, true) ~= nil)
+check("starter raft is a compact 64-stud voyage platform", string.find(config, "SizeStuds = 64", 1, true) ~= nil)
+check("river is much wider than the 64-stud raft", string.find(catalog, "RiverWidth = 300", 1, true) ~= nil)
+check("opening island ring sits within the 4K streaming target", string.find(catalog, "Offset = Vector3.new(0, 0, -2100)", 1, true) ~= nil)
+check("opening islands use a high-detail 1,100-stud footprint", string.find(catalog, "SizeStuds = 1100", 1, true) ~= nil)
 check("spawn raft is presented as the central voyage hub", string.find(starterBase, 'hub.Name = "VoyageHub"', 1, true) ~= nil)
 check("flat cylinder preview disks stay removed", string.find(islands, 'Name = "ForestFloor"', 1, true) == nil)
 check(

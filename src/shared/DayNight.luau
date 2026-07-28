@@ -176,13 +176,13 @@ function DayNight.lightingFor(dayAmount: number): {
 		OutdoorAmbient = lerpColor(Color3.fromRGB(36, 48, 78), Color3.fromRGB(118, 128, 132)),
 		FogColor = lerpColor(Color3.fromRGB(18, 28, 52), Color3.fromRGB(130, 170, 190)),
 		FogStart = lerpNumber(180, 280),
-		-- The opening island ring sits 2,500 studs from the raft. Keep enough clear
-		-- visibility for all ten giant silhouettes to be discoverable at spawn.
-		FogEnd = lerpNumber(3000, 5000),
-		AtmosphereDensity = lerpNumber(0.18, 0.06),
+		-- Keep the entire 2,100-stud hero ring crisp from the raft. Night retains
+		-- atmosphere, but never hides the island choices behind a blank horizon.
+		FogEnd = lerpNumber(4200, 6500),
+		AtmosphereDensity = lerpNumber(0.13, 0.035),
 		AtmosphereColor = lerpColor(Color3.fromRGB(48, 62, 98), Color3.fromRGB(168, 198, 214)),
 		AtmosphereDecay = lerpColor(Color3.fromRGB(12, 18, 42), Color3.fromRGB(42, 78, 108)),
-		AtmosphereHaze = lerpNumber(1.1, 0.55),
+		AtmosphereHaze = lerpNumber(0.8, 0.28),
 		AtmosphereGlare = lerpNumber(0, 0.08),
 		SunRaysIntensity = lerpNumber(0, 0.045),
 		ColorCorrectionTint = lerpColor(Color3.fromRGB(170, 190, 230), Color3.fromRGB(255, 246, 236)),

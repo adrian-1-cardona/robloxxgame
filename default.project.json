@@ -32,7 +32,7 @@
       "$properties": {
         "FilteringEnabled": true,
         "StreamingEnabled": true,
-        "StreamingMinRadius": 3072,
+        "StreamingMinRadius": 4096,
         "StreamingTargetRadius": 4096,
         "StreamingIntegrityMode": "Disabled"
       },
