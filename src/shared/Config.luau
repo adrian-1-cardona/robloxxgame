@@ -99,8 +99,9 @@ local Config = {
 		PulseSeconds = 2.5,
 			MinSizeStuds = 850,
 			MaxSizeStuds = 1250,
-			-- The channel is deliberately much wider than the 72-stud starter raft.
-			RiverWidth = 190,
+			-- The channel is deliberately much wider than the 72-stud starter raft,
+			-- leaving room to turn instead of forcing a pixel-perfect approach.
+			RiverWidth = 260,
 		},
 		-- Distance from isle center after a visit before the isle locks. Must clear the
 		-- whole sand pad of even the largest isle (radius ~900), so it's set well beyond it.
@@ -192,26 +193,24 @@ local Config = {
 		-- populateIsland) — so there are no villagers at the start, but a living town when
 		-- you land.
 		Catalog = {
-			-- Ten huge islands form the opening ring around every fresh raft. Their shared
-			-- 2,500-stud radius and the opening streaming radius make all ten visible and
-			-- present immediately when the player spawns.
+			-- Twelve sculpted islands form a complete archipelago around the central
+			-- voyage hub. The clear inner basin gives every crew room to board, turn, and
+			-- choose a destination instead of spawning against a wall of terrain.
 			{
 				Id = "tide_flat",
 				Name = "Greenwood Landing",
 				-- Directly north of spawn: a dense old-growth forest surrounds a medieval
 				-- village clearing. A navigable river cuts through the woods to the harbour;
 				-- sand is limited to a narrow shoreline instead of covering the whole island.
-				-- A 1,400-stud island has a 700-stud shore radius. Its centre sits 750
-				-- studs ahead, leaving only a ~14-stud gap from the raft's front edge.
-				Offset = Vector3.new(0, 0, -750),
-				SizeStuds = 1400,
+				Offset = Vector3.new(0, 0, -2600),
+				SizeStuds = 1200,
 				Biome = "jungle",
 				Theme = "village",
 				Abandoned = false,
 				Merchant = true,
 				River = true,
 				RiverAngle = 0,
-				RiverWidth = 220,
+				RiverWidth = 280,
 				Docks = 2,
 				Church = true,
 				Lit = true,
@@ -223,8 +222,8 @@ local Config = {
 				Name = "Quiet Sand",
 				-- A snug medieval fishing village on a temperate headland: timber cottages,
 				-- fish-drying racks, a banded stone lighthouse and two piers out over the water.
-				Offset = Vector3.new(1469, 0, -2023),
-				SizeStuds = 1400,
+				Offset = Vector3.new(1300, 0, -2252),
+				SizeStuds = 1200,
 				Biome = "highland",
 				Theme = "fishing_village",
 				Abandoned = false,
@@ -234,7 +233,7 @@ local Config = {
 				-- proper river landfalls crews see after leaving the spawn raft.
 				River = true,
 				RiverAngle = 0.82,
-				RiverWidth = 200,
+				RiverWidth = 260,
 				Docks = 2,
 				Villagers = { Passive = 9, Hostile = 0 },
 				Loot = { Weapons = 5, Chests = 3, Armor = 2 },
@@ -244,8 +243,8 @@ local Config = {
 				Name = "Smuggler Hollow",
 				-- A small tropical isle built around a smoking lava cone — palms, gems and a
 				-- single hidden smugglers' pier.
-				Offset = Vector3.new(2378, 0, -773),
-				SizeStuds = 1400,
+				Offset = Vector3.new(2252, 0, -1300),
+				SizeStuds = 1200,
 				Biome = "volcanic",
 				Theme = "village",
 				Abandoned = false,
@@ -261,8 +260,8 @@ local Config = {
 				-- The flagship: a big medieval seaside town lit up with people and life — a
 				-- church and grand manors at its heart, a lighthouse on the point, and three
 				-- busy piers along the harbour front (the postcard "seaside village" isle).
-				Offset = Vector3.new(2378, 0, 773),
-				SizeStuds = 1400,
+				Offset = Vector3.new(2600, 0, 0),
+				SizeStuds = 1200,
 				Biome = "highland",
 				Theme = "town",
 				Abandoned = false,
@@ -274,7 +273,7 @@ local Config = {
 				-- Verde is a huge, forest-framed town split by a navigable canal.
 				River = true,
 				RiverAngle = 2.22,
-				RiverWidth = 210,
+				RiverWidth = 270,
 				Docks = 3,
 				-- Lively and mostly friendly — lots of townsfolk, only a small watch.
 				Villagers = { Passive = 20, Hostile = 4 },
@@ -285,8 +284,8 @@ local Config = {
 				Name = "Crow Cay",
 				-- A tropical stone town clinging to the slopes of an active volcano — lava glow
 				-- over cobblestone streets, a church, and two harbour piers.
-				Offset = Vector3.new(1469, 0, 2023),
-				SizeStuds = 1400,
+				Offset = Vector3.new(2252, 0, 1300),
+				SizeStuds = 1200,
 				Biome = "volcanic",
 				Theme = "stone_town",
 				Abandoned = false,
@@ -304,15 +303,15 @@ local Config = {
 				Name = "Riverlands",
 				-- A huge jungle island split by a sea-to-sea river. The channel is wide
 				-- enough for the starter raft, creating a proper helm voyage inland.
-				Offset = Vector3.new(0, 0, 2500),
-				SizeStuds = 1400,
+				Offset = Vector3.new(1300, 0, 2252),
+				SizeStuds = 1200,
 				Biome = "jungle",
 				Theme = "town",
 				Abandoned = false,
 				Merchant = true,
 				River = true,
 				RiverAngle = 0,
-				RiverWidth = 230,
+				RiverWidth = 300,
 				Docks = 3,
 				Lighthouse = true,
 				Villagers = { Passive = 16, Hostile = 3 },
@@ -323,8 +322,8 @@ local Config = {
 				Name = "Bastion Keep",
 				-- A castle on a green mountain isle: a snow-capped peak behind the keep and a
 				-- glassy lake below with its own jetty.
-				Offset = Vector3.new(-1469, 0, 2023),
-				SizeStuds = 1400,
+				Offset = Vector3.new(0, 0, 2600),
+				SizeStuds = 1200,
 				Biome = "mountain",
 				Theme = "castle",
 				Abandoned = false,
@@ -339,8 +338,8 @@ local Config = {
 				Name = "King's Hold",
 				-- A mightier mountain-lake stronghold — a torch-lit walled keep beside a
 				-- waterfall-fed lake, a lakeside jetty and a sea pier below the cliffs.
-				Offset = Vector3.new(-2378, 0, 773),
-				SizeStuds = 1400,
+				Offset = Vector3.new(-1300, 0, 2252),
+				SizeStuds = 1200,
 				Biome = "mountain",
 				Theme = "castle",
 				Abandoned = false,
@@ -354,8 +353,8 @@ local Config = {
 			{
 				Id = "drift_shack",
 				Name = "Drift Shack",
-				Offset = Vector3.new(-2378, 0, -773),
-				SizeStuds = 1400,
+				Offset = Vector3.new(-2252, 0, 1300),
+				SizeStuds = 1200,
 				Biome = "jungle",
 				-- A whole town, long abandoned and reclaimed by the jungle (ruined houses,
 				-- cold pits, a rotting pier and only a few feral scavengers left).
@@ -365,7 +364,7 @@ local Config = {
 				-- The jungle reclaimed both banks of this old river settlement.
 				River = true,
 				RiverAngle = 1.38,
-				RiverWidth = 210,
+				RiverWidth = 270,
 				Docks = 1,
 				Villagers = { Passive = 0, Hostile = 3 }, -- feral scavengers
 				Loot = { Weapons = 6, Chests = 5, Armor = 3 },
@@ -377,8 +376,8 @@ local Config = {
 				-- sail the channels between every island.
 				-- A dead volcanic spit strewn with shipwrecks — a smoking cone and one
 				-- half-collapsed pier.
-				Offset = Vector3.new(-1469, 0, -2023),
-				SizeStuds = 1400,
+				Offset = Vector3.new(-2600, 0, 0),
+				SizeStuds = 1200,
 				Biome = "volcanic",
 				Theme = "abandoned",
 				Abandoned = true,
@@ -387,6 +386,44 @@ local Config = {
 				Docks = 1,
 				Villagers = { Passive = 0, Hostile = 2 },
 				Loot = { Weapons = 5, Chests = 4, Armor = 2 },
+			},
+			{
+				Id = "mistwood",
+				Name = "Mistwood Crossing",
+				-- Layered forest hills, a broad river ravine, and a bridge settlement
+				-- inspired by the deep green forest reference.
+				Offset = Vector3.new(-2252, 0, -1300),
+				SizeStuds = 1200,
+				Biome = "jungle",
+				Theme = "village",
+				Abandoned = false,
+				Merchant = true,
+				River = true,
+				RiverAngle = 0.52,
+				RiverWidth = 290,
+				Docks = 2,
+				Lit = true,
+				Villagers = { Passive = 12, Hostile = 2 },
+				Loot = { Weapons = 7, Chests = 5, Armor = 3 },
+			},
+			{
+				Id = "lantern_port",
+				Name = "Lantern Port",
+				-- A dense timber harbour town with a lighthouse, church, stacked roofs,
+				-- waterfront piers, and a forested ridge behind it.
+				Offset = Vector3.new(-1300, 0, -2252),
+				SizeStuds = 1200,
+				Biome = "highland",
+				Theme = "town",
+				Abandoned = false,
+				Merchant = true,
+				Church = true,
+				Mansions = 2,
+				Lit = true,
+				Lighthouse = true,
+				Docks = 3,
+				Villagers = { Passive = 18, Hostile = 3 },
+				Loot = { Weapons = 9, Chests = 7, Armor = 5 },
 			},
 		},
 	},

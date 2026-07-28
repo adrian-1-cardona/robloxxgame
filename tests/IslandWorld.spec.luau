@@ -15,6 +15,7 @@ end
 local config = read("src/shared/Config.luau")
 local islands = read("src/server/IslandService.luau")
 local village = read("src/server/VillageBuilder.luau")
+local starterBase = read("src/server/StarterBaseService.luau")
 
 local passed = 0
 local failed = 0
@@ -36,14 +37,25 @@ local catalogEnd = string.find(config, "\n\t\t},\n\t},", catalogStart, true)
 local catalog = string.sub(config, catalogStart, catalogEnd)
 local _, islandCount = string.gsub(catalog, '\n\t\t\t\tId = "', "")
 
-check("opening catalog contains exactly ten islands", islandCount == 10)
+check("opening catalog contains twelve islands around the hub", islandCount == 12)
 check("at least one opening island has a river", string.find(catalog, "River = true", 1, true) ~= nil)
-check("river is wider than the 72-stud raft", string.find(catalog, "RiverWidth = 200", 1, true) ~= nil)
+check("river is much wider than the 72-stud raft", string.find(catalog, "RiverWidth = 300", 1, true) ~= nil)
+check("nearest island leaves a clear central hub basin", string.find(catalog, "Offset = Vector3.new(0, 0, -2600)", 1, true) ~= nil)
+check("spawn raft is presented as the central voyage hub", string.find(starterBase, 'hub.Name = "VoyageHub"', 1, true) ~= nil)
 check("flat cylinder preview disks stay removed", string.find(islands, 'Name = "ForestFloor"', 1, true) == nil)
+check(
+	"island surfaces use layered rolling shoulders",
+	string.find(islands, "local shoulderCount =", 1, true) ~= nil
+		and string.find(islands, "Layered spheres create climbable slopes", 1, true) ~= nil
+)
 check(
 	"river collision checks both movement endpoints",
 	string.find(islands, "math.abs(fromLocal.X) <= safeHalfWidth", 1, true) ~= nil
 		and string.find(islands, "math.abs(toLocal.X) <= safeHalfWidth", 1, true) ~= nil
+)
+check(
+	"raft stops at its last safe position on first shoreline contact",
+	string.find(islands, "return fromPos, isle.name", 1, true) ~= nil
 )
 check(
 	"river towns keep houses on the banks",

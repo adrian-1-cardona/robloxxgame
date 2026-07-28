@@ -1397,10 +1397,11 @@ local function generateIslandTerrain(
 		Terrain:FillCylinder(CFrame.new(px, (topAt + baseBottom) * 0.5, pz), h, radius, material)
 	end
 
-	-- Keep only the settlement core buildable. The former foundation covered most of
-	-- the island with a perfect cylinder, producing the flat disk seen at spawn.
+	-- Keep only a compact settlement core buildable. The old foundation/cap covered
+	-- most of each island with one level disk, which made towns and forests read as a
+	-- flat plate from the water.
 	if hasVillage then
-		local villageFoundationRadius = half * (if isTown then 0.48 else 0.38)
+		local villageFoundationRadius = half * (if isTown then 0.4 else 0.32)
 		landColumn(cx, cz, villageFoundationRadius, topY + 0.5, grassMat)
 	end
 
@@ -1429,28 +1430,34 @@ local function generateIslandTerrain(
 		landColumn(cx + math.cos(a) * dist, cz + math.sin(a) * dist, lobeR, lobeTop, grassMat)
 	end
 
-	-- 2) Enhanced grass/jungle cap with village considerations
-	local capTop = topY + (if hasVillage then 0.2 else 0.3)  -- Flatter for villages
+	-- 2) A modest grass cap supports the central streets; overlapping rolling shoulders
+	-- carry the terrain out toward the forest instead of one enormous level cylinder.
+	local capTop = topY + (if hasVillage then 0.2 else 0.3)
 	local capBottom = topY - 3.5
 	local capH = capTop - capBottom
 	local capY = (capTop + capBottom) * 0.5
-	local capRadius = if hasVillage then half * 0.7 else half * 0.6  -- Larger grass area for villages
+	local capRadius = if hasVillage then half * (if isTown then 0.46 else 0.39) else half * 0.42
 
 	Terrain:FillCylinder(CFrame.new(cx, capY, cz), capH, capRadius, grassMat)
 
-	-- Add grass patches but keep village center clear
-	for i = 1, 3 do
-		local a = rng:NextNumber(0, math.pi * 2)
-		local d = half * rng:NextNumber(0.12, 0.4)
-		local patchCenter = Vector3.new(cx + math.cos(a) * d, topY, cz + math.sin(a) * d)
-
-		-- Skip patches too close to village center
-		if hasVillage and (patchCenter - center).Magnitude < half * 0.35 then
-			continue
+	local shoulderCount = if hasVillage then 12 else 9
+	for i = 1, shoulderCount do
+		local a = (i / shoulderCount) * math.pi * 2 + rng:NextNumber(-0.2, 0.2)
+		local d = half * rng:NextNumber(0.4, 0.7)
+		local r = half * rng:NextNumber(0.13, 0.21)
+		local rise = rng:NextNumber(10, 30)
+		local px = cx + math.cos(a) * d
+		local pz = cz + math.sin(a) * d
+		-- Layered spheres create climbable slopes, ridgelines, and shallow valleys.
+		-- Their bases overlap the main landmass, so there are no floating decorations.
+		for step = 0, 4 do
+			local t = step / 4
+			Terrain:FillBall(
+				Vector3.new(px, topY - r * 0.45 + rise * t, pz),
+				math.max(r * (1 - t * 0.16), 6),
+				if t > 0.7 and biome == "jungle" then Enum.Material.LeafyGrass else grassMat
+			)
 		end
-
-		local r = half * rng:NextNumber(0.2, 0.34)
-		Terrain:FillCylinder(CFrame.new(cx + math.cos(a) * d, capY, cz + math.sin(a) * d), capH, r, grassMat)
 	end
 
 	-- 3) Enhanced biome relief with village-friendly positioning

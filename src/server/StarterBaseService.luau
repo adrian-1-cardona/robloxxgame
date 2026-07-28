@@ -243,6 +243,77 @@ function StarterBaseService.ensureBase(code: string, baseSlot: number): Model
 		})
 	end
 
+	-- The raft is also the crew's opening hub: a small, readable harbour pavilion in
+	-- the middle of the archipelago rather than an anonymous flat square. Everything
+	-- is part of the moving model, so the pavilion travels with the crew after departure.
+	local hub = Instance.new("Model")
+	hub.Name = "VoyageHub"
+	hub.Parent = model
+	local postColor = Color3.fromRGB(76, 50, 29)
+	local canopyColor = Color3.fromRGB(42, 92, 67)
+	for _, x in { -half + 5, half - 5 } do
+		for _, z in { -half + 5, half - 5 } do
+			local post = makePart({
+				Name = "HarbourPost",
+				Parent = hub,
+				Size = Vector3.new(1.4, 10, 1.4),
+				CFrame = CFrame.new(center.X + x, deckTop + 5, center.Z + z),
+				Color = postColor,
+				Material = Enum.Material.Wood,
+				CanCollide = false,
+			})
+			local lantern = makePart({
+				Name = "HubLantern",
+				Parent = hub,
+				Size = Vector3.new(1.5, 2.1, 1.5),
+				CFrame = post.CFrame * CFrame.new(0, 3.5, 0),
+				Color = Color3.fromRGB(255, 181, 78),
+				Material = Enum.Material.Neon,
+				CanCollide = false,
+				CastShadow = false,
+			})
+			local light = Instance.new("PointLight")
+			light.Name = "HarbourGlow"
+			light.Color = lantern.Color
+			light.Brightness = 1.6
+			light.Range = 24
+			light.Shadows = false
+			light.Parent = lantern
+		end
+	end
+
+	-- A timber gateway and green sailcloth mark the bow and frame the island ring.
+	for _, x in { -12, 12 } do
+		makePart({
+			Name = "HubGatePost",
+			Parent = hub,
+			Size = Vector3.new(1.8, 13, 1.8),
+			CFrame = CFrame.new(center.X + x, deckTop + 6.5, center.Z - half + 6),
+			Color = postColor,
+			Material = Enum.Material.Wood,
+			CanCollide = false,
+		})
+	end
+	makePart({
+		Name = "HubGateBeam",
+		Parent = hub,
+		Size = Vector3.new(27, 1.8, 1.8),
+		CFrame = CFrame.new(center.X, deckTop + 12.4, center.Z - half + 6),
+		Color = postColor,
+		Material = Enum.Material.Wood,
+		CanCollide = false,
+	})
+	makePart({
+		Name = "HubBanner",
+		Parent = hub,
+		Size = Vector3.new(16, 5.5, 0.35),
+		CFrame = CFrame.new(center.X, deckTop + 9, center.Z - half + 6),
+		Color = canopyColor,
+		Material = Enum.Material.Fabric,
+		CanCollide = false,
+		CastShadow = false,
+	})
+
 	-- Invisible spawn pad so deaths land on the raft (not the pier)
 	local spawn = Instance.new("SpawnLocation")
 	spawn.Name = "RaftSpawn"
