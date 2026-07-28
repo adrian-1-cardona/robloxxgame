@@ -2244,6 +2244,141 @@ local function buildRiverBridge(model: Model, center: Vector3, topY: number, riv
 	end
 end
 
+-- Broad, readable walking trails tie the settlement, docks, river bridge and signature
+-- landmark together. The reference islands are dense, but never feel like random props:
+-- every important place is connected by a visible path with shrubs and flowers along it.
+local function buildScenicTrail(
+	model: Model,
+	fromPos: Vector3,
+	toPos: Vector3,
+	topY: number,
+	biome: string,
+	seed: number
+)
+	local delta = Vector3.new(toPos.X - fromPos.X, 0, toPos.Z - fromPos.Z)
+	local distance = delta.Magnitude
+	if distance < 12 then
+		return
+	end
+	local direction = delta.Unit
+	local side = Vector3.new(-direction.Z, 0, direction.X)
+	local segments = math.clamp(math.ceil(distance / 13), 3, 48)
+	local rng = Random.new(seed)
+	for i = 1, segments do
+		local t = (i - 0.5) / segments
+		local wander = math.sin(t * math.pi * 3 + seed * 0.01) * 3.2
+		local pos = fromPos:Lerp(toPos, t) + side * wander
+		local nextPos = pos + direction
+		makePart({
+			Name = "ScenicPath",
+			Parent = model,
+			Size = Vector3.new(9, 0.35, distance / segments + 1.5),
+			CFrame = CFrame.lookAt(Vector3.new(pos.X, topY + 0.2, pos.Z), Vector3.new(nextPos.X, topY + 0.2, nextPos.Z)),
+			Color = if biome == "volcanic" then Color3.fromRGB(82, 72, 65) else Color3.fromRGB(126, 106, 72),
+			Material = if biome == "volcanic" then Enum.Material.Slate else Enum.Material.Ground,
+			CanCollide = false,
+			CastShadow = false,
+		})
+		-- Alternate planted edges so the trail reads clearly without becoming a wall.
+		if i % 2 == 0 then
+			local edge = if i % 4 == 0 then 1 else -1
+			local plantPos = pos + side * edge * rng:NextNumber(6.5, 9)
+			buildBush(model, topY, plantPos.X, plantPos.Z, biome == "jungle")
+			if i % 4 == 0 then
+				buildFlower(model, topY, plantPos.X + side.X * 2, plantPos.Z + side.Z * 2)
+			end
+		end
+	end
+end
+
+local function buildIslandTrailNetwork(
+	model: Model,
+	center: Vector3,
+	size: number,
+	topY: number,
+	biome: string,
+	features: { [string]: any }
+)
+	local half = size * 0.5
+	local targets = {}
+	for _, dock in features.docks do
+		if dock.target ~= "lake" then
+			table.insert(targets, center + Vector3.new(math.cos(dock.angle) * half * 0.76, 0, math.sin(dock.angle) * half * 0.76))
+		end
+	end
+	if features.volcano then
+		local v = features.volcano
+		table.insert(targets, center:Lerp(Vector3.new(v.pos.X, topY, v.pos.Z), 0.72))
+	end
+	if features.peak then
+		local p = features.peak
+		table.insert(targets, center:Lerp(Vector3.new(p.pos.X, topY, p.pos.Z), 0.62))
+	end
+	if features.lake then
+		local lake = features.lake
+		table.insert(targets, center:Lerp(Vector3.new(lake.pos.X, topY, lake.pos.Z), 0.82))
+	end
+	if features.river then
+		table.insert(targets, center + Vector3.new(half * 0.42, 0, 0))
+	end
+	for i, target in targets do
+		buildScenicTrail(model, center, target, topY, biome, seedFromId(model.Name) + i * 97)
+	end
+end
+
+-- Mountain hubs use the same cheerful skyline landmark as the NewHub reference.
+local function buildHotAirBalloon(model: Model, position: Vector3, color: Color3, scale: number)
+	local balloon = Instance.new("Model")
+	balloon.Name = "HotAirBalloon"
+	balloon.Parent = model
+	local envelope = makePart({
+		Name = "Envelope",
+		Parent = balloon,
+		Size = Vector3.new(18 * scale, 23 * scale, 18 * scale),
+		CFrame = CFrame.new(position),
+		Color = color,
+		Material = Enum.Material.SmoothPlastic,
+		Shape = Enum.PartType.Ball,
+		CanCollide = false,
+		CastShadow = true,
+	})
+	makePart({
+		Name = "EnvelopeBand",
+		Parent = balloon,
+		Size = Vector3.new(18.4 * scale, 3.2 * scale, 18.4 * scale),
+		CFrame = envelope.CFrame,
+		Color = Color3.fromRGB(248, 177, 48),
+		Material = Enum.Material.SmoothPlastic,
+		Shape = Enum.PartType.Ball,
+		CanCollide = false,
+		CastShadow = false,
+	})
+	local basketPos = position - Vector3.new(0, 17 * scale, 0)
+	makePart({
+		Name = "Basket",
+		Parent = balloon,
+		Size = Vector3.new(5 * scale, 4 * scale, 5 * scale),
+		CFrame = CFrame.new(basketPos),
+		Color = Color3.fromRGB(105, 70, 38),
+		Material = Enum.Material.WoodPlanks,
+		CanCollide = false,
+	})
+	for _, x in { -2, 2 } do
+		for _, z in { -2, 2 } do
+			makePart({
+				Name = "BalloonRope",
+				Parent = balloon,
+				Size = Vector3.new(0.22 * scale, 12 * scale, 0.22 * scale),
+				CFrame = CFrame.new(position.X + x * scale, position.Y - 11 * scale, position.Z + z * scale),
+				Color = Color3.fromRGB(65, 48, 32),
+				Material = Enum.Material.Fabric,
+				CanCollide = false,
+				CastShadow = false,
+			})
+		end
+	end
+end
+
 -- Precompute the deterministic geometry of an island's signature features (volcano cone,
 -- mountain peak + lake, dock directions, lighthouse). Computed ONCE per isle and shared by
 -- both the terrain sculptor and the decorative pass so they agree on exact positions.
@@ -2858,6 +2993,24 @@ local function decorateShore(
 
 	if features.river then
 		buildRiverBridge(model, center, topY, features.river)
+	end
+
+	buildIslandTrailNetwork(model, center, size, topY, biome, features)
+
+	if features.peak then
+		local pk = features.peak
+		buildHotAirBalloon(
+			model,
+			Vector3.new(center.X - math.cos(pk.angle) * half * 0.25, topY + pk.height * 0.92, center.Z - math.sin(pk.angle) * half * 0.25),
+			Color3.fromRGB(220, 52, 32),
+			0.85
+		)
+		buildHotAirBalloon(
+			model,
+			Vector3.new(center.X + math.sin(pk.angle) * half * 0.38, topY + pk.height * 0.66, center.Z - math.cos(pk.angle) * half * 0.38),
+			Color3.fromRGB(232, 92, 30),
+			0.68
+		)
 	end
 
 	-- Docks / piers.
