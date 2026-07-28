@@ -86,6 +86,7 @@ IslandService._Toast = nil :: RemoteEvent?
 IslandService._getPartyCode = nil :: ((Player) -> string?)?
 IslandService._getMemberUserIds = nil :: ((string) -> { number })?
 IslandService._started = false
+IslandService._starting = false
 IslandService._folder = nil :: Folder?
 IslandService._endlessQueued = {} :: { [string]: boolean }
 IslandService._endlessBuildActive = false
@@ -3555,7 +3556,7 @@ end
 
 function IslandService.ensure(): Folder
 	local folder = lobbyRoot():FindFirstChild("DriveIslands")
-	if folder and folder:IsA("Folder") and #IslandService._islands > 0 then
+	if folder and folder:IsA("Folder") and #IslandService._islands >= #Config.Islands.Catalog then
 		IslandService._folder = folder
 		IslandService.paintTerrain()
 		return folder
@@ -3605,15 +3606,22 @@ function IslandService.start(
 	getPartyCode: (Player) -> string?,
 	getMemberUserIds: (string) -> { number }
 )
-	if IslandService._started then
+	if IslandService._started or IslandService._starting then
 		return
 	end
-	IslandService._started = true
+	IslandService._starting = true
 	IslandService._Toast = toastRemote
 	IslandService._getPartyCode = getPartyCode
 	IslandService._getMemberUserIds = getMemberUserIds
 
-	IslandService.ensure()
+	-- Keep startup retryable.  A failed partial build must not leave the portal
+	-- flow permanently waiting on an IslandService marked as started.
+	local ok, err = pcall(IslandService.ensure)
+	IslandService._starting = false
+	if not ok then
+		error(err)
+	end
+	IslandService._started = true
 
 	-- The NPC AI pass is O(NPCs x players) and used to run every Heartbeat (60 Hz) even
 	-- with nobody online. Run it on a fixed ~15 Hz tick, feeding it the accumulated dt so

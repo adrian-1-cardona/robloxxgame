@@ -46,6 +46,12 @@ PartyService._partiesByCode = {} :: { [string]: PartyRecord }
 PartyService._playerToCode = {} :: { [number]: string }
 PartyService._onChanged = nil :: ((PartySnapshot?, { PublicPortalInfo }) -> ())?
 
+local function setVoyageActive(player: Player, active: boolean)
+	-- Replicated state used by client-only gameplay UI.  Lobby players must never
+	-- see voyage actions such as drag, weld, or attack.
+	player:SetAttribute("VoyageActive", active)
+end
+
 local function displayNameFor(userId: number): string
 	local player = Players:GetPlayerByUserId(userId)
 	if player then
@@ -150,6 +156,7 @@ local function removePlayerFromCurrentParty(userId: number)
 	party.memberUserIds = remaining
 
 	if leavingPlayer then
+		setVoyageActive(leavingPlayer, false)
 		StarterGearService.clearStarterClub(leavingPlayer)
 		StarterBaseService.teleportPlayerToLobby(leavingPlayer)
 	end
@@ -272,6 +279,7 @@ function PartyService.createParty(
 	end
 
 	local snapshot = toSnapshot(party)
+	setVoyageActive(player, true)
 	notify(party)
 	return true, "Private crew ready — share your code so friends can join.", snapshot
 end
@@ -306,6 +314,7 @@ function PartyService.joinParty(player: Player, rawCode: string): (boolean, stri
 	seatOnBase(player, party)
 
 	local snapshot = toSnapshot(party)
+	setVoyageActive(player, true)
 	notify(party)
 	return true, "You joined the crew base!", snapshot
 end

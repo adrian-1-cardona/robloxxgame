@@ -21,6 +21,7 @@ local wiredModels: { [Model]: boolean } = {}
 local folderConnections: { RBXScriptConnection } = {}
 local lobbyConnections: { RBXScriptConnection } = {}
 local started = false
+local boardingReady = false
 local toastRemote: RemoteEvent? = nil
 local partyUpdatedRemote: RemoteEvent? = nil
 local portalsUpdatedRemote: RemoteEvent? = nil
@@ -51,9 +52,14 @@ local function refreshPortalVisuals(portals)
 		if prompt and prompt:IsA("ProximityPrompt") then
 			prompt.ActionText = "Create Crew"
 			prompt.ObjectText = `Portal {info.portalIndex}`
-			prompt.Enabled = true
+			prompt.Enabled = boardingReady
 		end
 	end
+end
+
+function PortalService.setBoardingReady(ready: boolean)
+	boardingReady = ready
+	refreshPortalVisuals(PartyService.getPortalInfos())
 end
 
 local function handlePortalUse(player: Player, portalIndex: number)
