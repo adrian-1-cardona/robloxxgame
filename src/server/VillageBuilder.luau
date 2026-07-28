@@ -1509,6 +1509,22 @@ function VillageBuilder.build(
 		local r = villageRadius * (ringSpread + math.random() * 0.4)
 		local x = center.X + math.cos(a) * r
 		local z = center.Z + math.sin(a) * r
+		-- River settlements line both banks instead of dropping cottages into the
+		-- channel. This creates the dense waterfront silhouette in the town reference
+		-- while keeping the full raft-width waterway visibly open.
+		if entry.River == true then
+			local riverAngle = tonumber(entry.RiverAngle) or 0
+			local riverYaw = math.atan2(math.cos(riverAngle), math.sin(riverAngle))
+			local riverCf = CFrame.new(center.X, 0, center.Z) * CFrame.Angles(0, riverYaw, 0)
+			local localPos = riverCf:PointToObjectSpace(Vector3.new(x, 0, z))
+			local bankOffset = (tonumber(entry.RiverWidth) or 190) * 0.5 + 28
+			if math.abs(localPos.X) < bankOffset then
+				local side = if i % 2 == 0 then 1 else -1
+				localPos = Vector3.new(side * bankOffset, 0, localPos.Z)
+				local worldPos = riverCf:PointToWorldSpace(localPos)
+				x, z = worldPos.X, worldPos.Z
+			end
+		end
 		-- Face the house toward the village center
 		local houseCf = CFrame.lookAt(Vector3.new(x, topY, z), Vector3.new(center.X, topY, center.Z))
 		buildHouse(villageFolder, houseCf, {

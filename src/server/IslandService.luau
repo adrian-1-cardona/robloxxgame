@@ -140,87 +140,15 @@ local function worldCenterForOffset(offset: Vector3, topY: number, thickness: nu
 	return Vector3.new(origin.X + offset.X, topY - thickness * 0.5, origin.Z + offset.Z)
 end
 
--- Put a lightweight green foundation at every opening-ring location before the
--- expensive terrain, village, and loot passes begin. Players immediately see ten
--- distinct destinations on a cold server; each preview is removed only after its
--- fully detailed replacement succeeds.
+-- Reserve the opening-island folder without drawing placeholder land. The old
+-- cylinder previews were visible as flat sand/grass disks while the real islands
+-- loaded, which made the finished world look broken and hid its sculpted coastline.
 local function ensureOpeningPreviews(folder: Folder)
 	local previews = folder:FindFirstChild("OpeningPreviews")
 	if not previews then
 		previews = Instance.new("Folder")
 		previews.Name = "OpeningPreviews"
 		previews.Parent = folder
-	end
-
-	for _, entry in Config.Islands.Catalog do
-		local previewName = `Preview_{entry.Id}`
-		if previews:FindFirstChild(previewName) or IslandService._byId[entry.Id] then
-			continue
-		end
-
-		local center = worldCenterForOffset(entry.Offset, Config.Islands.TopY, Config.Islands.Thickness)
-		local size = entry.SizeStuds
-		local preview = Instance.new("Model")
-		preview.Name = previewName
-		preview.Parent = previews
-
-		-- A slim sand lip under a much broader grass cap keeps the opening ring green.
-		makePart({
-			Name = "Shore",
-			Parent = preview,
-			Size = Vector3.new(10, size * 0.96, size * 0.96),
-			CFrame = CFrame.new(center.X, Config.Islands.TopY - 4, center.Z)
-				* CFrame.Angles(0, 0, math.rad(90)),
-			Color = Color3.fromRGB(218, 199, 151),
-			Material = Enum.Material.Sand,
-			Shape = Enum.PartType.Cylinder,
-		})
-		makePart({
-			Name = "ForestFloor",
-			Parent = preview,
-			Size = Vector3.new(8, size * 0.88, size * 0.88),
-			CFrame = CFrame.new(center.X, Config.Islands.TopY, center.Z)
-				* CFrame.Angles(0, 0, math.rad(90)),
-			Color = Color3.fromRGB(45, 116, 52),
-			Material = Enum.Material.Grass,
-			Shape = Enum.PartType.Cylinder,
-		})
-
-		-- Cheap block-tree silhouettes communicate each island's biome immediately.
-		-- Greenwood gets a denser preview because it is the player's first landfall.
-		local previewSeed = 23
-		for index = 1, #entry.Id do
-			previewSeed = (previewSeed * 37 + string.byte(entry.Id, index)) % 2147483647
-		end
-		local rng = Random.new(previewSeed)
-		local treeCount = if entry.Id == "tide_flat" then 34 elseif entry.Biome == "jungle" then 16 else 8
-		for i = 1, treeCount do
-			local angle = rng:NextNumber(0, math.pi * 2)
-			local radius = rng:NextNumber(size * 0.16, size * 0.38)
-			local x = center.X + math.cos(angle) * radius
-			local z = center.Z + math.sin(angle) * radius
-			local trunkH = rng:NextNumber(24, 42)
-			makePart({
-				Name = `PreviewTrunk_{i}`,
-				Parent = preview,
-				Size = Vector3.new(3.5, trunkH, 3.5),
-				CFrame = CFrame.new(x, Config.Islands.TopY + trunkH * 0.5, z),
-				Color = Color3.fromRGB(105, 70, 40),
-				Material = Enum.Material.Wood,
-				CanCollide = false,
-				CastShadow = false,
-			})
-			makePart({
-				Name = `PreviewCanopy_{i}`,
-				Parent = preview,
-				Size = Vector3.new(18, 12, 18),
-				CFrame = CFrame.new(x, Config.Islands.TopY + trunkH + 3, z),
-				Color = Color3.fromRGB(35, rng:NextInteger(105, 145), 48),
-				Material = Enum.Material.Grass,
-				CanCollide = false,
-				CastShadow = false,
-			})
-		end
 	end
 end
 
@@ -325,13 +253,13 @@ end
 -- The separate, offset canopy blocks intentionally match the low-poly forest silhouette
 -- from the island reference instead of reading as round Roblox "lollipop" trees.
 local function buildVillageForestTree(model: Model, topY: number, x: number, z: number, scale: number?)
-	local s = scale or (0.9 + math.random() * 0.45)
-	local trunkH = (12 + math.random() * 7) * s
+	local s = scale or (0.95 + math.random() * 0.55)
+	local trunkH = (24 + math.random() * 18) * s
 	local trunkCf = CFrame.new(x, topY + trunkH * 0.5, z)
 	makePart({
 		Name = "ForestTrunk",
 		Parent = model,
-		Size = Vector3.new(1.35 * s, trunkH, 1.35 * s),
+		Size = Vector3.new(2.1 * s, trunkH, 2.1 * s),
 		CFrame = trunkCf,
 		Color = Color3.fromRGB(116, 76, 43),
 		Material = Enum.Material.Wood,
@@ -339,11 +267,11 @@ local function buildVillageForestTree(model: Model, topY: number, x: number, z: 
 	})
 	for branch = 1, 3 do
 		local yaw = math.rad((branch - 1) * 120 + math.random(-18, 18))
-		local length = (4.5 + math.random() * 2.5) * s
+		local length = (8 + math.random() * 5) * s
 		makePart({
 			Name = "ForestBranch",
 			Parent = model,
-			Size = Vector3.new(0.9 * s, 0.9 * s, length),
+			Size = Vector3.new(1.25 * s, 1.25 * s, length),
 			CFrame = trunkCf * CFrame.new(0, trunkH * 0.23, 0) * CFrame.Angles(math.rad(-38), yaw, 0) * CFrame.new(0, 0, -length * 0.34),
 			Color = Color3.fromRGB(116, 76, 43),
 			Material = Enum.Material.Wood,
@@ -354,8 +282,8 @@ local function buildVillageForestTree(model: Model, topY: number, x: number, z: 
 	local canopyY = topY + trunkH + 1.5 * s
 	for i = 1, 5 do
 		local a = (i - 1) * (math.pi * 2 / 5)
-		local radius = i == 5 and 0 or 3.2 * s
-		local cube = (i == 5 and 7.2 or 5.7) * s
+		local radius = i == 5 and 0 or 6.2 * s
+		local cube = (i == 5 and 13.5 or 10.5) * s
 		makePart({
 			Name = "ForestCanopyBlock",
 			Parent = model,
@@ -369,6 +297,49 @@ local function buildVillageForestTree(model: Model, topY: number, x: number, z: 
 	end
 end
 
+-- Tall tiered canopy used between the spreading broadleaf trees. Alternating these
+-- silhouettes reproduces the reference forest's deep layers instead of making every
+-- tree the same five-block crown.
+local function buildTieredForestTree(model: Model, topY: number, x: number, z: number, scale: number?)
+	local s = scale or (0.9 + math.random() * 0.5)
+	local trunkH = (32 + math.random() * 22) * s
+	makePart({
+		Name = "TieredForestTrunk",
+		Parent = model,
+		Size = Vector3.new(2.2 * s, trunkH, 2.2 * s),
+		CFrame = CFrame.new(x, topY + trunkH * 0.5, z),
+		Color = Color3.fromRGB(92, 60, 38),
+		Material = Enum.Material.Wood,
+		CanCollide = false,
+	})
+	local greens = {
+		Color3.fromRGB(24, 94, 39),
+		Color3.fromRGB(31, 118, 47),
+		Color3.fromRGB(42, 139, 54),
+	}
+	for tier = 1, 5 do
+		local width = (18 - tier * 2.1) * s
+		local y = topY + trunkH * 0.4 + tier * 5.2 * s
+		makePart({
+			Name = "TieredCanopy",
+			Parent = model,
+			Size = Vector3.new(width, 4.2 * s, width),
+			CFrame = CFrame.new(x, y, z) * CFrame.Angles(0, math.rad(tier * 13), 0),
+			Color = greens[((tier - 1) % #greens) + 1],
+			Material = Enum.Material.Grass,
+			CanCollide = false,
+		})
+	end
+end
+
+local function terrainSurfaceY(x: number, z: number, fallbackY: number): number
+	local result = Workspace:Raycast(Vector3.new(x, fallbackY + 180, z), Vector3.new(0, -360, 0))
+	if result then
+		return result.Position.Y
+	end
+	return fallbackY
+end
+
 -- A dense outer woodland keeps the view from each village framed by hills and trees,
 -- while leaving the centre open for streets, houses, and safe player movement.
 local function scatterSettlementForest(
@@ -379,7 +350,7 @@ local function scatterSettlementForest(
 	features: { [string]: any }?
 )
 	local half = size * 0.5
-	local count = math.clamp(math.floor(size / 25), 34, 88)
+	local count = math.clamp(math.floor(size / 16), 64, 110)
 	local river = features and features.river
 	for _ = 1, count do
 		local a = math.random() * math.pi * 2
@@ -396,7 +367,12 @@ local function scatterSettlementForest(
 				continue
 			end
 		end
-		buildVillageForestTree(model, topY, x, z)
+		local groundY = terrainSurfaceY(x, z, topY)
+		if math.random() < 0.3 then
+			buildTieredForestTree(model, groundY, x, z)
+		else
+			buildVillageForestTree(model, groundY, x, z)
+		end
 	end
 end
 
@@ -1421,56 +1397,17 @@ local function generateIslandTerrain(
 		Terrain:FillCylinder(CFrame.new(px, (topAt + baseBottom) * 0.5, pz), h, radius, material)
 	end
 
-	-- Enhanced foundation for villages: create a flatter, more stable base
+	-- Keep only the settlement core buildable. The former foundation covered most of
+	-- the island with a perfect cylinder, producing the flat disk seen at spawn.
 	if hasVillage then
-		-- Create a larger, flatter foundation for villages with smoother terrain
-		local villageFoundationRadius = if isTown then half * 0.75 else half * 0.6
-		local foundationHeight = topY + 0.5
-
-		-- Main village foundation - perfectly flat for cobblestone streets
-		Terrain:FillCylinder(
-			CFrame.new(cx, (foundationHeight + topY) * 0.5, cz),
-			foundationHeight - topY,
-			villageFoundationRadius,
-			grassMat
-		)
-
-		-- Smooth transition zones around the village center
-		for ring = 1, 3 do
-			local ringRadius = villageFoundationRadius + (ring * half * 0.08)
-			local ringHeight = topY - (ring * 0.3)
-			if ringRadius < half * 0.95 then  -- Don't exceed island bounds
-				Terrain:FillCylinder(
-					CFrame.new(cx, (ringHeight + topY - 2) * 0.5, cz),
-					math.abs(ringHeight - topY + 2),
-					ringRadius,
-					if ring == 3 then sandMat else grassMat
-				)
-			end
-		end
-
-		-- Add subtle terracing for medieval hillside village aesthetic
-		if theme == "stone_town" or theme == "town" then
-			for tier = 1, 2 do
-				local tierAngle = rng:NextNumber(0, math.pi * 2)
-				local tierDistance = villageFoundationRadius * 0.7 * tier
-				local tierX = cx + math.cos(tierAngle) * tierDistance
-				local tierZ = cz + math.sin(tierAngle) * tierDistance
-				local tierRadius = villageFoundationRadius * (0.4 - tier * 0.1)
-				local tierHeight = topY + (tier * 1.2)
-
-				Terrain:FillCylinder(
-					CFrame.new(tierX, (tierHeight + topY) * 0.5, tierZ),
-					tierHeight - topY,
-					tierRadius,
-					grassMat
-				)
-			end
-		end
+		local villageFoundationRadius = half * (if isTown then 0.48 else 0.38)
+		landColumn(cx, cz, villageFoundationRadius, topY + 0.5, grassMat)
 	end
 
-	-- 1) Sand body: a main plateau plus several offset lobes give an irregular coast.
-	landColumn(cx, cz, half * 0.66, topY, sandMat)
+	-- 1) A submerged sand shelf supports an irregular grassy landmass. Sand remains a
+	-- narrow waterline detail rather than becoming the visible island surface.
+	landColumn(cx, cz, half * 0.68, surfaceY + 0.8, sandMat)
+	landColumn(cx, cz, half * 0.61, topY, grassMat)
 	local lobes = rng:NextInteger(4, 7)
 	for i = 1, lobes do
 		local a = (i / lobes) * math.pi * 2 + rng:NextNumber(-0.55, 0.55)
@@ -1488,7 +1425,8 @@ local function generateIslandTerrain(
 				continue  -- Skip this lobe to keep village area clear
 			end
 		end
-		landColumn(cx + math.cos(a) * dist, cz + math.sin(a) * dist, lobeR, topY, sandMat)
+		local lobeTop = topY + rng:NextNumber(1.5, 8)
+		landColumn(cx + math.cos(a) * dist, cz + math.sin(a) * dist, lobeR, lobeTop, grassMat)
 	end
 
 	-- 2) Enhanced grass/jungle cap with village considerations
@@ -1694,14 +1632,15 @@ local function generateIslandTerrain(
 	-- Every settlement gets a few broad, climbable hills around its outer woodland.
 	-- They are deliberately kept beyond the street clearing so town paths remain usable.
 	if hasVillage then
-		for i = 1, 3 do
-			local a = (i / 3) * math.pi * 2 + rng:NextNumber(-0.35, 0.35)
-			local d = half * rng:NextNumber(0.68, 0.82)
-			local radius = half * rng:NextNumber(0.08, 0.13)
-			for step = 0, 5 do
-				local t = step / 5
+		for i = 1, 8 do
+			local a = (i / 8) * math.pi * 2 + rng:NextNumber(-0.28, 0.28)
+			local d = half * rng:NextNumber(0.58, 0.84)
+			local radius = half * rng:NextNumber(0.09, 0.16)
+			local rise = rng:NextNumber(20, 48)
+			for step = 0, 6 do
+				local t = step / 6
 				Terrain:FillBall(
-					Vector3.new(cx + math.cos(a) * d, topY + t * rng:NextNumber(10, 18), cz + math.sin(a) * d),
+					Vector3.new(cx + math.cos(a) * d, topY + t * rise, cz + math.sin(a) * d),
 					math.max(radius * (1 - t * 0.72), 3),
 					if t > 0.58 then Enum.Material.Rock else grassMat
 				)
@@ -1727,6 +1666,24 @@ local function generateIslandTerrain(
 			Vector3.new(river.width - 5, surfaceY + 16, river.length + 12),
 			Enum.Material.Water
 		)
+
+		-- Broken rock walls and raised grassy shoulders give the channel the wooded
+		-- ravine profile from the reference. They remain outside the raft-safe width.
+		local bankOffset = river.width * 0.5 + 18
+		local segments = 18
+		for i = 1, segments do
+			local along = -river.length * 0.42 + (i - 1) * (river.length * 0.84 / (segments - 1))
+			for _, side in { -1, 1 } do
+				local jitter = rng:NextNumber(-8, 8)
+				local localBank = Vector3.new(side * (bankOffset + jitter), topY + 2, along)
+				local bank = riverCf:PointToWorldSpace(localBank)
+				Terrain:FillBall(bank, rng:NextNumber(10, 18), Enum.Material.Rock)
+				local shoulder = riverCf:PointToWorldSpace(
+					Vector3.new(side * (bankOffset + 28), topY + rng:NextNumber(8, 18), along)
+				)
+				Terrain:FillBall(shoulder, rng:NextNumber(22, 38), grassMat)
+			end
+		end
 	end
 end
 
@@ -3351,16 +3308,24 @@ end
 -- Applies to EVERY isle, visited or not — separate from the visit-lockout clamp below.
 function IslandService.collideRaft(fromPos: Vector3, toPos: Vector3): (Vector3, string?)
 	for _, isle in IslandService._islands do
-		-- A river is an intentional break in the shoreline: leave it open so the helm
-		-- can sail the channel. The rest of the island retains its normal grounding ring.
+		-- A river only opens the two actual mouths. Both ends of the movement must fit
+		-- inside the channel's lateral bounds; checking only the destination allowed a
+		-- fast raft to cut sideways through solid island terrain.
+		local inNavigableRiver = false
 		if isle.river then
-			local localPos = isle.river.cframe:PointToObjectSpace(toPos)
-			if math.abs(localPos.X) <= isle.river.width * 0.5 and math.abs(localPos.Z) <= isle.river.length * 0.5 then
-				continue
-			end
+			local fromLocal = isle.river.cframe:PointToObjectSpace(fromPos)
+			local toLocal = isle.river.cframe:PointToObjectSpace(toPos)
+			local raftHalfWidth = Config.StarterBase.SizeStuds * 0.5
+			local safeHalfWidth = math.max(0, isle.river.width * 0.5 - raftHalfWidth - 4)
+			local halfLength = isle.river.length * 0.5
+			inNavigableRiver = safeHalfWidth > 0
+				and math.abs(fromLocal.X) <= safeHalfWidth
+				and math.abs(toLocal.X) <= safeHalfWidth
+				and math.abs(fromLocal.Z) <= halfLength + Config.Islands.RaftCollisionPad
+				and math.abs(toLocal.Z) <= halfLength + Config.Islands.RaftCollisionPad
 		end
 		local minDist = isle.size * 0.5 + Config.Islands.RaftCollisionPad
-		if segmentHitsCircle(fromPos, toPos, isle.center, minDist) then
+		if not inNavigableRiver and segmentHitsCircle(fromPos, toPos, isle.center, minDist) then
 			return fromPos, isle.name
 		end
 	end
