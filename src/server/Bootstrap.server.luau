@@ -300,8 +300,10 @@ PortalService.setBoardingReady(true)
 task.spawn(function()
 	while not voyageWorldReady do
 		local voyageWorldOk, voyageWorldErr = pcall(function()
-			IslandService.start(Toast :: RemoteEvent, getPartyCode, getMemberUserIds)
+			-- Water must exist before the expensive island detail pass. The ocean
+			-- streamer already knows every catalog center, even before islands build.
 			OceanTerrainService.start()
+			IslandService.start(Toast :: RemoteEvent, getPartyCode, getMemberUserIds)
 		end)
 		if voyageWorldOk then
 			voyageWorldReady = true

@@ -528,6 +528,12 @@ it("boarding is not gated on voyage island generation", function()
 		string.find(bootstrap, "PortalService.setBoardingReady(true)", 1, true) ~= nil,
 		"portals must become interactive immediately"
 	)
+	local oceanStart = string.find(bootstrap, "OceanTerrainService.start()", 1, true)
+	local islandStart = string.find(bootstrap, "IslandService.start(", 1, true)
+	assertTrue(
+		oceanStart ~= nil and islandStart ~= nil and oceanStart < islandStart,
+		"water must start before expensive island construction"
+	)
 end)
 
 it("server-replicated prompts have only one owner", function()

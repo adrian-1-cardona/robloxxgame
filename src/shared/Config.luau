@@ -72,6 +72,9 @@ local Config = {
 		StickDeadzone = 0.18,
 		-- Generous for phone / VR laser / console approach
 		PromptDistance = 14,
+		-- Fixed third-person chase distance while driving so the wheel never fills
+		-- the screen and the helmsman can see water, islands, and the raft bow.
+		CameraDistance = 24,
 		-- Visual: spin the wooden wheel with look yaw (matches helmsman face turn)
 		WheelLookGain = 1.35,
 		WheelMaxRadians = math.rad(85),

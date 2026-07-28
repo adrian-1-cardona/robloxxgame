@@ -3562,27 +3562,42 @@ function IslandService.ensure(): Folder
 		return folder
 	end
 
-	if folder then
-		folder:Destroy()
+	if not (folder and folder:IsA("Folder")) then
+		folder = Instance.new("Folder")
+		folder.Name = "DriveIslands"
+		folder.Parent = lobbyRoot()
 	end
-	folder = Instance.new("Folder")
-	folder.Name = "DriveIslands"
-	folder.Parent = lobbyRoot()
-	IslandService._folder = folder
+	if IslandService._folder ~= folder then
+		IslandService._folder = folder
+		table.clear(IslandService._islands)
+		table.clear(IslandService._byId)
+		table.clear(IslandService._npcs)
+		table.clear(IslandService._dockColliders)
+		table.clear(IslandService._endlessQueued)
+	end
 
-	table.clear(IslandService._islands)
-	table.clear(IslandService._byId)
-	table.clear(IslandService._npcs)
-	table.clear(IslandService._dockColliders)
-	table.clear(IslandService._endlessQueued)
-
+	local failures = {}
 	for i, entry in Config.Islands.Catalog do
-		local record = buildFlatIsland(entry, folder)
-		table.insert(IslandService._islands, record)
-		IslandService._byId[record.id] = record
+		if not IslandService._byId[entry.Id] then
+			-- Clean up a model left half-built by an earlier attempt, then continue
+			-- with every other catalog island even if this one has a bad feature.
+			local partial = folder:FindFirstChild(`Isle_{entry.Id}`)
+			if partial then
+				partial:Destroy()
+			end
+			local ok, recordOrError = pcall(buildFlatIsland, entry, folder)
+			if ok then
+				local record = recordOrError :: IslandRecord
+				table.insert(IslandService._islands, record)
+				IslandService._byId[record.id] = record
+			else
+				table.insert(failures, `{entry.Id}: {recordOrError}`)
+				warn(`[SurviveAtSea] Island {entry.Id} failed; continuing with the remaining islands:`, recordOrError)
+			end
+		end
 		-- These flats are huge (thousands of parts each). Yield between isles so a
 		-- cold boot can't exhaust the script execution budget building them all at
-		-- once. Safe: ensure() is only ever called off the critical portal path.
+		-- once. Successful islands remain in place if a later island needs a retry.
 		if i < #Config.Islands.Catalog then
 			task.wait()
 		end
@@ -3597,6 +3612,9 @@ function IslandService.ensure(): Folder
 	end
 
 	IslandService.paintTerrain()
+	if #failures > 0 then
+		error(`{#failures} voyage island(s) still need retry: {table.concat(failures, " | ")}`)
+	end
 	print(`[SurviveAtSea] {#IslandService._islands} massive voxel-terrain isles ready (organic coastlines, twin-peak rope-bridge stacks, beaches, hills & rocky peaks, jungle, villages/towns, loot, visit lockout)`)
 	return folder
 end

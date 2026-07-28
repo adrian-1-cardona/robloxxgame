@@ -28,6 +28,9 @@ local inputBeganConn: RBXScriptConnection? = nil
 local inputEndedConn: RBXScriptConnection? = nil
 local HelmDismountRemote: RemoteEvent? = nil
 local HelmThrottleRemote: RemoteEvent? = nil
+local previousCameraMode: Enum.CameraMode? = nil
+local previousMinZoom: number? = nil
+local previousMaxZoom: number? = nil
 
 -- Keyboard / touch button holds
 local forwardHeld = false
@@ -321,6 +324,33 @@ local function currentThrottle(): number
 	return 0
 end
 
+local function setHelmCamera(active: boolean)
+	if VRService.VREnabled then
+		return
+	end
+
+	if active then
+		if previousCameraMode == nil then
+			previousCameraMode = player.CameraMode
+			previousMinZoom = player.CameraMinZoomDistance
+			previousMaxZoom = player.CameraMaxZoomDistance
+		end
+		-- Pull the normal Roblox camera behind and above the character. This keeps
+		-- the wheel, mast, horizon, and shoreline visible while look-to-steer still
+		-- reads the camera's forward direction.
+		player.CameraMode = Enum.CameraMode.Classic
+		player.CameraMinZoomDistance = Config.Helm.CameraDistance
+		player.CameraMaxZoomDistance = Config.Helm.CameraDistance
+	else
+		player.CameraMode = previousCameraMode or Enum.CameraMode.LockFirstPerson
+		player.CameraMinZoomDistance = previousMinZoom or 0.5
+		player.CameraMaxZoomDistance = previousMaxZoom or 120
+		previousCameraMode = nil
+		previousMinZoom = nil
+		previousMaxZoom = nil
+	end
+end
+
 local function requestDismount()
 	if helming and HelmDismountRemote then
 		HelmDismountRemote:FireServer()
@@ -340,6 +370,7 @@ end
 
 local function stopSending()
 	helming = false
+	setHelmCamera(false)
 	sendAccum = 0
 	throttleSendAccum = 0
 	lastSentThrottle = 0
@@ -370,6 +401,7 @@ local function startSending(HelmLook: RemoteEvent)
 		return
 	end
 	helming = true
+	setHelmCamera(true)
 	forwardHeld = false
 	backwardHeld = false
 	lastSentThrottle = 0
