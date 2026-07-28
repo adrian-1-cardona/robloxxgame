@@ -220,9 +220,13 @@ local function destroyMobileGui()
 	end
 end
 
+local function isVoyageActive(): boolean
+	return player:GetAttribute("VoyageActive") == true
+end
+
 local function ensureMobileGui()
 	local kind = PlatformInput.getDeviceKind()
-	if kind ~= "Phone" and kind ~= "Tablet" then
+	if (kind ~= "Phone" and kind ~= "Tablet") or not isVoyageActive() then
 		destroyMobileGui()
 		return
 	end
@@ -388,6 +392,12 @@ function DragController.start()
 	player.CharacterAdded:Connect(function()
 		endDrag()
 		task.defer(ensureMobileGui)
+	end)
+	player:GetAttributeChangedSignal("VoyageActive"):Connect(function()
+		if not isVoyageActive() then
+			endDrag()
+		end
+		ensureMobileGui()
 	end)
 end
 

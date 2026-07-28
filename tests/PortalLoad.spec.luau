@@ -213,6 +213,7 @@ local function resetPlayers()
 end
 
 local function newPlayer(userId: number, displayName: string?)
+	local attributes = {}
 	local player = {
 		UserId = userId,
 		Name = displayName or ("User" .. userId),
@@ -220,6 +221,12 @@ local function newPlayer(userId: number, displayName: string?)
 		Character = nil,
 		RespawnLocation = nil,
 	}
+	function player:SetAttribute(name, value)
+		attributes[name] = value
+	end
+	function player:GetAttribute(name)
+		return attributes[name]
+	end
 	fakePlayersById[userId] = player
 	table.insert(fakePlayerOrder, player)
 	return player
@@ -517,6 +524,7 @@ it("walking a portal loads the host onto their raft (create crew)", function()
 	assertTrue(type(snapshot.code) == "string" and #snapshot.code >= 4, "crew code missing/short")
 	assertEquals(snapshot.hostUserId, host.UserId, "host mismatch")
 	assertEquals(#snapshot.members, 1, "new crew should have exactly the host")
+	assertTrue(host:GetAttribute("VoyageActive") == true, "host should be marked as active on the voyage")
 
 	-- "Loaded into the game" = a raft was ensured AND the host was teleported onto it.
 	assertTrue(#calls.ensureBase >= 1, "no raft base was built for the crew")
@@ -577,6 +585,7 @@ it("a friend can load in by crew code", function()
 		end
 	end
 	assertTrue(friendSeated, "friend was not seated onto the raft")
+	assertTrue(friend:GetAttribute("VoyageActive") == true, "joined player should be marked as active on the voyage")
 end)
 
 it("a wrong code does not load anyone in", function()
@@ -623,6 +632,7 @@ it("portals stay reusable & Ready after a crew empties out", function()
 	local leftOk = svc.leaveParty(host)
 	assertTrue(leftOk, "leaveParty should succeed")
 	assertTrue(not svc.isInParty(host), "player should be off the crew after leaving")
+	assertTrue(host:GetAttribute("VoyageActive") == false, "lobby player should not retain voyage-only controls")
 	assertTrue(#calls.destroyBase >= 1, "empty crew's raft should be torn down")
 
 	-- Regression guard: after a crew empties, every portal must still be Ready
