@@ -297,6 +297,49 @@ local function buildVillageForestTree(model: Model, topY: number, x: number, z: 
 	end
 end
 
+-- Tall tiered canopy used between the spreading broadleaf trees. Alternating these
+-- silhouettes reproduces the reference forest's deep layers instead of making every
+-- tree the same five-block crown.
+local function buildTieredForestTree(model: Model, topY: number, x: number, z: number, scale: number?)
+	local s = scale or (0.9 + math.random() * 0.5)
+	local trunkH = (32 + math.random() * 22) * s
+	makePart({
+		Name = "TieredForestTrunk",
+		Parent = model,
+		Size = Vector3.new(2.2 * s, trunkH, 2.2 * s),
+		CFrame = CFrame.new(x, topY + trunkH * 0.5, z),
+		Color = Color3.fromRGB(92, 60, 38),
+		Material = Enum.Material.Wood,
+		CanCollide = false,
+	})
+	local greens = {
+		Color3.fromRGB(24, 94, 39),
+		Color3.fromRGB(31, 118, 47),
+		Color3.fromRGB(42, 139, 54),
+	}
+	for tier = 1, 5 do
+		local width = (18 - tier * 2.1) * s
+		local y = topY + trunkH * 0.4 + tier * 5.2 * s
+		makePart({
+			Name = "TieredCanopy",
+			Parent = model,
+			Size = Vector3.new(width, 4.2 * s, width),
+			CFrame = CFrame.new(x, y, z) * CFrame.Angles(0, math.rad(tier * 13), 0),
+			Color = greens[((tier - 1) % #greens) + 1],
+			Material = Enum.Material.Grass,
+			CanCollide = false,
+		})
+	end
+end
+
+local function terrainSurfaceY(x: number, z: number, fallbackY: number): number
+	local result = Workspace:Raycast(Vector3.new(x, fallbackY + 180, z), Vector3.new(0, -360, 0))
+	if result then
+		return result.Position.Y
+	end
+	return fallbackY
+end
+
 -- A dense outer woodland keeps the view from each village framed by hills and trees,
 -- while leaving the centre open for streets, houses, and safe player movement.
 local function scatterSettlementForest(
@@ -324,7 +367,12 @@ local function scatterSettlementForest(
 				continue
 			end
 		end
-		buildVillageForestTree(model, topY, x, z)
+		local groundY = terrainSurfaceY(x, z, topY)
+		if math.random() < 0.3 then
+			buildTieredForestTree(model, groundY, x, z)
+		else
+			buildVillageForestTree(model, groundY, x, z)
+		end
 	end
 end
 
@@ -1618,6 +1666,24 @@ local function generateIslandTerrain(
 			Vector3.new(river.width - 5, surfaceY + 16, river.length + 12),
 			Enum.Material.Water
 		)
+
+		-- Broken rock walls and raised grassy shoulders give the channel the wooded
+		-- ravine profile from the reference. They remain outside the raft-safe width.
+		local bankOffset = river.width * 0.5 + 18
+		local segments = 18
+		for i = 1, segments do
+			local along = -river.length * 0.42 + (i - 1) * (river.length * 0.84 / (segments - 1))
+			for _, side in { -1, 1 } do
+				local jitter = rng:NextNumber(-8, 8)
+				local localBank = Vector3.new(side * (bankOffset + jitter), topY + 2, along)
+				local bank = riverCf:PointToWorldSpace(localBank)
+				Terrain:FillBall(bank, rng:NextNumber(10, 18), Enum.Material.Rock)
+				local shoulder = riverCf:PointToWorldSpace(
+					Vector3.new(side * (bankOffset + 28), topY + rng:NextNumber(8, 18), along)
+				)
+				Terrain:FillBall(shoulder, rng:NextNumber(22, 38), grassMat)
+			end
+		end
 	end
 end
 

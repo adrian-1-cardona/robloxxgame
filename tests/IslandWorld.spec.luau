@@ -50,6 +50,15 @@ check(
 	string.find(village, "local bankOffset =", 1, true) ~= nil
 		and string.find(village, "riverCf:PointToObjectSpace", 1, true) ~= nil
 )
+check(
+	"reference forest uses mixed broad and tiered canopies",
+	string.find(islands, "buildVillageForestTree", 1, true) ~= nil
+		and string.find(islands, "buildTieredForestTree", 1, true) ~= nil
+)
+check(
+	"river terrain includes rocky ravine banks",
+	string.find(islands, "Broken rock walls and raised grassy shoulders", 1, true) ~= nil
+)
 
 print(`\nResults: {passed} passed, {failed} failed\n`)
 if failed > 0 then
