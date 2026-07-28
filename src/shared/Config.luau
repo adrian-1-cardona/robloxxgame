@@ -19,12 +19,14 @@ local Config = {
 	-- Spread three portals across the pier without clipping the rails (≈±38)
 	PortalSpacing = 24,
 
-	-- Starter base: one huge square wooden plank per crew (not scaled by party size).
+	-- Starter base: one compact square wooden raft per crew (not scaled by party size).
 	-- Spawned after create/join so the portal flow lands you on your base immediately.
 	-- Bases are Models with a PrimaryPart so they can be moved later (sea drift / voyage).
 	StarterBase = {
 		-- Fixed footprint — same for solo or full (10) crews
-		SizeStuds = 72,
+		-- Slightly smaller than the original 72-stud deck so the surrounding island
+		-- hubs dominate the opening view while ten players still have room to move.
+		SizeStuds = 64,
 		Thickness = 3,
 		-- Far open ocean — lobby pier is well beyond fog so it feels like a new place
 		Origin = Vector3.new(0, 2.2, 3200),
@@ -99,7 +101,7 @@ local Config = {
 		PulseSeconds = 2.5,
 			MinSizeStuds = 850,
 			MaxSizeStuds = 1250,
-			-- The channel is deliberately much wider than the 72-stud starter raft,
+			-- The channel is deliberately much wider than the 64-stud starter raft,
 			-- leaving room to turn instead of forcing a pixel-perfect approach.
 			RiverWidth = 260,
 		},
@@ -110,8 +112,8 @@ local Config = {
 		ApproachPadStuds = 220,
 		-- Solid-shoreline collision: rafts can NEVER drive up onto an isle. Sailing into
 		-- one stops the raft dead at the sand's edge (you run aground). This is the gap
-		-- kept between the isle's sand radius and the raft's center (raft is ~72 wide, so
-		-- ~40 leaves the hull nosing the beach without clipping through it).
+		-- kept between the isle's sand radius and the raft's center (raft is 64 wide, so
+		-- 40 leaves the hull nosing the beach without clipping through it).
 		RaftCollisionPad = 40,
 
 		-- Legacy hostile "pirate" tuning — kept for back-compat; hostile villagers reuse it.
@@ -194,16 +196,17 @@ local Config = {
 		-- you land.
 		Catalog = {
 			-- Twelve sculpted islands form a complete archipelago around the central
-			-- voyage hub. The clear inner basin gives every crew room to board, turn, and
-			-- choose a destination instead of spawning against a wall of terrain.
+			-- voyage hub. Their 2,100-stud ring stays inside the opening 4K streaming
+			-- target, so every high-detail silhouette is present and visible from the raft.
+			-- The clear inner basin still gives every crew room to board and choose a route.
 			{
 				Id = "tide_flat",
 				Name = "Greenwood Landing",
 				-- Directly north of spawn: a dense old-growth forest surrounds a medieval
 				-- village clearing. A navigable river cuts through the woods to the harbour;
 				-- sand is limited to a narrow shoreline instead of covering the whole island.
-				Offset = Vector3.new(0, 0, -2600),
-				SizeStuds = 1200,
+				Offset = Vector3.new(0, 0, -2100),
+				SizeStuds = 1100,
 				Biome = "jungle",
 				Theme = "village",
 				Abandoned = false,
@@ -222,8 +225,8 @@ local Config = {
 				Name = "Quiet Sand",
 				-- A snug medieval fishing village on a temperate headland: timber cottages,
 				-- fish-drying racks, a banded stone lighthouse and two piers out over the water.
-				Offset = Vector3.new(1300, 0, -2252),
-				SizeStuds = 1200,
+				Offset = Vector3.new(1050, 0, -1819),
+				SizeStuds = 1100,
 				Biome = "highland",
 				Theme = "fishing_village",
 				Abandoned = false,
@@ -243,8 +246,8 @@ local Config = {
 				Name = "Smuggler Hollow",
 				-- A small tropical isle built around a smoking lava cone — palms, gems and a
 				-- single hidden smugglers' pier.
-				Offset = Vector3.new(2252, 0, -1300),
-				SizeStuds = 1200,
+				Offset = Vector3.new(1819, 0, -1050),
+				SizeStuds = 1100,
 				Biome = "volcanic",
 				Theme = "village",
 				Abandoned = false,
@@ -260,8 +263,8 @@ local Config = {
 				-- The flagship: a big medieval seaside town lit up with people and life — a
 				-- church and grand manors at its heart, a lighthouse on the point, and three
 				-- busy piers along the harbour front (the postcard "seaside village" isle).
-				Offset = Vector3.new(2600, 0, 0),
-				SizeStuds = 1200,
+				Offset = Vector3.new(2100, 0, 0),
+				SizeStuds = 1100,
 				Biome = "highland",
 				Theme = "town",
 				Abandoned = false,
@@ -284,8 +287,8 @@ local Config = {
 				Name = "Crow Cay",
 				-- A tropical stone town clinging to the slopes of an active volcano — lava glow
 				-- over cobblestone streets, a church, and two harbour piers.
-				Offset = Vector3.new(2252, 0, 1300),
-				SizeStuds = 1200,
+				Offset = Vector3.new(1819, 0, 1050),
+				SizeStuds = 1100,
 				Biome = "volcanic",
 				Theme = "stone_town",
 				Abandoned = false,
@@ -303,8 +306,8 @@ local Config = {
 				Name = "Riverlands",
 				-- A huge jungle island split by a sea-to-sea river. The channel is wide
 				-- enough for the starter raft, creating a proper helm voyage inland.
-				Offset = Vector3.new(1300, 0, 2252),
-				SizeStuds = 1200,
+				Offset = Vector3.new(1050, 0, 1819),
+				SizeStuds = 1100,
 				Biome = "jungle",
 				Theme = "town",
 				Abandoned = false,
@@ -322,8 +325,8 @@ local Config = {
 				Name = "Bastion Keep",
 				-- A castle on a green mountain isle: a snow-capped peak behind the keep and a
 				-- glassy lake below with its own jetty.
-				Offset = Vector3.new(0, 0, 2600),
-				SizeStuds = 1200,
+				Offset = Vector3.new(0, 0, 2100),
+				SizeStuds = 1100,
 				Biome = "mountain",
 				Theme = "castle",
 				Abandoned = false,
@@ -338,8 +341,8 @@ local Config = {
 				Name = "King's Hold",
 				-- A mightier mountain-lake stronghold — a torch-lit walled keep beside a
 				-- waterfall-fed lake, a lakeside jetty and a sea pier below the cliffs.
-				Offset = Vector3.new(-1300, 0, 2252),
-				SizeStuds = 1200,
+				Offset = Vector3.new(-1050, 0, 1819),
+				SizeStuds = 1100,
 				Biome = "mountain",
 				Theme = "castle",
 				Abandoned = false,
@@ -353,8 +356,8 @@ local Config = {
 			{
 				Id = "drift_shack",
 				Name = "Drift Shack",
-				Offset = Vector3.new(-2252, 0, 1300),
-				SizeStuds = 1200,
+				Offset = Vector3.new(-1819, 0, 1050),
+				SizeStuds = 1100,
 				Biome = "jungle",
 				-- A whole town, long abandoned and reclaimed by the jungle (ruined houses,
 				-- cold pits, a rotting pier and only a few feral scavengers left).
@@ -376,8 +379,8 @@ local Config = {
 				-- sail the channels between every island.
 				-- A dead volcanic spit strewn with shipwrecks — a smoking cone and one
 				-- half-collapsed pier.
-				Offset = Vector3.new(-2600, 0, 0),
-				SizeStuds = 1200,
+				Offset = Vector3.new(-2100, 0, 0),
+				SizeStuds = 1100,
 				Biome = "volcanic",
 				Theme = "abandoned",
 				Abandoned = true,
@@ -392,8 +395,8 @@ local Config = {
 				Name = "Mistwood Crossing",
 				-- Layered forest hills, a broad river ravine, and a bridge settlement
 				-- inspired by the deep green forest reference.
-				Offset = Vector3.new(-2252, 0, -1300),
-				SizeStuds = 1200,
+				Offset = Vector3.new(-1819, 0, -1050),
+				SizeStuds = 1100,
 				Biome = "jungle",
 				Theme = "village",
 				Abandoned = false,
@@ -411,8 +414,8 @@ local Config = {
 				Name = "Lantern Port",
 				-- A dense timber harbour town with a lighthouse, church, stacked roofs,
 				-- waterfront piers, and a forested ridge behind it.
-				Offset = Vector3.new(-1300, 0, -2252),
-				SizeStuds = 1200,
+				Offset = Vector3.new(-1050, 0, -1819),
+				SizeStuds = 1100,
 				Biome = "highland",
 				Theme = "town",
 				Abandoned = false,

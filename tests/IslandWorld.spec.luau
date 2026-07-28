@@ -39,8 +39,10 @@ local _, islandCount = string.gsub(catalog, '\n\t\t\t\tId = "', "")
 
 check("opening catalog contains twelve islands around the hub", islandCount == 12)
 check("at least one opening island has a river", string.find(catalog, "River = true", 1, true) ~= nil)
-check("river is much wider than the 72-stud raft", string.find(catalog, "RiverWidth = 300", 1, true) ~= nil)
-check("nearest island leaves a clear central hub basin", string.find(catalog, "Offset = Vector3.new(0, 0, -2600)", 1, true) ~= nil)
+check("starter raft is a compact 64-stud voyage platform", string.find(config, "SizeStuds = 64", 1, true) ~= nil)
+check("river is much wider than the 64-stud raft", string.find(catalog, "RiverWidth = 300", 1, true) ~= nil)
+check("opening island ring sits within the 4K streaming target", string.find(catalog, "Offset = Vector3.new(0, 0, -2100)", 1, true) ~= nil)
+check("opening islands use a high-detail 1,100-stud footprint", string.find(catalog, "SizeStuds = 1100", 1, true) ~= nil)
 check("spawn raft is presented as the central voyage hub", string.find(starterBase, 'hub.Name = "VoyageHub"', 1, true) ~= nil)
 check("flat cylinder preview disks stay removed", string.find(islands, 'Name = "ForestFloor"', 1, true) == nil)
 check(
@@ -66,6 +68,22 @@ check(
 	"reference forest uses mixed broad and tiered canopies",
 	string.find(islands, "buildVillageForestTree", 1, true) ~= nil
 		and string.find(islands, "buildTieredForestTree", 1, true) ~= nil
+)
+check(
+	"island hubs include landmark trails lined with shrubs",
+	string.find(islands, "buildIslandTrailNetwork", 1, true) ~= nil
+		and string.find(islands, 'Name = "ScenicPath"', 1, true) ~= nil
+		and string.find(islands, "buildBush(model", 1, true) ~= nil
+)
+check(
+	"mountain hubs carry the reference hot-air-balloon skyline",
+	string.find(islands, "buildHotAirBalloon", 1, true) ~= nil
+		and string.find(islands, 'balloon.Name = "HotAirBalloon"', 1, true) ~= nil
+)
+check(
+	"towns include a dense harbour-facing building row",
+	string.find(village, "local waterfrontCount =", 1, true) ~= nil
+		and string.find(village, "waterfrontZ", 1, true) ~= nil
 )
 check(
 	"river terrain includes rocky ravine banks",

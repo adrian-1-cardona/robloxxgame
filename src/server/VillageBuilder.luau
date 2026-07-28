@@ -1496,9 +1496,29 @@ function VillageBuilder.build(
 	if abandoned then
 		houseCount = if isTown then math.random(10, 16) else math.random(5, 9)
 	elseif isTown then
-		houseCount = math.clamp(math.floor(totalPop / 2) + 10, 16, 32)
+		-- Dense waterfront skyline from the town reference: close-set rooflines,
+		-- multiple streets, and enough buildings to feel like a real port.
+		houseCount = math.clamp(math.floor(totalPop / 2) + 16, 24, 40)
 	else
-		houseCount = math.clamp(math.floor(totalPop / 2) + 6, 8, 16)
+		houseCount = math.clamp(math.floor(totalPop / 2) + 9, 12, 20)
+	end
+
+	-- A deliberate harbour-facing row gives living towns the layered dockside
+	-- silhouette in the reference instead of leaving houses evenly scattered.
+	if not abandoned and (isTown or theme == "fishing_village") then
+		local waterfrontCount = if isTown then 7 else 5
+		local waterfrontZ = center.Z + villageRadius * 0.72
+		for i = 1, waterfrontCount do
+			local alpha = if waterfrontCount == 1 then 0.5 else (i - 1) / (waterfrontCount - 1)
+			local x = center.X + (alpha - 0.5) * villageRadius * 1.25
+			local pos = Vector3.new(x, topY, waterfrontZ + math.sin(i * 1.9) * 4)
+			buildHouse(villageFolder, CFrame.lookAt(pos, pos + Vector3.new(0, 0, 20)), {
+				cobblestone = cobble,
+				ruined = false,
+				islandId = islandId,
+			})
+			table.insert(villagerSpots, pos + Vector3.new(0, 2.5, -8))
+		end
 	end
 	local villagerSpots: { Vector3 } = {}
 
