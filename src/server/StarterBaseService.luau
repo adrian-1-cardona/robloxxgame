@@ -300,9 +300,14 @@ function StarterBaseService.teleportPlayerToBase(player: Player, baseSlot: numbe
 	if not character then
 		return
 	end
+	local spawnCFrame = StarterBaseService.getSpawnCFrame(baseSlot, slotIndex)
+	-- Pivoting the character model does not depend on HumanoidRootPart having
+	-- replicated on this exact frame, so boarding cannot silently do nothing.
+	character:PivotTo(spawnCFrame)
 	local root = character:FindFirstChild("HumanoidRootPart")
 	if root and root:IsA("BasePart") then
-		root.CFrame = StarterBaseService.getSpawnCFrame(baseSlot, slotIndex)
+		root.AssemblyLinearVelocity = Vector3.zero
+		root.AssemblyAngularVelocity = Vector3.zero
 	end
 	-- Bind respawn to this raft so death returns here (for now)
 	for _, model in StarterBaseService._basesByCode do

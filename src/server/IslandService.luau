@@ -140,6 +140,90 @@ local function worldCenterForOffset(offset: Vector3, topY: number, thickness: nu
 	return Vector3.new(origin.X + offset.X, topY - thickness * 0.5, origin.Z + offset.Z)
 end
 
+-- Put a lightweight green foundation at every opening-ring location before the
+-- expensive terrain, village, and loot passes begin. Players immediately see ten
+-- distinct destinations on a cold server; each preview is removed only after its
+-- fully detailed replacement succeeds.
+local function ensureOpeningPreviews(folder: Folder)
+	local previews = folder:FindFirstChild("OpeningPreviews")
+	if not previews then
+		previews = Instance.new("Folder")
+		previews.Name = "OpeningPreviews"
+		previews.Parent = folder
+	end
+
+	for _, entry in Config.Islands.Catalog do
+		local previewName = `Preview_{entry.Id}`
+		if previews:FindFirstChild(previewName) or IslandService._byId[entry.Id] then
+			continue
+		end
+
+		local center = worldCenterForOffset(entry.Offset, Config.Islands.TopY, Config.Islands.Thickness)
+		local size = entry.SizeStuds
+		local preview = Instance.new("Model")
+		preview.Name = previewName
+		preview.Parent = previews
+
+		-- A slim sand lip under a much broader grass cap keeps the opening ring green.
+		makePart({
+			Name = "Shore",
+			Parent = preview,
+			Size = Vector3.new(10, size * 0.96, size * 0.96),
+			CFrame = CFrame.new(center.X, Config.Islands.TopY - 4, center.Z)
+				* CFrame.Angles(0, 0, math.rad(90)),
+			Color = Color3.fromRGB(218, 199, 151),
+			Material = Enum.Material.Sand,
+			Shape = Enum.PartType.Cylinder,
+		})
+		makePart({
+			Name = "ForestFloor",
+			Parent = preview,
+			Size = Vector3.new(8, size * 0.88, size * 0.88),
+			CFrame = CFrame.new(center.X, Config.Islands.TopY, center.Z)
+				* CFrame.Angles(0, 0, math.rad(90)),
+			Color = Color3.fromRGB(45, 116, 52),
+			Material = Enum.Material.Grass,
+			Shape = Enum.PartType.Cylinder,
+		})
+
+		-- Cheap block-tree silhouettes communicate each island's biome immediately.
+		-- Greenwood gets a denser preview because it is the player's first landfall.
+		local previewSeed = 23
+		for index = 1, #entry.Id do
+			previewSeed = (previewSeed * 37 + string.byte(entry.Id, index)) % 2147483647
+		end
+		local rng = Random.new(previewSeed)
+		local treeCount = if entry.Id == "tide_flat" then 34 elseif entry.Biome == "jungle" then 16 else 8
+		for i = 1, treeCount do
+			local angle = rng:NextNumber(0, math.pi * 2)
+			local radius = rng:NextNumber(size * 0.16, size * 0.38)
+			local x = center.X + math.cos(angle) * radius
+			local z = center.Z + math.sin(angle) * radius
+			local trunkH = rng:NextNumber(24, 42)
+			makePart({
+				Name = `PreviewTrunk_{i}`,
+				Parent = preview,
+				Size = Vector3.new(3.5, trunkH, 3.5),
+				CFrame = CFrame.new(x, Config.Islands.TopY + trunkH * 0.5, z),
+				Color = Color3.fromRGB(105, 70, 40),
+				Material = Enum.Material.Wood,
+				CanCollide = false,
+				CastShadow = false,
+			})
+			makePart({
+				Name = `PreviewCanopy_{i}`,
+				Parent = preview,
+				Size = Vector3.new(18, 12, 18),
+				CFrame = CFrame.new(x, Config.Islands.TopY + trunkH + 3, z),
+				Color = Color3.fromRGB(35, rng:NextInteger(105, 145), 48),
+				Material = Enum.Material.Grass,
+				CanCollide = false,
+				CastShadow = false,
+			})
+		end
+	end
+end
+
 local function ensureCrewState(code: string, islandId: string): CrewIslandState
 	local byIsle = IslandService._crewState[code]
 	if not byIsle then
@@ -3562,27 +3646,48 @@ function IslandService.ensure(): Folder
 		return folder
 	end
 
-	if folder then
-		folder:Destroy()
+	if not (folder and folder:IsA("Folder")) then
+		folder = Instance.new("Folder")
+		folder.Name = "DriveIslands"
+		folder.Parent = lobbyRoot()
 	end
-	folder = Instance.new("Folder")
-	folder.Name = "DriveIslands"
-	folder.Parent = lobbyRoot()
-	IslandService._folder = folder
+	if IslandService._folder ~= folder then
+		IslandService._folder = folder
+		table.clear(IslandService._islands)
+		table.clear(IslandService._byId)
+		table.clear(IslandService._npcs)
+		table.clear(IslandService._dockColliders)
+		table.clear(IslandService._endlessQueued)
+	end
+	ensureOpeningPreviews(folder)
 
-	table.clear(IslandService._islands)
-	table.clear(IslandService._byId)
-	table.clear(IslandService._npcs)
-	table.clear(IslandService._dockColliders)
-	table.clear(IslandService._endlessQueued)
-
+	local failures = {}
 	for i, entry in Config.Islands.Catalog do
-		local record = buildFlatIsland(entry, folder)
-		table.insert(IslandService._islands, record)
-		IslandService._byId[record.id] = record
+		if not IslandService._byId[entry.Id] then
+			-- Clean up a model left half-built by an earlier attempt, then continue
+			-- with every other catalog island even if this one has a bad feature.
+			local partial = folder:FindFirstChild(`Isle_{entry.Id}`)
+			if partial then
+				partial:Destroy()
+			end
+			local ok, recordOrError = pcall(buildFlatIsland, entry, folder)
+			if ok then
+				local record = recordOrError :: IslandRecord
+				table.insert(IslandService._islands, record)
+				IslandService._byId[record.id] = record
+				local previews = folder:FindFirstChild("OpeningPreviews")
+				local preview = previews and previews:FindFirstChild(`Preview_{entry.Id}`)
+				if preview then
+					preview:Destroy()
+				end
+			else
+				table.insert(failures, `{entry.Id}: {recordOrError}`)
+				warn(`[SurviveAtSea] Island {entry.Id} failed; continuing with the remaining islands:`, recordOrError)
+			end
+		end
 		-- These flats are huge (thousands of parts each). Yield between isles so a
 		-- cold boot can't exhaust the script execution budget building them all at
-		-- once. Safe: ensure() is only ever called off the critical portal path.
+		-- once. Successful islands remain in place if a later island needs a retry.
 		if i < #Config.Islands.Catalog then
 			task.wait()
 		end
@@ -3597,6 +3702,9 @@ function IslandService.ensure(): Folder
 	end
 
 	IslandService.paintTerrain()
+	if #failures > 0 then
+		error(`{#failures} voyage island(s) still need retry: {table.concat(failures, " | ")}`)
+	end
 	print(`[SurviveAtSea] {#IslandService._islands} massive voxel-terrain isles ready (organic coastlines, twin-peak rope-bridge stacks, beaches, hills & rocky peaks, jungle, villages/towns, loot, visit lockout)`)
 	return folder
 end

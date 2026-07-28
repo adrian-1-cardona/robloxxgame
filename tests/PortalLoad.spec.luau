@@ -505,6 +505,14 @@ it("lobby exposes at least one boarding portal", function()
 	assertTrue(Config.PortalCount >= 1, "there must be at least one pier portal")
 end)
 
+it("opening voyage contains the full ten-island ring", function()
+	assertEquals(#Config.Islands.Catalog, 10, "opening voyage must contain exactly ten islands")
+	local first = Config.Islands.Catalog[1]
+	assertEquals(first.Biome, "jungle", "first landfall must be forested")
+	assertEquals(first.Theme, "village", "first forest must contain a village")
+	assertTrue(first.River == true, "first forest must retain a navigable river")
+end)
+
 it("every pier portal reports Ready before anyone boards", function()
 	local svc = freshPartyService()
 	local infos = svc.getPortalInfos()
@@ -512,6 +520,40 @@ it("every pier portal reports Ready before anyone boards", function()
 	for _, info in infos do
 		assertEquals(info.status, "Ready", `portal {info.portalIndex} not Ready`)
 	end
+end)
+
+it("boarding is not gated on voyage island generation", function()
+	local bootstrap = fs.readFile(ROOT .. "src/server/Bootstrap.server.luau")
+	local createStart = string.find(bootstrap, "CreateParty.OnServerEvent:Connect", 1, true)
+	local joinStart = string.find(bootstrap, "JoinParty.OnServerEvent:Connect", 1, true)
+	assertTrue(createStart ~= nil and joinStart ~= nil, "could not locate boarding handlers")
+	local createHandler = string.sub(bootstrap, createStart, joinStart - 1)
+	assertTrue(
+		string.find(createHandler, "voyageWorldReady", 1, true) == nil,
+		"CreateParty must never wait for voyageWorldReady"
+	)
+	assertTrue(
+		string.find(bootstrap, "PortalService.setBoardingReady(true)", 1, true) ~= nil,
+		"portals must become interactive immediately"
+	)
+	local oceanStart = string.find(bootstrap, "OceanTerrainService.start()", 1, true)
+	local islandStart = string.find(bootstrap, "IslandService.start(", 1, true)
+	assertTrue(
+		oceanStart ~= nil and islandStart ~= nil and oceanStart < islandStart,
+		"water must start before expensive island construction"
+	)
+end)
+
+it("server-replicated prompts have only one owner", function()
+	local clientBootstrap = fs.readFile(ROOT .. "src/client/init.client.luau")
+	assertTrue(
+		string.find(clientBootstrap, "if builtLocalLobby then", 1, true) ~= nil,
+		"client prompt fallback must be restricted to a locally built emergency lobby"
+	)
+	assertTrue(
+		string.find(clientBootstrap, "Workspace.ChildAdded:Connect", 1, true) == nil,
+		"client fallback must not attach itself to a later server-replicated lobby"
+	)
 end)
 
 it("walking a portal loads the host onto their raft (create crew)", function()
