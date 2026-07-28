@@ -110,11 +110,10 @@ local Config = {
 		LockoutStuds = 2000,
 		-- Extra pad outside the sand when a locked crew tries to sail back in
 		ApproachPadStuds = 220,
-		-- Solid-shoreline collision: rafts can NEVER drive up onto an isle. Sailing into
-		-- one stops the raft dead at the sand's edge (you run aground). This is the gap
-		-- kept between the isle's sand radius and the raft's center (raft is 64 wide, so
-		-- 40 leaves the hull nosing the beach without clipping through it).
-		RaftCollisionPad = 40,
+		-- Solid-shoreline collision: the complete raft footprint must remain over water.
+		-- The extra hull margin keeps corners and passengers out of terrain even during a
+		-- high-speed, low-frame-rate approach.
+		RaftCollisionPad = 52,
 
 		-- Legacy hostile "pirate" tuning — kept for back-compat; hostile villagers reuse it.
 		Pirate = {
@@ -175,7 +174,7 @@ local Config = {
 		--     beach/palm/jungle → sandy tropical isles; highland → temperate grass + pines
 		--     (medieval seaside look); volcanic → tropical isle around a smoking lava cone;
 		--     mountain → snow-capped peak + a freshwater lake with a waterfall off the cliff;
-		--     twin_peaks → two blocky low-poly rock stacks on sand pads, linked by a rope bridge.
+		--     twin_peaks → two blocky low-poly rock stacks on separate sand pads.
 		--   Theme: "wild" | "fishing_village" | "village" | "town" | "stone_town"
 		--        | "castle" | "abandoned"
 		-- Optional per-isle flags read by VillageBuilder / IslandService:
@@ -190,10 +189,8 @@ local Config = {
 		--   Lighthouse = true → a tall banded stone lighthouse on the shore (seaside towns)
 		--   Volcano    = true → force/allow the central lava cone on a "volcanic" biome isle
 		--
-		-- NOTE: villagers no longer spawn at world-gen. Islands start empty of people and
-		-- come to life the moment a crew first sets foot on them (see IslandService
-		-- populateIsland) — so there are no villagers at the start, but a living town when
-		-- you land.
+		-- Villagers spawn with the opening archipelago. Towns must already look inhabited
+		-- from the raft; landing is not required to make their residents appear.
 		Catalog = {
 			-- Twelve sculpted islands form a complete archipelago around the central
 			-- voyage hub. Their 2,100-stud ring stays inside the opening 4K streaming
@@ -232,7 +229,7 @@ local Config = {
 				Abandoned = false,
 				Merchant = true,
 				Lighthouse = true,
-				-- A winding harbour channel and bridge make this one of the first
+				-- A winding open harbour channel makes this one of the first
 				-- proper river landfalls crews see after leaving the spawn raft.
 				River = true,
 				RiverAngle = 0.82,
@@ -393,7 +390,7 @@ local Config = {
 			{
 				Id = "mistwood",
 				Name = "Mistwood Crossing",
-				-- Layered forest hills, a broad river ravine, and a bridge settlement
+				-- Layered forest hills, a broad river ravine, and a bank-side settlement
 				-- inspired by the deep green forest reference.
 				Offset = Vector3.new(-1819, 0, -1050),
 				SizeStuds = 1100,

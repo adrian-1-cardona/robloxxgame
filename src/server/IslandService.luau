@@ -37,8 +37,7 @@ export type IslandRecord = {
 	-- A channel cut all the way through a large island. The helm uses this to allow
 	-- boats through the river rather than treating the whole island as solid shore.
 	river: { cframe: CFrame, width: number, length: number }?,
-	-- Villagers are spawned lazily (see populateIsland) the first time a crew lands, so
-	-- the world starts with no villagers. This plan holds what to spawn and where.
+	-- Spawn plan retained for deterministic population and testability.
 	villagerPlan: {
 		spots: { Vector3 },
 		passive: number,
@@ -1315,9 +1314,8 @@ local function spawnVillager(island: IslandRecord, cf: CFrame, kind: string): Mo
 	return model
 end
 
--- Bring an island's people to life. Villagers are NOT spawned at world-gen — the world
--- starts empty of villagers — so this is called the first time a crew sets foot on the
--- isle (from updateVisitLockouts). Idempotent: only ever populates once per isle.
+-- Bring an island's people to life during world generation. Idempotent so retries and
+-- future streaming passes cannot duplicate a settlement's residents.
 local function populateIsland(record: IslandRecord)
 	if record.populated then
 		return
@@ -1397,23 +1395,22 @@ local function generateIslandTerrain(
 		Terrain:FillCylinder(CFrame.new(px, (topAt + baseBottom) * 0.5, pz), h, radius, material)
 	end
 
-	-- Keep only a compact settlement core buildable. The old foundation/cap covered
-	-- most of each island with one level disk, which made towns and forests read as a
-	-- flat plate from the water.
+	-- Keep only a compact settlement core buildable. Everything beyond the town square
+	-- is raised, sloped, or terraced so the silhouette matches the reference islands.
 	if hasVillage then
-		local villageFoundationRadius = half * (if isTown then 0.4 else 0.32)
+		local villageFoundationRadius = half * (if isTown then 0.27 else 0.22)
 		landColumn(cx, cz, villageFoundationRadius, topY + 0.5, grassMat)
 	end
 
 	-- 1) A submerged sand shelf supports an irregular grassy landmass. Sand remains a
 	-- narrow waterline detail rather than becoming the visible island surface.
 	landColumn(cx, cz, half * 0.68, surfaceY + 0.8, sandMat)
-	landColumn(cx, cz, half * 0.61, topY, grassMat)
-	local lobes = rng:NextInteger(4, 7)
+	landColumn(cx, cz, half * 0.52, topY + 2, grassMat)
+	local lobes = rng:NextInteger(8, 12)
 	for i = 1, lobes do
 		local a = (i / lobes) * math.pi * 2 + rng:NextNumber(-0.55, 0.55)
-		local dist = half * rng:NextNumber(0.22, 0.44)
-		local lobeR = half * rng:NextNumber(0.26, 0.46)
+		local dist = half * rng:NextNumber(0.24, 0.55)
+		local lobeR = half * rng:NextNumber(0.18, 0.34)
 		-- Keep every lobe inside the isle circle so the raft's shoreline collision is clean.
 		if dist + lobeR > half * 0.98 then
 			lobeR = math.max(half * 0.18, half * 0.98 - dist)
@@ -1426,7 +1423,7 @@ local function generateIslandTerrain(
 				continue  -- Skip this lobe to keep village area clear
 			end
 		end
-		local lobeTop = topY + rng:NextNumber(1.5, 8)
+		local lobeTop = topY + rng:NextNumber(5, 22)
 		landColumn(cx + math.cos(a) * dist, cz + math.sin(a) * dist, lobeR, lobeTop, grassMat)
 	end
 
@@ -1436,16 +1433,16 @@ local function generateIslandTerrain(
 	local capBottom = topY - 3.5
 	local capH = capTop - capBottom
 	local capY = (capTop + capBottom) * 0.5
-	local capRadius = if hasVillage then half * (if isTown then 0.46 else 0.39) else half * 0.42
+	local capRadius = if hasVillage then half * (if isTown then 0.30 else 0.25) else half * 0.28
 
 	Terrain:FillCylinder(CFrame.new(cx, capY, cz), capH, capRadius, grassMat)
 
-	local shoulderCount = if hasVillage then 12 else 9
+	local shoulderCount = if hasVillage then 20 else 16
 	for i = 1, shoulderCount do
 		local a = (i / shoulderCount) * math.pi * 2 + rng:NextNumber(-0.2, 0.2)
-		local d = half * rng:NextNumber(0.4, 0.7)
-		local r = half * rng:NextNumber(0.13, 0.21)
-		local rise = rng:NextNumber(10, 30)
+		local d = half * rng:NextNumber(0.28, 0.76)
+		local r = half * rng:NextNumber(0.10, 0.18)
+		local rise = rng:NextNumber(18, 54)
 		local px = cx + math.cos(a) * d
 		local pz = cz + math.sin(a) * d
 		-- Layered spheres create climbable slopes, ridgelines, and shallow valleys.
@@ -2195,56 +2192,7 @@ local function buildWaterfall(model: Model, topPos: Vector3, bottomY: number)
 	mist.Parent = splash
 end
 
--- A simple footbridge gives river isles a readable landmark from the water and keeps
--- both halves of the island connected on foot. The channel remains completely open
--- beneath it for crews sailing their raft through.
-local function buildRiverBridge(model: Model, center: Vector3, topY: number, river: { [string]: any })
-	local yaw = math.atan2(math.cos(river.angle), math.sin(river.angle))
-	local bridgeCf = CFrame.new(center.X, topY + 2.1, center.Z) * CFrame.Angles(0, yaw, 0)
-	local span = river.width + 22
-	local plankCount = math.max(8, math.floor(span / 7))
-	for i = 1, plankCount do
-		local x = -span * 0.5 + (i - 0.5) * (span / plankCount)
-		makePart({
-			Name = "RiverBridgePlank",
-			Parent = model,
-			Size = Vector3.new(span / plankCount + 0.25, 0.65, 8),
-			CFrame = bridgeCf * CFrame.new(x, math.sin(i * 1.7) * 0.12, 0),
-			Color = DOCK_PLANK,
-			Material = Enum.Material.WoodPlanks,
-			CanCollide = true,
-			CastShadow = true,
-		})
-	end
-	for _, side in { -1, 1 } do
-		makePart({
-			Name = "RiverBridgeRail",
-			Parent = model,
-			Size = Vector3.new(span, 1.1, 0.34),
-			CFrame = bridgeCf * CFrame.new(0, 1.15, side * 3.65),
-			Color = DOCK_POST,
-			Material = Enum.Material.Wood,
-			CanCollide = false,
-			CastShadow = true,
-		})
-	end
-	for _, x in { -span * 0.5 + 4, span * 0.5 - 4 } do
-		for _, side in { -1, 1 } do
-			makePart({
-				Name = "RiverBridgePost",
-				Parent = model,
-				Size = Vector3.new(0.7, 4, 0.7),
-				CFrame = bridgeCf * CFrame.new(x, -0.6, side * 3.65),
-				Color = DOCK_POST,
-				Material = Enum.Material.Wood,
-				CanCollide = false,
-				CastShadow = true,
-			})
-		end
-	end
-end
-
--- Broad, readable walking trails tie the settlement, docks, river bridge and signature
+-- Broad, readable walking trails tie the settlement, docks, riverbanks and signature
 -- landmark together. The reference islands are dense, but never feel like random props:
 -- every important place is connected by a visible path with shrubs and flowers along it.
 local function buildScenicTrail(
@@ -2426,7 +2374,7 @@ local function planIslandFeatures(
 		}
 	end
 
-	-- Twin Peaks: two blocky rock stacks on separate sand pads, linked by a rope bridge.
+	-- Twin Peaks: two blocky rock stacks on separate sand pads with open water between.
 	if biome == "twin_peaks" then
 		local axis = rng:NextNumber(-0.25, 0.25)
 		local sep = half * 0.3
@@ -2519,7 +2467,7 @@ local function planIslandFeatures(
 end
 
 -- =====================================================================================
--- Twin Peaks biome — low-poly dual rock stacks on sand pads, linked by a rope bridge
+-- Twin Peaks biome — low-poly dual rock stacks on separate sand pads
 -- (matches the postcard "two blocky isles + sagging span" look).
 -- =====================================================================================
 
@@ -2529,7 +2477,6 @@ local TWIN_ROCK_LIT = Color3.fromRGB(98, 98, 102)
 local TWIN_LEAF = Color3.fromRGB(46, 139, 87)
 local TWIN_LEAF_DARK = Color3.fromRGB(36, 118, 72)
 local TWIN_TRUNK = Color3.fromRGB(92, 64, 38)
-local TWIN_ROPE = Color3.fromRGB(72, 52, 34)
 
 -- Clumpy low-poly canopy tree: thin trunk + clustered leaf balls (the "broccoli" tree).
 local function buildClumpTree(model: Model, baseY: number, x: number, z: number, scale: number?)
@@ -2571,74 +2518,6 @@ local function buildClumpTree(model: Model, baseY: number, x: number, z: number,
 	end
 end
 
--- Sagging rope bridge between two peak tops — walkable planks + twin side ropes.
-local function buildRopeBridge(model: Model, a: Vector3, b: Vector3)
-	local segs = 18
-	local sag = math.clamp((a - b).Magnitude * 0.08, 6, 18)
-	local function pointAt(t: number): Vector3
-		local p = a:Lerp(b, t)
-		local dip = sag * 4 * t * (1 - t)
-		return Vector3.new(p.X, p.Y - dip, p.Z)
-	end
-	local across = Vector3.new(b.X - a.X, 0, b.Z - a.Z)
-	local side = if across.Magnitude > 0.1 then across.Unit:Cross(Vector3.yAxis) else Vector3.new(1, 0, 0)
-	local halfW = 2.4
-
-	for i = 0, segs - 1 do
-		local t0 = i / segs
-		local t1 = (i + 1) / segs
-		local p0 = pointAt(t0)
-		local p1 = pointAt(t1)
-		local mid = (p0 + p1) * 0.5
-		local dir = p1 - p0
-		local len = math.max(dir.Magnitude, 0.4)
-		local look = CFrame.lookAt(mid, mid + dir)
-		-- Walkway plank (collidable so players can cross).
-		makePart({
-			Name = `BridgePlank_{i}`,
-			Parent = model,
-			Size = Vector3.new(halfW * 2, 0.35, len + 0.08),
-			CFrame = look,
-			Color = Color3.fromRGB(118, 86, 54),
-			Material = Enum.Material.WoodPlanks,
-			CanCollide = true,
-			CastShadow = false,
-		})
-		-- Twin hand-rope segments.
-		for _, sx in { -halfW, halfW } do
-			local r0 = p0 + side * sx + Vector3.new(0, 2.2, 0)
-			local r1 = p1 + side * sx + Vector3.new(0, 2.2, 0)
-			local rmid = (r0 + r1) * 0.5
-			local rdir = r1 - r0
-			makePart({
-				Name = `BridgeRope_{i}`,
-				Parent = model,
-				Size = Vector3.new(0.22, 0.22, math.max(rdir.Magnitude, 0.3)),
-				CFrame = CFrame.lookAt(rmid, rmid + rdir),
-				Color = TWIN_ROPE,
-				Material = Enum.Material.Fabric,
-				CanCollide = false,
-				CastShadow = false,
-			})
-		end
-	end
-
-	-- End posts anchoring the span.
-	for _, endPos in { a, b } do
-		for _, sx in { -halfW, halfW } do
-			makePart({
-				Name = "BridgePost",
-				Parent = model,
-				Size = Vector3.new(0.55, 5.2, 0.55),
-				CFrame = CFrame.new(endPos + side * sx + Vector3.new(0, 1.4, 0)),
-				Color = TWIN_TRUNK,
-				Material = Enum.Material.Wood,
-				CanCollide = false,
-			})
-		end
-	end
-end
-
 -- Stacked rectangular rock mass — stair-step / jagged low-poly cliff like the reference.
 local function buildBlockyRockStack(
 	model: Model,
@@ -2649,7 +2528,7 @@ local function buildBlockyRockStack(
 	height: number,
 	side: number
 ): Vector3
-	-- Returns the top plateau center (for trees + bridge anchors).
+	-- Returns the top plateau center for trees and lookout props.
 	local tiers = rng:NextInteger(6, 8)
 	local topPos = baseCenter + Vector3.new(0, height, 0)
 	for t = 0, tiers - 1 do
@@ -2703,7 +2582,7 @@ local function buildBlockyRockStack(
 		end
 	end
 
-	-- Climbable vine/truss on the outer face so players can reach the bridge.
+	-- Climbable vine/truss on the outer face so players can reach the lookout.
 	local climbH = height * 0.92
 	local truss = Instance.new("TrussPart")
 	truss.Name = "PeakClimb"
@@ -2780,7 +2659,7 @@ local function generateTwinPeaksTerrain(
 		end
 	end
 
-	-- Thin connecting shoal under the bridge gap (still walkable if someone falls in shallow).
+	-- Thin submerged shoal through the open-water gap.
 	if #peaks >= 2 then
 		local a, b = peaks[1].pos, peaks[2].pos
 		local mid = (a + b) * 0.5
@@ -2805,7 +2684,7 @@ local function generateTwinPeaksTerrain(
 	end
 end
 
--- Parts pass: sand pads, blocky rock stacks, clump trees, palms, rope bridge.
+-- Parts pass: sand pads, blocky rock stacks, clump trees, and palms.
 local function decorateTwinPeaks(
 	model: Model,
 	center: Vector3,
@@ -2848,18 +2727,7 @@ local function decorateTwinPeaks(
 		end
 	end
 
-	-- Rope bridge linking the two summits.
-	if #tops >= 2 then
-		-- Nudge anchors slightly toward each other so posts sit on the inner ledge.
-		local a, b = tops[1], tops[2]
-		local toward = Vector3.new(b.X - a.X, 0, b.Z - a.Z)
-		if toward.Magnitude > 1 then
-			toward = toward.Unit
-			a = a + toward * 4 + Vector3.new(0, 1.2, 0)
-			b = b - toward * 4 + Vector3.new(0, 1.2, 0)
-		end
-		buildRopeBridge(model, a, b)
-	end
+	-- Keep the water gap between summits completely open; traversal is by boat.
 
 	-- A couple of shoreline rocks for scale.
 	local half = size * 0.5
@@ -2991,10 +2859,6 @@ local function decorateShore(
 		buildWaterfall(model, Vector3.new(wx, topY + 22, wz), surfaceY)
 	end
 
-	if features.river then
-		buildRiverBridge(model, center, topY, features.river)
-	end
-
 	buildIslandTrailNetwork(model, center, size, topY, biome, features)
 
 	if features.peak then
@@ -3098,7 +2962,7 @@ local function buildFlatIsland(entry: { [string]: any }, folder: Folder): Island
 	local features = planIslandFeatures(entry.Id, center, topY, size, biome, entry)
 
 	if biome == "twin_peaks" then
-		-- Low-poly dual stacks: sand pads + blocky rocks + clump trees + rope bridge.
+		-- Low-poly dual stacks: sand pads + blocky rocks + clump trees.
 		-- Skip the organic disc / scatter vegetation so the gap between peaks stays open sea.
 		generateTwinPeaksTerrain(entry.Id, center, topY, size, features)
 		decorateTwinPeaks(model, center, topY, size, features)
@@ -3109,7 +2973,7 @@ local function buildFlatIsland(entry: { [string]: any }, folder: Folder): Island
 		generateIslandTerrain(entry.Id, center, topY, size, biome, entry.Theme or "wild", features)
 		scatterVegetation(model, center, size, topY, biome, features)
 		-- Settlement woodland belongs only on the normal terrain isles. Twin Peaks keeps
-		-- its open-water gap clear for the rope bridge traversal.
+		-- its open-water gap clear for sailing.
 		if (entry.Theme or "village") ~= "wild" then
 			scatterSettlementForest(model, center, size, topY, features)
 		end
@@ -3227,15 +3091,14 @@ local function buildFlatIsland(entry: { [string]: any }, folder: Folder): Island
 		}
 		local layout = VillageBuilder.build(model, center, size, topY, entry, deps)
 
-		-- No villagers at the start: the settlement is built empty of people. We only
-		-- record WHERE and WHAT to spawn; populateIsland brings the town to life the first
-		-- time a crew actually lands (see updateVisitLockouts).
 		record.villagerPlan = {
 			spots = layout.villagerSpots,
 			passive = (villagerCfg.Passive or 0),
 			hostile = (villagerCfg.Hostile or 0),
 			abandoned = record.abandoned,
 		}
+		-- Populate immediately so the settlements are visibly alive from the spawn raft.
+		populateIsland(record)
 
 		-- The blue-hatted merchant (never hostile, draggable / weldable to your raft) is
 		-- part of the scenery, so it's placed right away — trade is always available.
@@ -3463,29 +3326,13 @@ local function segmentHitsDock(fromPos: Vector3, toPos: Vector3, dock: DockColli
 	return exit >= 0 and enter <= 1
 end
 
--- Solid shoreline and dock collision. Rafts can NEVER drive onto an isle or through a
--- dock. Stop at the last safe position instead of pushing the raft through/over an edge.
--- Applies to EVERY isle, visited or not — separate from the visit-lockout clamp below.
+-- Solid shoreline and dock collision. Rafts are watercraft: their complete footprint
+-- stays outside every island envelope, without river/channel exceptions that can be
+-- abused to cut through land at high speed.
 function IslandService.collideRaft(fromPos: Vector3, toPos: Vector3): (Vector3, string?)
 	for _, isle in IslandService._islands do
-		-- A river only opens the two actual mouths. Both ends of the movement must fit
-		-- inside the channel's lateral bounds; checking only the destination allowed a
-		-- fast raft to cut sideways through solid island terrain.
-		local inNavigableRiver = false
-		if isle.river then
-			local fromLocal = isle.river.cframe:PointToObjectSpace(fromPos)
-			local toLocal = isle.river.cframe:PointToObjectSpace(toPos)
-			local raftHalfWidth = Config.StarterBase.SizeStuds * 0.5
-			local safeHalfWidth = math.max(0, isle.river.width * 0.5 - raftHalfWidth - 4)
-			local halfLength = isle.river.length * 0.5
-			inNavigableRiver = safeHalfWidth > 0
-				and math.abs(fromLocal.X) <= safeHalfWidth
-				and math.abs(toLocal.X) <= safeHalfWidth
-				and math.abs(fromLocal.Z) <= halfLength + Config.Islands.RaftCollisionPad
-				and math.abs(toLocal.Z) <= halfLength + Config.Islands.RaftCollisionPad
-		end
 		local minDist = isle.size * 0.5 + Config.Islands.RaftCollisionPad
-		if not inNavigableRiver and segmentHitsCircle(fromPos, toPos, isle.center, minDist) then
+		if segmentHitsCircle(fromPos, toPos, isle.center, minDist) then
 			return fromPos, isle.name
 		end
 	end
@@ -3600,10 +3447,6 @@ local function updateVisitLockouts()
 			end
 
 			if anyoneOn then
-				-- First boots on the sand: bring the town to life (villagers spawn now).
-				if not isle.populated then
-					populateIsland(isle)
-				end
 				state.visited = true
 				if not state.notifiedVisit then
 					state.notifiedVisit = true
@@ -3830,7 +3673,7 @@ function IslandService.ensure(): Folder
 	if #failures > 0 then
 		error(`{#failures} voyage island(s) still need retry: {table.concat(failures, " | ")}`)
 	end
-	print(`[SurviveAtSea] {#IslandService._islands} massive voxel-terrain isles ready (organic coastlines, twin-peak rope-bridge stacks, beaches, hills & rocky peaks, jungle, villages/towns, loot, visit lockout)`)
+	print(`[SurviveAtSea] {#IslandService._islands} populated sculpted isles ready (irregular coasts, elevated ridges, beaches, jungle, villages/towns, loot, solid raft shorelines)`)
 	return folder
 end
 
