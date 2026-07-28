@@ -74,10 +74,10 @@ local LootPlace = remoteFolder:WaitForChild("LootPlace")
 local MerchantTrade = remoteFolder:WaitForChild("MerchantTrade")
 local MerchantShop = remoteFolder:WaitForChild("MerchantShop")
 
--- A voyage always starts inside the finished opening ring of islands and rivers.
--- The server does not declare portals ready until this authored world is live.
+-- Boarding is never coupled to heavyweight world generation. The raft and player
+-- are created immediately; the opening island ring continues preparing alongside
+-- gameplay on a fresh server.
 local voyageWorldReady = false
-local pendingBoarding: { [number]: { player: Player, portalIndex: number, maxPlayers: number } } = {}
 
 -- Shared accessors used by several services below.
 local function getPartyCode(player: Player): string?
@@ -115,31 +115,9 @@ local function createPartyForPlayer(player: Player, portalIndex: number, maxPlay
 	end
 end
 
-local function finishPendingBoarding()
-	if not voyageWorldReady then
-		return
-	end
-	local queued = pendingBoarding
-	pendingBoarding = {}
-	for _, request in queued do
-		if request.player.Parent == Players and not PartyService.isInParty(request.player) then
-			createPartyForPlayer(request.player, request.portalIndex, request.maxPlayers)
-		end
-	end
-end
-
 CreateParty.OnServerEvent:Connect(function(player, portalIndex, maxPlayers, _privacy)
 	if typeof(portalIndex) ~= "number" or typeof(maxPlayers) ~= "number" then
 		Toast:FireClient(player, "Invalid boarding request.", "error")
-		return
-	end
-	if not voyageWorldReady then
-		-- Keep only the latest choice if the player changes portals while loading.
-		pendingBoarding[player.UserId] = {
-			player = player,
-			portalIndex = portalIndex,
-			maxPlayers = maxPlayers,
-		}
 		return
 	end
 	-- Crews are always private; ignore any client privacy flag.
@@ -205,7 +183,6 @@ local function onPlayerReady(player)
 end
 
 Players.PlayerRemoving:Connect(function(player)
-	pendingBoarding[player.UserId] = nil
 	HelmService.releaseIfHelming(player)
 	PartyService.onPlayerRemoving(player)
 end)
@@ -316,22 +293,23 @@ safeStart("WaterRescue", function()
 	end)
 end)
 
--- Build the full opening sea before making any portal interactive.  This keeps
--- the portal action instant: when it is available, the detailed island ring,
--- rivers, and water are already replicated and ready around the raft spawn.
-while not voyageWorldReady do
-	local voyageWorldOk, voyageWorldErr = pcall(function()
-		IslandService.start(Toast :: RemoteEvent, getPartyCode, getMemberUserIds)
-		OceanTerrainService.start()
-	end)
-	if voyageWorldOk then
-		voyageWorldReady = true
-		PortalService.setBoardingReady(true)
-		finishPendingBoarding()
-	else
-		warn("[SurviveAtSea] Voyage world failed to prepare; retrying:", voyageWorldErr)
-		task.wait(5)
+-- Make every portal interactive immediately. Large island models are prepared in
+-- a separate task so a cold server can never turn world generation into a queue
+-- or wait period between clicking Spawn Base and arriving on the raft.
+PortalService.setBoardingReady(true)
+task.spawn(function()
+	while not voyageWorldReady do
+		local voyageWorldOk, voyageWorldErr = pcall(function()
+			IslandService.start(Toast :: RemoteEvent, getPartyCode, getMemberUserIds)
+			OceanTerrainService.start()
+		end)
+		if voyageWorldOk then
+			voyageWorldReady = true
+		else
+			warn("[SurviveAtSea] Voyage world failed to prepare; retrying:", voyageWorldErr)
+			task.wait(5)
+		end
 	end
-end
+end)
 
-print(`[SurviveAtSea] Lobby ready — private crews only, max {Config.MaxPartySize} per run, portals are reusable.`)
+print(`[SurviveAtSea] Lobby ready — private crews only, max {Config.MaxPartySize} per run, portals board instantly.`)

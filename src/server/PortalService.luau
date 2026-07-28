@@ -21,7 +21,7 @@ local wiredModels: { [Model]: boolean } = {}
 local folderConnections: { RBXScriptConnection } = {}
 local lobbyConnections: { RBXScriptConnection } = {}
 local started = false
-local boardingReady = false
+local boardingReady = true
 local toastRemote: RemoteEvent? = nil
 local partyUpdatedRemote: RemoteEvent? = nil
 local portalsUpdatedRemote: RemoteEvent? = nil
@@ -73,6 +73,15 @@ local function handlePortalUse(player: Player, portalIndex: number)
 		toast:FireClient(player, "You're already on a crew — share your code from the HUD.", "info")
 		return
 	end
+
+	local key = `{player.UserId}:{portalIndex}`
+	if touchDebounce[key] then
+		return
+	end
+	touchDebounce[key] = true
+	task.delay(0.75, function()
+		touchDebounce[key] = nil
+	end)
 
 	toast:FireClient(player, "Pick crew size, then spawn on your plank. Friends join by code.", "info")
 	partyUpdated:FireClient(player, {
@@ -150,15 +159,6 @@ local function wirePortalModel(model: Model)
 			if not player then
 				return
 			end
-
-			local key = `{player.UserId}:{portalIndex}`
-			if touchDebounce[key] then
-				return
-			end
-			touchDebounce[key] = true
-			task.delay(1.6, function()
-				touchDebounce[key] = nil
-			end)
 
 			handlePortalUse(player, portalIndex)
 		end)

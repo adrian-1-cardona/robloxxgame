@@ -345,6 +345,12 @@ local function refreshPartyPanel()
 end
 
 local function openCreate(portalIndex: number)
+	-- A prompt and its walk trigger can report the same interaction on adjacent
+	-- frames. Keep the existing dialog and selections instead of opening/resetting
+	-- a second copy of the create flow.
+	if createPanel and createPanel.Visible then
+		return
+	end
 	state.createPortalIndex = portalIndex
 	state.selectedMax = Config.DefaultPartySize
 	if createPanel then
