@@ -1,0 +1,59 @@
+# NOT ACTIVE YET — move this file to .github/workflows/island-geometry.yml to enable it.
+#
+# It is parked here because the token used to open this PR has no `workflow` scope, so it
+# cannot add files under .github/workflows. Anyone with that scope can enable it with:
+#
+#   git mv tests/ci/island-geometry.yml .github/workflows/island-geometry.yml
+#
+# Until then the same suites run locally in one command: ./tests/run-all.sh
+name: Island Geometry
+# Guards the island generator. Runs on EVERY push and pull request:
+#
+#   tests/Syntax.spec.luau       every Luau file still compiles
+#   tests/IslandWorld.spec.luau  world rules, including the ban on FillCylinder / FillBall
+#                                island bodies
+#   tests/IslandShape.spec.luau  measures the real geometry of all 13 catalog islands:
+#                                non-circular coastline, inland lagoon vented to the sea,
+#                                sand beaches, multiple summits, a settlement clearing that
+#                                is actually flat land, and an affordable terrain plan
+#   tests/IslandPreview.luau     renders top-down PNGs, uploaded as a build artifact so the
+#                                silhouettes can be reviewed without opening Studio
+#
+# If any of these fail, islands are geometrically wrong and the PR must not be merged.
+on:
+  push:
+  pull_request:
+concurrency:
+  group: island-geometry-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  island-geometry:
+    name: Islands are not circles
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Lune (Luau runtime)
+        env:
+          LUNE_VERSION: "0.10.5"
+        run: |
+          set -euo pipefail
+          curl -sSL -o /tmp/lune.zip \
+            "https://github.com/lune-org/lune/releases/download/v${LUNE_VERSION}/lune-${LUNE_VERSION}-linux-x86_64.zip"
+          unzip -o /tmp/lune.zip -d /tmp/lune
+          sudo install -m 0755 /tmp/lune/lune /usr/local/bin/lune
+          lune --version
+      - name: Every Luau file compiles
+        run: lune run tests/Syntax.spec.luau
+      - name: Island world rules
+        run: lune run tests/IslandWorld.spec.luau
+      - name: Island silhouette geometry
+        run: lune run tests/IslandShape.spec.luau
+      - name: Render island previews
+        run: lune run tests/IslandPreview.luau
+      - name: Upload island previews
+        uses: actions/upload-artifact@v4
+        with:
+          name: island-preview
+          path: build/island-preview
+          if-no-files-found: error

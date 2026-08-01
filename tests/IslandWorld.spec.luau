@@ -16,6 +16,9 @@ local config = read("src/shared/Config.luau")
 local islands = read("src/server/IslandService.luau")
 local village = read("src/server/VillageBuilder.luau")
 local starterBase = read("src/server/StarterBaseService.luau")
+local shape = read("src/shared/IslandShape.luau")
+local raster = read("src/shared/IslandRaster.luau")
+local terrain = read("src/server/IslandTerrain.luau")
 
 local passed = 0
 local failed = 0
@@ -51,11 +54,36 @@ check("flat cylinder preview disks stay removed", string.find(islands, 'Name = "
 check("village residents spawn during island construction", string.find(islands, "populateIsland(record)", 1, true) ~= nil)
 check("river bridges are not added to the island decoration pass", string.find(islands, "buildRiverBridge(model, center", 1, true) == nil)
 check("peak bridges are not added to island decoration", string.find(islands, "buildRopeBridge(model, a, b)", 1, true) == nil)
+-- The core regression this suite exists to prevent: island land must never again be built
+-- from radially symmetric primitives. FillCylinder and FillBall are banned across the whole
+-- island pipeline; the body comes from the shared silhouette instead.
 check(
-	"island surfaces use angular low-poly ridges instead of generic domes",
-	string.find(islands, "local shoulderCount =", 1, true) ~= nil
-		and string.find(islands, "fillFacetedRidge", 1, true) ~= nil
-		and string.find(islands, "without a giant flat disc or rounded dome", 1, true) ~= nil
+	"no island land is built from FillCylinder discs or FillBall spheres",
+	string.find(islands, "FillCylinder(", 1, true) == nil
+		and string.find(islands, "FillBall(", 1, true) == nil
+		and string.find(terrain, "FillCylinder(", 1, true) == nil
+		and string.find(terrain, "FillBall(", 1, true) == nil
+)
+check(
+	"island bodies are sculpted from the shared IslandShape silhouette",
+	string.find(islands, 'require(script.Parent:WaitForChild("IslandTerrain"))', 1, true) ~= nil
+		and string.find(islands, "IslandTerrain.sculpt(shape, center, topY)", 1, true) ~= nil
+		and string.find(terrain, "IslandRaster.build(shape", 1, true) ~= nil
+)
+check(
+	"the silhouette is a harmonic coastline, not a radius",
+	string.find(shape, "function IslandShape:coastRadius", 1, true) ~= nil
+		and string.find(shape, "harmonics(self.coastProfile, angle)", 1, true) ~= nil
+)
+check(
+	"the lagoon is an off-centre bay with an irregular rim and a mouth to the sea",
+	string.find(shape, "function IslandShape:lagoonRadius", 1, true) ~= nil
+		and string.find(shape, "function IslandShape:lagoonMouthEdge", 1, true) ~= nil
+)
+check(
+	"terrain writes are merged into rectangles rather than one box per cell",
+	string.find(raster, "Greedy maximal-rectangle merge", 1, true) ~= nil
+		and string.find(raster, "local function mergeCells", 1, true) ~= nil
 )
 check(
 	"all scattered vegetation samples dry terrain above the ocean",
@@ -92,17 +120,41 @@ check(
 check(
 	"towns include a dense harbour-facing building row",
 	string.find(village, "local waterfrontCount =", 1, true) ~= nil
-		and string.find(village, "waterfrontZ", 1, true) ~= nil
+		and string.find(village, "harborForward", 1, true) ~= nil
 )
 check(
-	"river terrain includes rocky ravine banks",
-	string.find(islands, "Broken rock walls and raised grassy shoulders", 1, true) ~= nil
+	"navigable channels meander instead of cutting a straight trench",
+	string.find(shape, "function IslandShape:riverCourse", 1, true) ~= nil
+		and string.find(shape, "meanderAmp", 1, true) ~= nil
 )
 check(
 	"arrival hub has a raised crossing and landmark skyline",
 	string.find(islands, "decorateArrivalHub", 1, true) ~= nil
 		and string.find(islands, 'Name = "HubCrossingDeck"', 1, true) ~= nil
-		and string.find(islands, "buildHotAirBalloon(model, peak", 1, true) ~= nil
+		and string.find(islands, "buildHotAirBalloon(", 1, true) ~= nil
+)
+
+-- Gameplay must agree with the shape it is now drawn from.
+check(
+	"raft collision follows the sculpted coast instead of a bounding circle",
+	string.find(islands, "local function shoreClearance", 1, true) ~= nil
+		and string.find(islands, "shape:coastRadius(math.atan2(dz, dx))", 1, true) ~= nil
+		and string.find(islands, "segmentHitsCircle(fromPos, toPos, isle.center", 1, true) == nil
+)
+check(
+	"the submerged repaint replays the real footprint, not a sand cylinder",
+	string.find(islands, "IslandTerrain.repaintSubmerged(isle.submergedPlan", 1, true) ~= nil
+		and string.find(raster, "function IslandRaster.submergedBoxes", 1, true) ~= nil
+)
+check(
+	"settlements are capped by the island's usable clearing",
+	string.find(islands, "deps.buildableRadius = shape.buildableRadius", 1, true) ~= nil
+		and string.find(village, "buildable / 1.3", 1, true) ~= nil
+)
+check(
+	"props are placed on sampled land rather than a polar radius",
+	string.find(islands, "shape:randomLandPoint(rand", 1, true) ~= nil
+		and string.find(islands, "local function landPoint", 1, true) ~= nil
 )
 
 print(`\nResults: {passed} passed, {failed} failed\n`)

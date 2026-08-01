@@ -1428,6 +1428,17 @@ function VillageBuilder.build(
 	if configuredRadius then
 		villageRadius = half * configuredRadius
 	end
+	--[[
+		Hard cap from the island's settlement clearing (see IslandShape). Streets are laid
+		out on rings at up to 1.3x villageRadius, so a settlement sized purely as a fraction
+		of the island footprint walked houses off the coast and into the lagoon on any island
+		whose usable ground is smaller than its bounding circle — which, now that islands are
+		not discs, is all of them.
+	]]
+	local buildable = tonumber(deps.buildableRadius)
+	if buildable then
+		villageRadius = math.min(villageRadius, buildable / 1.3)
+	end
 	-- Angle zero preserves the legacy +Z waterfront. The lagoon hub points π so
 	-- its south-bank town looks north across the water toward the volcano.
 	local harborFacingAngle = tonumber(entry.HarborFacingAngle) or 0
@@ -1444,7 +1455,9 @@ function VillageBuilder.build(
 	-- scatter garrison loot inside the courtyard, and hand back guard posts + a merchant
 	-- spot just outside the gate. No houses / campfire / fences.
 	if theme == "castle" then
-		local castleRadius = math.clamp(half * 0.4, 70, 240)
+		-- A keep is one big footprint, so it is clamped to the clearing directly rather
+		-- than through villageRadius.
+		local castleRadius = math.clamp(math.min(half * 0.4, buildable or math.huge), 60, 240)
 		buildCastle(villageFolder, center, topY, castleRadius, islandId)
 
 		-- Wall + gate lighting so the keep glows if the isle is flagged Lit.
