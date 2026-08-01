@@ -505,12 +505,13 @@ it("lobby exposes at least one boarding portal", function()
 	assertTrue(Config.PortalCount >= 1, "there must be at least one pier portal")
 end)
 
-it("opening voyage contains the full twelve-island archipelago", function()
-	assertEquals(#Config.Islands.Catalog, 12, "opening voyage must contain exactly twelve islands")
+it("opening voyage contains the arrival hub and full twelve-island ring", function()
+	assertEquals(#Config.Islands.Catalog, 13, "opening voyage must contain the hub plus twelve destination islands")
 	local first = Config.Islands.Catalog[1]
-	assertEquals(first.Biome, "jungle", "first landfall must be forested")
-	assertEquals(first.Theme, "village", "first forest must contain a village")
-	assertTrue(first.River == true, "first forest must retain a navigable river")
+	assertEquals(first.Biome, "jungle", "arrival hub must be forested")
+	assertEquals(first.Theme, "town", "arrival hub must contain a populated town")
+	assertTrue(first.River == true, "arrival hub must retain a navigable spawn channel")
+	assertTrue(first.SafeHarbor == true, "arrival hub must let the starter raft leave its channel")
 end)
 
 it("every pier portal reports Ready before anyone boards", function()

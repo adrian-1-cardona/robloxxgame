@@ -192,6 +192,33 @@ local Config = {
 		-- Villagers spawn with the opening archipelago. Towns must already look inhabited
 		-- from the raft; landing is not required to make their residents appear.
 		Catalog = {
+			-- The first playable view after boarding: a low-poly island hub inspired by
+			-- the supplied reference. Every crew's raft starts in this broad river, with
+			-- dense block-canopy forest, a harbour village, docks, and a mountain landmark
+			-- framing the route out to sea.
+			{
+				Id = "arrival_hub",
+				Name = "Rivergate Haven",
+				Offset = Vector3.new(0, 0, 0),
+				SizeStuds = 1500,
+				Biome = "jungle",
+				Theme = "town",
+				Abandoned = false,
+				Hub = true,
+				SafeHarbor = true,
+				Merchant = true,
+				River = true,
+				-- The channel runs east/west through the spawn point; 440 studs keeps
+				-- concurrent 64-stud rafts comfortably inside the waterway.
+				RiverAngle = 0,
+				RiverWidth = 440,
+				Docks = 3,
+				Lighthouse = true,
+				Church = true,
+				Lit = true,
+				Villagers = { Passive = 18, Hostile = 0 },
+				Loot = { Weapons = 5, Chests = 5, Armor = 3 },
+			},
 			-- Twelve sculpted islands form a complete archipelago around the central
 			-- voyage hub. Their 2,100-stud ring stays inside the opening 4K streaming
 			-- target, so every high-detail silhouette is present and visible from the raft.
