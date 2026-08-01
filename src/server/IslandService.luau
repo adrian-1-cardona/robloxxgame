@@ -2756,11 +2756,9 @@ local function shoreClearance(isle: IslandRecord, x: number, z: number): number
 	if not shape then
 		return distance - isle.size * 0.5
 	end
-	if distance > shape.maxCoast then
-		-- Cheap broad-phase: outside the largest coast radius, no bearing can be closer.
-		return distance - shape.maxCoast
-	end
-	return distance - shape:coastRadius(math.atan2(dz, dx))
+	local angle = math.atan2(dz, dx)
+	-- Even when outside maxCoast, compute clearance on the actual bearing; maxCoast is a global max and can over-block narrow flanks.
+	return distance - shape:coastRadius(angle)
 end
 
 -- Swept shoreline test. The segment is sampled rather than solved analytically because the
