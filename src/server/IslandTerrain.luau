@@ -55,9 +55,8 @@ function IslandTerrain.stepFor(size: number): number
 	return math.clamp(size / 90, 8, 16)
 end
 
-local function writeBoxes(boxes, center: Vector3, yieldEvery: number?)
+local function writeBoxes(boxes, center: Vector3, mayYield: boolean)
 	local terrain = Workspace.Terrain
-	local budget = yieldEvery or BOXES_PER_YIELD
 	local written = 0
 	for _, box in boxes do
 		local height = box.top - box.bottom
@@ -68,7 +67,7 @@ local function writeBoxes(boxes, center: Vector3, yieldEvery: number?)
 				MATERIALS[box.material] or Enum.Material.Sand
 			)
 			written += 1
-			if written % budget == 0 then
+			if mayYield and written % BOXES_PER_YIELD == 0 then
 				task.wait()
 			end
 		end
@@ -83,7 +82,7 @@ function IslandTerrain.sculpt(shape, center: Vector3, topY: number): number
 		topY = topY,
 		quantize = 2,
 	})
-	return writeBoxes(boxes, center)
+	return writeBoxes(boxes, center, true)
 end
 
 -- Precompute the submerged footprint once; IslandService replays it whenever the ocean
@@ -93,8 +92,9 @@ function IslandTerrain.submergedPlan(shape, topY: number)
 end
 
 function IslandTerrain.repaintSubmerged(boxes, center: Vector3)
-	-- No yielding here: this runs on the streaming tick and must complete in one pass.
-	writeBoxes(boxes, center, math.huge)
+	-- Runs on the streaming tick, so it must complete in one pass rather than yielding
+	-- mid-repaint and leaving an island half flooded for a frame.
+	writeBoxes(boxes, center, false)
 end
 
 return IslandTerrain

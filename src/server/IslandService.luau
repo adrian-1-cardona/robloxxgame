@@ -1925,11 +1925,11 @@ local function planIslandFeatures(
 	topY: number,
 	size: number,
 	biome: string,
-	entry: { [string]: any }
+	entry: { [string]: any },
+	shape: any
 ): { [string]: any }
 	local rng = Random.new(seedFromId(id) * 3 + 17)
 	local half = size * 0.5
-	local shape = entry.__shape
 	local features: { [string]: any } = { docks = {}, shape = shape }
 
 	-- Landform positions are READ OFF THE SHAPE rather than invented here. The props pass
@@ -2282,11 +2282,10 @@ local function buildFlatIsland(entry: { [string]: any }, folder: Folder): Island
 	-- sculptor, the prop passes, the village and raft collision — so nothing can disagree
 	-- about where the land actually is.
 	local shape = IslandTerrain.shapeFor(entry, topY)
-	entry.__shape = shape
 	model:SetAttribute("CoastRadiusMax", shape.maxCoast)
 
 	-- Signature landforms + shoreline layout, all read off the shape.
-	local features = planIslandFeatures(entry.Id, center, topY, size, biome, entry)
+	local features = planIslandFeatures(entry.Id, center, topY, size, biome, entry, shape)
 
 	-- Sculpt the island as voxel Terrain: irregular coast, sand beaches, grass/jungle
 	-- interior, rock and snow uplands, the lagoon bed, the river channel and the submerged
