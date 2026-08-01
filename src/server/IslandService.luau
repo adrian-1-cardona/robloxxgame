@@ -2783,9 +2783,10 @@ end
 function IslandService.collideRaft(fromPos: Vector3, toPos: Vector3): (Vector3, string?)
 	local pad = Config.Islands.RaftCollisionPad
 	for _, isle in IslandService._islands do
-		-- Crews are placed inside the arrival island's sheltered water, so its shoreline
-		-- guard is omitted; its real terrain banks still fence the raft in visually.
-		if isle.safeHarbor then
+		-- Crews spawn inside the arrival island's sheltered lagoon. Skip collision only
+		-- while the raft is still inside the harbor (navigating out). Once the raft is at
+		-- sea, the safe harbor's shoreline blocks re-entry like any other island.
+		if isle.safeHarbor and shoreClearance(isle, fromPos.X, fromPos.Z) < 0 then
 			continue
 		end
 		if segmentHitsShore(fromPos, toPos, isle, pad) then
