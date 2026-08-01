@@ -250,30 +250,55 @@ end
 -- open sea without crossing land. That is what makes the inner water a lagoon rather than
 -- a sealed pond, and it is checked from the BAY's own centre because the mouth channel is
 -- defined relative to the bay, not to the island centre.
+-- Does the anchorage connect to the open sea? Flood-filled across water cells rather than
+-- probed along a bearing.
+--
+-- A radial probe from the bay outward was tried and is the wrong test: land bridges cut the
+-- lagoon into separate arcs, and the tidal pass that vents it is a notch in the sand arm at
+-- a window bearing, which is generally NOT on the straight line out from the anchorage. The
+-- route from a berth to open ocean curves along the lagoon and then out through the pass, so
+-- only a connectivity test can answer whether a crew can actually sail out.
 local function bayIsVented(shape): boolean
 	local lagoon = shape.lagoon
 	if not lagoon then
 		return false
 	end
-	local stepped = math.max(shape.half / 260, 1)
-	-- Sweep a small fan of bearings: the mouth meanders, so the exact centreline drifts.
-	for i = -8, 8 do
-		local angle = lagoon.mouthAngle + i * 0.035
-		local cosA, sinA = math.cos(angle), math.sin(angle)
-		local crossedLand = false
-		local r = 0
-		local reach = shape.maxCoast + shape.shelfWidth + lagoon.distance
-		while r <= reach do
-			local kind = shape:sample(lagoon.x + cosA * r, lagoon.z + sinA * r)
-			if kind == "land" then
-				crossedLand = true
-			elseif kind == "shelf" or kind == "ocean" then
-				if not crossedLand then
-					return true
-				end
-				break
+	local step = math.max(shape.half / 40, 8)
+	local sailable: { [string]: boolean } = {}
+	local escapes: { [string]: boolean } = {}
+	shape:forEachCell(step, function(dx, dz, kind)
+		if kind == "water" or kind == "shelf" then
+			local key = `{math.floor(dx / step)},{math.floor(dz / step)}`
+			sailable[key] = true
+			-- The submerged approach shelf sits outside the coastline: reaching it is
+			-- reaching the ocean.
+			if kind == "shelf" then
+				escapes[key] = true
 			end
-			r += stepped
+		end
+	end)
+
+	local startKey = `{math.floor(lagoon.x / step)},{math.floor(lagoon.z / step)}`
+	if not sailable[startKey] then
+		return false
+	end
+	local seen: { [string]: boolean } = { [startKey] = true }
+	local stack = { { x = math.floor(lagoon.x / step), z = math.floor(lagoon.z / step) } }
+	while #stack > 0 do
+		local current = table.remove(stack) :: { x: number, z: number }
+		if escapes[`{current.x},{current.z}`] then
+			return true
+		end
+		for ddz = -1, 1 do
+			for ddx = -1, 1 do
+				if ddx ~= 0 or ddz ~= 0 then
+					local key = `{current.x + ddx},{current.z + ddz}`
+					if sailable[key] and not seen[key] then
+						seen[key] = true
+						table.insert(stack, { x = current.x + ddx, z = current.z + ddz })
+					end
+				end
+			end
 		end
 	end
 	return false
@@ -394,30 +419,155 @@ for _, entry in catalog do
 			rimMax = math.max(rimMax, rim)
 			rimSum += rim
 		end
+		-- A boarding island's anchorage is deliberately an OPEN HARBOUR notched through the
+		-- sand arms (a four-raft berth grid needs more clear water than any atoll lagoon on
+		-- this island size can hold), so its rim is not a closed curve to measure.
+		if not shape.harbourNotch then
+			check(
+				`{id}: anchorage rim is irregular, not a circle`,
+				(rimMax - rimMin) / (rimSum / 180) >= 0.20,
+				`rim spread = {string.format("%.3f", (rimMax - rimMin) / (rimSum / 180))}`
+			)
+		end
+	end
+
+	-- 3a) CONNECTIVITY. An island must be ONE walkable landmass. This is flood-filled on the
+	-- real height field rather than inferred from the layout, because the bay lobe and the
+	-- channel pass are both capable of severing the causeways between the sandy arms and the
+	-- inner island: before the land bridges were protected, 6 of 13 islands shipped as 2-3
+	-- separate pieces and one had its village and volcano unreachable on foot.
+	do
+		local step = math.max(shape.half / 34, 8)
+		local land: { [string]: boolean } = {}
+		local order: { { x: number, z: number } } = {}
+		shape:forEachCell(step, function(dx, dz, kind)
+			if kind == "land" then
+				local gx, gz = math.floor(dx / step), math.floor(dz / step)
+				land[`{gx},{gz}`] = true
+				table.insert(order, { x = gx, z = gz })
+			end
+		end)
+
+		local seen: { [string]: boolean } = {}
+		local components, largest = 0, 0
+		for _, cell in order do
+			local rootKey = `{cell.x},{cell.z}`
+			if not seen[rootKey] then
+				components += 1
+				local size = 0
+				local stack = { cell }
+				seen[rootKey] = true
+				while #stack > 0 do
+					local current = table.remove(stack) :: { x: number, z: number }
+					size += 1
+					-- 8-connected: a diagonal step is walkable terrain, not a gap.
+					for ddz = -1, 1 do
+						for ddx = -1, 1 do
+							if ddx ~= 0 or ddz ~= 0 then
+								local key = `{current.x + ddx},{current.z + ddz}`
+								if land[key] and not seen[key] then
+									seen[key] = true
+									table.insert(stack, { x = current.x + ddx, z = current.z + ddz })
+								end
+							end
+						end
+					end
+				end
+				largest = math.max(largest, size)
+			end
+		end
+
+		local total = #order
 		check(
-			`{id}: lagoon rim is irregular, not a circle`,
-			(rimMax - rimMin) / (rimSum / 180) >= 0.20,
-			`rim spread = {string.format("%.3f", (rimMax - rimMin) / (rimSum / 180))}`
+			`{id}: island is one connected landmass`,
+			total > 0 and largest >= total * 0.97,
+			`{components} land components, largest holds {largest}/{total} cells`
 		)
 
-		-- The far side of the bay must stay inside the island, or it is just a bite out
-		-- of the coast rather than a lagoon.
-		local enclosed = 0
+		-- And specifically: the inner island (village, volcano, loot) must be reachable on
+		-- foot from the outer beach, not marooned across the lagoon.
+		local coreCx = math.cos(shape.coreAngle) * shape.coreShift
+		local coreCz = math.sin(shape.coreAngle) * shape.coreShift
+		local coreKey = `{math.floor(coreCx / step)},{math.floor(coreCz / step)}`
+		local beachKey: string? = nil
+		for _, cell in order do
+			local dx, dz = cell.x * step, cell.z * step
+			local _, _, isBeach = shape:sample(dx, dz)
+			if isBeach and math.sqrt(dx * dx + dz * dz) > shape.minCoast * 0.80 then
+				beachKey = `{cell.x},{cell.z}`
+				break
+			end
+		end
+		local function componentOf(startKey: string): { [string]: boolean }
+			local reached: { [string]: boolean } = {}
+			if not land[startKey] then
+				return reached
+			end
+			local sx, sz = string.match(startKey, "^(%-?%d+),(%-?%d+)$")
+			local stack = { { x = tonumber(sx), z = tonumber(sz) } }
+			reached[startKey] = true
+			while #stack > 0 do
+				local current = table.remove(stack) :: { x: number, z: number }
+				for ddz = -1, 1 do
+					for ddx = -1, 1 do
+						if ddx ~= 0 or ddz ~= 0 then
+							local key = `{current.x + ddx},{current.z + ddz}`
+							if land[key] and not reached[key] then
+								reached[key] = true
+								table.insert(stack, { x = current.x + ddx, z = current.z + ddz })
+							end
+						end
+					end
+				end
+			end
+			return reached
+		end
+		if beachKey and land[coreKey] then
+			check(
+				`{id}: inner island is walkable from the outer beach`,
+				componentOf(beachKey)[coreKey] == true,
+				`core cell {coreKey} not reachable from beach cell {beachKey}`
+			)
+		else
+			check(
+				`{id}: has both an outer beach and inner-island ground to connect`,
+				beachKey ~= nil and land[coreKey] == true,
+				`beach = {tostring(beachKey)}, core cell on land = {tostring(land[coreKey])}`
+			)
+		end
+	end
+
+	-- 3b) The atoll: the lagoon must be walled OUTWARD by the sandy arms on most bearings,
+	-- broken only where a pass cuts through. That is what makes it a lagoon held inside the
+	-- island rather than a bite taken out of the coast.
+	do
+		local walled, lagoonBearings = 0, 0
 		for i = 0, 71 do
 			local a = (i / 72) * TAU
-			local rim = shape:lagoonRadius(a)
-			local kind = shape:sample(
-				lagoon.x + math.cos(a) * (rim + shape.beachWidth * 0.5),
-				lagoon.z + math.sin(a) * (rim + shape.beachWidth * 0.5)
-			)
-			if kind == "land" then
-				enclosed += 1
+			local _, outer = shape:lagoonBand(a)
+			-- Skip the tidal passes and a boarding island's harbour mouth: those are gaps in
+			-- the arm on purpose, and counting them as unwalled just measures how many
+			-- openings the island has.
+			local inNotch = false
+			for _, notch in shape.ringNotches do
+				local d = math.abs(math.atan2(math.sin(a - notch.center), math.cos(a - notch.center)))
+				if d <= notch.halfWidth + notch.feather then
+					inNotch = true
+					break
+				end
+			end
+			if outer and not inNotch then
+				lagoonBearings += 1
+				local probe = outer + shape:ringWidth(a) * 0.5
+				if shape:sample(math.cos(a) * probe, math.sin(a) * probe) == "land" then
+					walled += 1
+				end
 			end
 		end
 		check(
-			`{id}: the lagoon is enclosed by its own shoreline`,
-			enclosed >= 40,
-			`land bearings around the rim = {enclosed}/72`
+			`{id}: sandy arms wall the lagoon in on most bearings`,
+			lagoonBearings > 0 and walled >= lagoonBearings * 0.60,
+			`walled {walled}/{lagoonBearings} lagoon bearings`
 		)
 	end
 
@@ -427,9 +577,9 @@ for _, entry in catalog do
 		table.insert(pondIslands, id)
 	end
 	check(
-		`{id}: lagoon is vented to the open sea through its mouth`,
+		`{id}: anchorage can sail out to the open sea`,
 		vented or entry.River == true,
-		`mouth bearing = {if lagoon then string.format("%.2f rad", lagoon.mouthAngle) else "none"}`
+		`pass bearing = {if shape.passAngle then string.format("%.2f rad", shape.passAngle) else "none"}`
 	)
 
 	-- 5) Sand beaches at the waterlines.
@@ -444,10 +594,23 @@ for _, entry in catalog do
 	local lm = shape.landmark
 	local lmOffset = math.sqrt(lm.x * lm.x + lm.z * lm.z)
 	check(`{id}: carries a landmark landform`, lm.height >= 34, `{lm.kind} height = {math.floor(lm.height)}`)
+	-- On an atoll the landmark belongs ON THE INNER ISLAND, which is the only ground broad
+	-- and high enough to carry it. Requiring a large offset from the island centre (the old
+	-- rule, from when the island was a single landmass) would push the cone into the lagoon
+	-- or onto a sand arm. What matters now is that it sits on the core and is not
+	-- mechanically centred on it.
+	local coreCentreX = math.cos(shape.coreAngle) * shape.coreShift
+	local coreCentreZ = math.sin(shape.coreAngle) * shape.coreShift
+	local fromCore = math.sqrt((lm.x - coreCentreX) ^ 2 + (lm.z - coreCentreZ) ^ 2)
 	check(
-		`{id}: landmark stands off centre on one flank`,
-		lmOffset >= shape.half * 0.10,
-		`offset = {math.floor(lmOffset)} of half {math.floor(shape.half)}`
+		`{id}: landmark stands on the inner island`,
+		shape:sample(lm.x, lm.z) == "land" and fromCore + lm.baseR <= shape:coreRadius(lm.angle) * 1.35,
+		`{math.floor(fromCore)} from core centre, foot {math.floor(lm.baseR)}, core rim {math.floor(shape:coreRadius(lm.angle))}`
+	)
+	check(
+		`{id}: landmark is not mechanically centred on the inner island`,
+		fromCore >= shape.half * 0.03,
+		`offset from core centre = {math.floor(fromCore)}`
 	)
 	check(`{id}: high ground exists around the landmark`, c.high >= 8, `cells above 12 studs = {c.high}`)
 
@@ -513,10 +676,65 @@ for _, entry in catalog do
 				blocked += 1
 			end
 		end
+		-- On an atoll the channel is a tidal PASS, not a sea-to-sea crossing: it cuts the
+		-- sand arms so the lagoon reaches the open sea, and stops at the inner island. A
+		-- full crossing drew a blue ribbon across the atoll and split the jungle core in
+		-- half. So the requirement is that the pass is continuous water from the coast in to
+		-- the lagoon — the inner stations are expected to be land (the core).
+		local outerStations, outerBlocked = 0, 0
+		for i = -12, 12 do
+			local along = (i / 12) * shape.minCoast * 0.94
+			if math.abs(along) > shape:coreRadius(river.angle) then
+				local found = false
+				for j = -24, 24 do
+					local across = (j / 24) * sweep
+					local dx, dz = along * c - across * s, along * s + across * c
+					local kind = shape:sample(dx, dz)
+					if kind == "water" or kind == "shelf" or kind == "ocean" then
+						found = true
+						break
+					end
+				end
+				outerStations += 1
+				if not found then
+					outerBlocked += 1
+				end
+			end
+		end
+		-- The pass runs in from ONE side. The opposite side of the channel axis is usually a
+		-- protected land bridge, and deliberately stays dry — requiring both ends to be open
+		-- would demand the channel sever a causeway, which is what disconnected islands in
+		-- the first place. So: count the open side, and require it to reach the lagoon.
+		local openSides = 0
+		for _, direction in { 1, -1 } do
+			local dry, total = 0, 0
+			for i = 1, 12 do
+				local along = direction * (i / 12) * shape.minCoast * 0.94
+				if math.abs(along) > shape:coreRadius(river.angle) then
+					local found = false
+					for j = -24, 24 do
+						local across = (j / 24) * sweep
+						local dx, dz = along * c - across * s, along * s + across * c
+						local kind = shape:sample(dx, dz)
+						if kind == "water" or kind == "shelf" or kind == "ocean" then
+							found = true
+							break
+						end
+					end
+					total += 1
+					if not found then
+						dry += 1
+					end
+				end
+			end
+			if total > 0 and dry == 0 then
+				openSides += 1
+			end
+		end
 		check(
-			`{id}: navigable channel runs sea-to-sea`,
-			blocked == 0,
-			`stations with no water = {blocked}/{stations}`
+			`{id}: navigable pass connects the sea to the lagoon`,
+			openSides >= 1,
+			`open channel sides = {openSides}/2 (dry outside core = {outerBlocked}/{outerStations})`
 		)
 	end
 
@@ -550,10 +768,20 @@ for _, entry in catalog do
 			#grounded == 0,
 			`footprint over land: {table.concat(grounded, ", ")}`
 		)
+		-- The anchorage is an open harbour notched through the sand arms, so its centre may
+		-- legitimately sit in open sea rather than enclosed bay water. What must hold is
+		-- that it is water, and that the harbour actually opens to the sea so crews can
+		-- sail out.
+		local anchorKind = select(1, shape:sample(ax, az))
 		check(
-			`{id}: berths sit inside the island's sheltered bay`,
-			shape.lagoon ~= nil and shape:sample(ax, az) == "water",
-			`bay centre sample = {select(1, shape:sample(ax, az))}`
+			`{id}: anchorage centre is open water`,
+			anchorKind ~= "land",
+			`anchorage centre sample = {anchorKind}`
+		)
+		check(
+			`{id}: boarding island opens its harbour mouth to the sea`,
+			shape.harbourNotch ~= nil,
+			`harbourNotch = {tostring(shape.harbourNotch)}`
 		)
 	end
 
