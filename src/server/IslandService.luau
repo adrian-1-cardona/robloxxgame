@@ -2601,11 +2601,28 @@ end
 	shallow puddles. Replaying the island's real footprint keeps the sculpted shoreline,
 	the lagoon bed and the approach shelf intact.
 ]]
-function IslandService.paintTerrain()
+function IslandService.paintTerrain(touchedPoints: { Vector3 }?)
 	for _, isle in IslandService._islands do
-		if isle.submergedPlan then
-			IslandTerrain.repaintSubmerged(isle.submergedPlan, isle.center)
+		if not isle.submergedPlan then
+			continue
 		end
+		-- Only islands the caller actually disturbed. The replay is ~100 small writes per
+		-- island, so repainting all thirteen every time a raft crossed a chunk boundary
+		-- was a periodic hitch for no benefit: the untouched islands were already correct.
+		if touchedPoints then
+			local reach = (isle.shape and isle.shape.maxCoast or isle.size * 0.5) + 200
+			local nearby = false
+			for _, point in touchedPoints do
+				if flatDistance(point, isle.center) <= reach then
+					nearby = true
+					break
+				end
+			end
+			if not nearby then
+				continue
+			end
+		end
+		IslandTerrain.repaintSubmerged(isle.submergedPlan, isle.center)
 	end
 end
 

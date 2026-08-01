@@ -43,6 +43,11 @@ local function worldToChunk(x: number, z: number): (number, number)
 	return math.floor(x / CHUNK), math.floor(z / CHUNK)
 end
 
+-- Chunk centres filled during the current streaming cycle. Water is written below the
+-- surface across the whole chunk, so any island under one of these needs its submerged
+-- footprint restored afterwards — and only those islands do.
+local filledThisCycle: { Vector3 } = {}
+
 local function fillChunk(cx: number, cz: number): boolean
 	local key = chunkKey(cx, cz)
 	if activeChunks[key] then
@@ -58,6 +63,7 @@ local function fillChunk(cx: number, cz: number): boolean
 		Enum.Material.Water
 	)
 	activeChunks[key] = true
+	table.insert(filledThisCycle, Vector3.new(centerX, SURFACE_Y, centerZ))
 	return true
 end
 
@@ -117,6 +123,7 @@ end
 local function streamOnce(): boolean
 	local changed = false
 	local wanted: { [string]: boolean } = {}
+	table.clear(filledThisCycle)
 	for _, pos in collectFocusPoints() do
 		if ensureAround(pos.X, pos.Z, wanted) then
 			changed = true
@@ -137,11 +144,11 @@ local function streamOnce(): boolean
 		end
 	end
 
-	-- Re-paint sand only when the water field actually changed this cycle. FillCylinder
-	-- is a voxel write per isle, so doing it every tick (when nothing moved) was pure
-	-- server-side terrain churn — the main streaming lag source.
-	if changed then
-		IslandService.paintTerrain()
+	-- Restore the submerged part of any island the new water chunks just flooded. Scoped to
+	-- the chunks filled this cycle: doing it every tick, for every island, was the main
+	-- source of server-side terrain churn.
+	if #filledThisCycle > 0 then
+		IslandService.paintTerrain(filledThisCycle)
 	end
 
 	return changed
