@@ -1771,11 +1771,13 @@ end
 -- every important place is connected by a visible path with shrubs and flowers along it.
 local function buildScenicTrail(
 	model: Model,
+	center: Vector3,
 	fromPos: Vector3,
 	toPos: Vector3,
 	topY: number,
 	biome: string,
-	seed: number
+	seed: number,
+	features: { [string]: any }?
 )
 	local delta = Vector3.new(toPos.X - fromPos.X, 0, toPos.Z - fromPos.Z)
 	local distance = delta.Magnitude
@@ -1786,16 +1788,47 @@ local function buildScenicTrail(
 	local side = Vector3.new(-direction.Z, 0, direction.X)
 	local segments = math.clamp(math.ceil(distance / 13), 3, 48)
 	local rng = Random.new(seed)
+
+	--[[
+		Every slab follows the sculpted ground.
+
+		These used to be written at a flat `topY + 0.2`, which worked only because the old
+		generator flattened the whole interior of every island to one height. On sculpted
+		relief a flat trail is buried on the rises and hangs in the air over the dips, and
+		crosses open water without noticing. Each step now samples the height field, and
+		segments over water are skipped so a path stops at the shore instead of bridging it.
+	]]
+	local shape = if features then features.shape else nil
+	local function groundAt(x: number, z: number): number?
+		if not shape then
+			return topY
+		end
+		local height = shape:landHeight(x - center.X, z - center.Z)
+		if not height then
+			return nil
+		end
+		return topY + height
+	end
+
 	for i = 1, segments do
 		local t = (i - 0.5) / segments
 		local wander = math.sin(t * math.pi * 3 + seed * 0.01) * 3.2
 		local pos = fromPos:Lerp(toPos, t) + side * wander
 		local nextPos = pos + direction
+		local groundY = groundAt(pos.X, pos.Z)
+		local nextY = groundAt(nextPos.X, nextPos.Z)
+		if not groundY or not nextY then
+			continue
+		end
 		makePart({
 			Name = "ScenicPath",
 			Parent = model,
 			Size = Vector3.new(9, 0.35, distance / segments + 1.5),
-			CFrame = CFrame.lookAt(Vector3.new(pos.X, topY + 0.2, pos.Z), Vector3.new(nextPos.X, topY + 0.2, nextPos.Z)),
+			-- lookAt across the real heights, so the slab tilts with the slope.
+			CFrame = CFrame.lookAt(
+				Vector3.new(pos.X, groundY + 0.2, pos.Z),
+				Vector3.new(nextPos.X, nextY + 0.2, nextPos.Z)
+			),
 			Color = if biome == "volcanic" then Color3.fromRGB(82, 72, 65) else Color3.fromRGB(126, 106, 72),
 			Material = if biome == "volcanic" then Enum.Material.Slate else Enum.Material.Ground,
 			CanCollide = false,
@@ -1805,9 +1838,15 @@ local function buildScenicTrail(
 		if i % 2 == 0 then
 			local edge = if i % 4 == 0 then 1 else -1
 			local plantPos = pos + side * edge * rng:NextNumber(6.5, 9)
-			buildBush(model, topY, plantPos.X, plantPos.Z, biome == "jungle")
-			if i % 4 == 0 then
-				buildFlower(model, topY, plantPos.X + side.X * 2, plantPos.Z + side.Z * 2)
+			local plantY = groundAt(plantPos.X, plantPos.Z)
+			if plantY then
+				buildBush(model, plantY, plantPos.X, plantPos.Z, biome == "jungle")
+				if i % 4 == 0 then
+					local flowerY = groundAt(plantPos.X + side.X * 2, plantPos.Z + side.Z * 2)
+					if flowerY then
+						buildFlower(model, flowerY, plantPos.X + side.X * 2, plantPos.Z + side.Z * 2)
+					end
+				end
 			end
 		end
 	end
@@ -1859,7 +1898,7 @@ local function buildIslandTrailNetwork(
 	end
 
 	for i, target in targets do
-		buildScenicTrail(model, hub, target, topY, biome, seedFromId(model.Name) + i * 97)
+		buildScenicTrail(model, center, hub, target, topY, biome, seedFromId(model.Name) + i * 97, features)
 	end
 end
 
@@ -1942,6 +1981,7 @@ local function planIslandFeatures(
 			baseR = lm.baseR,
 			height = lm.height,
 			craterR = lm.craterR or lm.baseR * 0.17,
+			craterDepth = lm.craterDepth or 0,
 			angle = lm.angle,
 		}
 	elseif lm and lm.kind == "peak" then
@@ -2049,10 +2089,12 @@ local function decorateShore(
 	local surfaceY = OceanConfig.SurfaceY
 	local islandId = entry.Id
 
-	-- Volcano lava + smoke.
+	-- Volcano lava + smoke. The lava pool sits on the crater FLOOR, which the height field
+	-- digs `craterDepth` below the summit — filling at the summit height left the pool
+	-- hanging over the crater it was supposed to be inside.
 	if features.volcano then
 		local v = features.volcano
-		buildLavaCrater(model, v.pos, v.craterR, topY + v.height, v.baseR, topY)
+		buildLavaCrater(model, v.pos, v.craterR, topY + v.height - (v.craterDepth or 0), v.baseR, topY)
 	end
 
 	-- Mountain waterfall, dropping off the coastal cliff below the peak. Anchored to the
@@ -2061,10 +2103,21 @@ local function decorateShore(
 	local shape = features.shape
 	if features.peak then
 		local pk = features.peak
-		local wr = shape:coastRadius(pk.angle) - shape.beachWidth * 0.5
-		local wx = center.X + math.cos(pk.angle) * wr
-		local wz = center.Z + math.sin(pk.angle) * wr
-		buildWaterfall(model, Vector3.new(wx, topY + 22, wz), surfaceY)
+		-- Find a lip on the peak's flank that is high enough for the fall to read, rather
+		-- than assuming the coast is 22 studs up: on a sculpted island the shore is barely
+		-- above sea level, which left the waterfall starting in mid-air above the beach.
+		local dropX, dropZ, dropY
+		for _, frac in { 0.62, 0.70, 0.78, 0.86, 0.94 } do
+			local r = shape:coastRadius(pk.angle) * frac
+			local dx, dz = math.cos(pk.angle) * r, math.sin(pk.angle) * r
+			local height = shape:landHeight(dx, dz)
+			if height and height > 16 then
+				dropX, dropZ, dropY = center.X + dx, center.Z + dz, topY + height
+			end
+		end
+		if dropY then
+			buildWaterfall(model, Vector3.new(dropX, dropY, dropZ), surfaceY)
+		end
 	end
 
 	buildIslandTrailNetwork(model, center, size, topY, biome, features)
@@ -2163,12 +2216,13 @@ local function decorateShore(
 	-- A beached shipwreck on abandoned isles (washed-up wreck to poke around in).
 	if entry.Abandoned == true then
 		local rand = randomStream(entry.Id .. "_wreck")
-		local dx, dz = shape:randomLandPoint(rand, { zone = "coast", maxHeight = 6 })
+		local dx, dz, height = shape:randomLandPoint(rand, { zone = "coast", maxHeight = 6 })
 		if dx then
 			local yaw = math.atan2(dz, dx)
+			-- Beached on the sand it was actually sampled from, not at a nominal topY.
 			buildRowboat(
 				model,
-				CFrame.new(center.X + dx, topY + 0.6, center.Z + dz) * CFrame.Angles(0, yaw, 0),
+				CFrame.new(center.X + dx, topY + (height or 0) + 0.6, center.Z + dz) * CFrame.Angles(0, yaw, 0),
 				true
 			)
 		end
@@ -2511,7 +2565,8 @@ local function buildQueuedEndlessIsland(entry: { [string]: any })
 			LootPropService.registerExisting(desc)
 		end
 	end
-	IslandService.paintTerrain()
+	-- Only the island just built: the other islands' submerged footprints are untouched.
+	IslandService.paintTerrain({ record.center })
 end
 
 local function queueEndlessIslandsNearRafts()

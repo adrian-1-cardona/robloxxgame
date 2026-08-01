@@ -574,10 +574,13 @@ for _, entry in catalog do
 		#boxes < 4000,
 		`{#boxes} boxes`
 	)
+	-- Same resolution the server uses (IslandTerrain.submergedPlan: twice the sculpt step),
+	-- so this measures the plan that actually ships.
+	local submerged = IslandRaster.submergedBoxes(shape, { step = step * 2, topY = TOP_Y })
 	check(
-		`{id}: submerged repaint is a handful of boxes, not a per-cell replay`,
-		#IslandRaster.submergedBoxes(shape, { step = 48, topY = TOP_Y }) < 220,
-		`{#IslandRaster.submergedBoxes(shape, { step = 48, topY = TOP_Y })} boxes`
+		`{id}: submerged repaint stays a small replay, not a per-cell one`,
+		#submerged < 700,
+		`{#submerged} boxes`
 	)
 	-- Nothing in the plan may be water above the waterline, or an island would ship with
 	-- water hanging over its own beaches.

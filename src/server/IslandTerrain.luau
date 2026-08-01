@@ -106,7 +106,13 @@ end
 -- Precompute the submerged footprint once; IslandService replays it whenever the ocean
 -- streamer refills the water chunks over an island.
 function IslandTerrain.submergedPlan(shape, topY: number)
-	return IslandRaster.submergedBoxes(shape, { step = 48, topY = topY })
+	-- Twice the sculpt step, not a fixed 48. At 48 studs against a 12-to-16 stud sculpt the
+	-- repaint bulldozed the lagoon's own shoreline cells into sand and left a ring of
+	-- genuinely submerged land unrestored at the waterline.
+	return IslandRaster.submergedBoxes(shape, {
+		step = IslandTerrain.stepFor(shape.size) * 2,
+		topY = topY,
+	})
 end
 
 function IslandTerrain.repaintSubmerged(boxes, center: Vector3)
