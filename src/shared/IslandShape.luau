@@ -235,14 +235,19 @@ function IslandShape.new(id: string, size: number, opts: { [string]: any }?)
 
 	local windowCount = 2 + math.floor(rand() * 1.99)
 	self.lagoonWindows = {}
+	self.ringNotches = {}
 	local firstWindow = rand() * TAU
 	for i = 1, windowCount do
 		local centre = firstWindow + (i - 1) * (TAU / windowCount) + (rand() - 0.5) * 0.45
-		local halfWidth = (0.60 + rand() * 0.32) * (math.pi / windowCount)
+		-- Window width plus feather must stay inside its share of the circle, or adjacent
+		-- windows meet and the lagoon closes into an unbroken ring — which leaves the inner
+		-- island cut off from the arms entirely. Measured at the old (0.60..0.92) widths,
+		-- 6 of 13 islands shipped as 2-3 separate landmasses.
+		local halfWidth = (0.42 + rand() * 0.16) * (math.pi / windowCount)
 		table.insert(self.lagoonWindows, {
 			center = centre % TAU,
 			halfWidth = halfWidth,
-			feather = halfWidth * 0.5,
+			feather = halfWidth * 0.40,
 		})
 	end
 
@@ -250,14 +255,34 @@ function IslandShape.new(id: string, size: number, opts: { [string]: any }?)
 	-- An extra lobe bitten out of ONE flank, with an organic rim and a mouth to the sea.
 	-- It merges with the lagoon into a single connected water system and is what the
 	-- arrival island's spawn basin is pinned to.
+	-- Put the anchorage on a lagoon WINDOW bearing. On a land-bridge bearing the bay is not
+	-- carved at all (bridges are protected), so the "bay" came out as dry ground and crews
+	-- were moored on a causeway — four islands shipped with sealed, landlocked anchorages.
 	local lagoonAngle = rand() * TAU
+	if #self.lagoonWindows > 0 then
+		local best = self.lagoonWindows[1]
+		for _, w in self.lagoonWindows do
+			if math.abs(angleDelta(lagoonAngle, w.center)) < math.abs(angleDelta(lagoonAngle, best.center)) then
+				best = w
+			end
+		end
+		lagoonAngle = best.center
+	end
 	if o.lagoon ~= false then
 		-- Sit the bay OUT IN THE LAGOON ANNULUS, between the inner island's rim and the
 		-- sandy arms — not near the island centre. Centred, it carved a crescent out of the
 		-- inner island and left the volcano perched on a thin arc. Out here it instead
 		-- widens the lagoon into an anchorage, which is where the reference moors its ships
 		-- and where crew rafts berth.
-		local lagoonDist = half * (0.50 + rand() * 0.09)
+		-- Sit it on the annulus midline at this bearing, measured from the real core rim and
+		-- arm edge. A fixed fraction of `half` does not work: the inner island's rim reaches
+		-- 0.6 of half on some bearings, so a bay pinned at 0.50 landed inside the core, was
+		-- suppressed (the core is protected), and became dry land.
+		local ringInnerHere = self:coastRadius(lagoonAngle) - self:ringWidth(lagoonAngle)
+		local coreHere = self:coreRadius(lagoonAngle)
+		local margin = self.beachWidth * 0.9
+		local lo, hi = coreHere + margin, ringInnerHere - margin
+		local lagoonDist = if hi > lo then (lo + hi) * 0.5 else (coreHere + ringInnerHere) * 0.5
 		self.lagoon = {
 			angle = lagoonAngle,
 			x = math.cos(lagoonAngle) * lagoonDist,
@@ -311,13 +336,19 @@ function IslandShape.new(id: string, size: number, opts: { [string]: any }?)
 			-- nearest the island lie in sheltered harbour water and the outermost lie just
 			-- beyond the coast in open sea — all of them afloat. Every other island keeps
 			-- the closed atoll silhouette.
+			-- Freeze the inner island BEFORE measuring the harbour. `_fitLagoon`'s area cap
+			-- grows `coreBase` to reduce water, and the harbour offset below is computed from
+			-- the core rim — so without this the rim creeps into the raft basin afterwards
+			-- and rafts spawn in terrain. `coreMax` is the ceiling the area cap honours.
+			self.coreMax = self.coreBase
 			local harbourDistance = self:coreRadius(lagoonAngle) + basin + self.beachWidth * 1.5
 			self.lagoon.distance = harbourDistance
 			self.lagoon.x = math.cos(lagoonAngle) * harbourDistance
 			self.lagoon.z = math.sin(lagoonAngle) * harbourDistance
 			self.lagoon.baseR = math.max(self.lagoon.baseR, basin)
 			-- Open the sand arms and the lagoon across the harbour mouth.
-			self.ringNotch = { center = lagoonAngle % TAU, halfWidth = 0.62, feather = 0.34 }
+			self.harbourNotch = { center = lagoonAngle % TAU, halfWidth = 0.62, feather = 0.34 }
+			table.insert(self.ringNotches, self.harbourNotch)
 			table.insert(self.lagoonWindows, {
 				center = lagoonAngle % TAU,
 				halfWidth = 0.62,
@@ -356,6 +387,67 @@ function IslandShape.new(id: string, size: number, opts: { [string]: any }?)
 			widthWobble = 0.18 + rand() * 0.14,
 			widthPhase = rand() * TAU,
 		}
+	end
+
+	-- ---- Route the water openings through the lagoon windows -------------------------
+	-- The land bridges are now inviolable, so a pass or a bay mouth aimed at a bridge
+	-- bearing simply does not get carved and the lagoon seals into a pond. Snap both to the
+	-- nearest window centre, which is where the lagoon is open and where a channel through
+	-- the sand arms belongs anyway.
+	if #self.lagoonWindows > 0 then
+		local function nearestWindow(angle: number): number
+			local best, bestDelta = angle, math.huge
+			for _, w in self.lagoonWindows do
+				local d = math.abs(angleDelta(angle, w.center))
+				if d < bestDelta then
+					best, bestDelta = w.center, d
+				end
+			end
+			return best
+		end
+		if self.lagoon then
+			self.lagoon.mouthAngle = nearestWindow(self.lagoon.mouthAngle)
+		end
+		if self.river then
+			self.river.angle = nearestWindow(self.river.angle)
+		end
+
+		-- The tidal pass. Cut it as a gap in the sand arm at a window bearing, narrower than
+		-- the window itself so arm land survives on both sides of it. This is the ONLY thing
+		-- that vents the lagoon, which is why it is guaranteed here rather than left to a
+		-- channel or bay mouth that might be aimed at a causeway.
+		-- Land bridges segment the lagoon into separate arcs, so a single pass only vents the
+		-- arc it sits in. The anchorage's own arc must always be vented, or crews are moored
+		-- in a sealed pond; a river island additionally gets a pass on its channel bearing.
+		local function windowNearest(angle: number)
+			local best = self.lagoonWindows[1]
+			for _, w in self.lagoonWindows do
+				if math.abs(angleDelta(angle, w.center)) < math.abs(angleDelta(angle, best.center)) then
+					best = w
+				end
+			end
+			return best
+		end
+		local function notchAt(window)
+			for _, existing in self.ringNotches do
+				if math.abs(angleDelta(existing.center, window.center)) < 0.01 then
+					return
+				end
+			end
+			local passHalf = math.max(window.halfWidth * 0.34, 0.10)
+			table.insert(self.ringNotches, {
+				center = window.center,
+				halfWidth = passHalf,
+				feather = passHalf * 0.5,
+			})
+		end
+
+		local anchorWindow = windowNearest(if self.lagoon then self.lagoon.angle else 0)
+		notchAt(anchorWindow)
+		self.passAngle = anchorWindow.center
+		if self.river then
+			notchAt(windowNearest(self.river.angle))
+		end
 	end
 
 	-- ---- Landmark (cone / peak / rocky ridge) ----------------------------------------
@@ -604,7 +696,11 @@ function IslandShape:_placeShelf(rand: () -> number)
 	self.villageX = best.x
 	self.villageZ = best.z
 	-- Cap the shelf so it stays a settlement clearing rather than flattening the isle.
-	self.buildableRadius = math.min(math.max(best.radius, self.half * 0.07), self.half * 0.30)
+	-- Inset by one probe step: the fit records the last radius that was fully clear, so the
+	-- boundary itself is the first ring that failed. Building right up to it puts the outer
+	-- street on the waterline.
+	local inset = best.radius * 0.94
+	self.buildableRadius = math.min(math.max(inset, self.half * 0.07), self.half * 0.30)
 	self.shelf = {
 		x = best.x,
 		z = best.z,
@@ -637,8 +733,11 @@ function IslandShape:_shelfFit(cx: number, cz: number): number
 	local step = math.max(self.half * 0.03, 10)
 	local radius, r = 0, step
 	while r <= limit do
-		for i = 0, 15 do
-			local a = (i / 16) * TAU
+		-- 32 bearings, not 16. At 16 the probes are far enough apart on a large clearing that
+		-- a narrow inlet of lagoon water slips between two of them, and the village footprint
+		-- that gets derived from this radius then has houses standing in the water.
+		for i = 0, 31 do
+			local a = (i / 32) * TAU
 			local px, pz = cx + math.cos(a) * r, cz + math.sin(a) * r
 			if self:sample(px, pz) ~= "land" or self:onLandmark(px, pz) then
 				return radius
@@ -664,10 +763,11 @@ end
 function IslandShape:ringWidth(angle: number): number
 	local v = self.ringBase + harmonics(self.ringProfile, angle)
 	local width = self.half * math.clamp(v, 0.10, 0.34)
-	-- A boarding island's harbour mouth: the sand arm thins to nothing so the anchorage
-	-- opens to the sea instead of being walled in behind a beach.
-	local notch = self.ringNotch
-	if notch then
+	-- Notches cut the sand arm away to nothing: the tidal pass that vents the lagoon, and a
+	-- boarding island's wider harbour mouth. Expressing the opening as a gap in the RING
+	-- rather than as a separate carved channel is what keeps it from severing a land bridge:
+	-- a notch only ever sits inside a lagoon window, where there is no causeway to cut.
+	for _, notch in self.ringNotches do
 		local d = math.abs(angleDelta(angle, notch.center))
 		local w = 0
 		if d <= notch.halfWidth then
@@ -874,18 +974,25 @@ function IslandShape:sample(dx: number, dz: number): (string, number, boolean)
 	-- Is this point on the inner island? Several features below must not cut into it.
 	local onCore = r <= self:coreRadius(angle)
 
+	-- Is this bearing a LAND BRIDGE — one of the solid causeways between two lagoon windows
+	-- that join the sandy arms to the inner island? Nothing is allowed to carve a bridge.
+	-- The bay lobe and the channel pass were previously free to cut whichever bearings they
+	-- liked, and they cut the bridges: 6 of 13 islands ended up as 2-3 disconnected
+	-- landmasses, and on one the village and volcano were unreachable on foot from any
+	-- beach. Protecting the bridges is what keeps an island a single walkable place.
+	local onLandBridge = self:lagoonWindowWeight(angle) <= 0.02
+
 	-- --- navigable channel ---
 	-- On an atoll the channel is a tidal PASS: it cuts the sand arms so the lagoon connects
 	-- to the open sea, and stops at the inner island. Letting it run the full sea-to-sea
 	-- length instead drew a blue ribbon straight across the atoll and sliced the jungle
 	-- core in half, which is both unlike the reference and a worse place to live.
-	if self.river and not onCore then
-		local edge = self:riverEdge(dx, dz)
-		if edge <= 0 then
-			return "water", self.channelBed, false
-		end
-		dw = math.min(dw, edge)
-	end
+	-- The channel is NOT carved as a separate trench any more. On an atoll the lagoon plus
+	-- its tidal pass (a notch in the sand arm, see ringWidth) already provide navigable
+	-- water from the sea to the island's interior. A second carved channel had to cross
+	-- either the inner island or a land bridge, and cutting either one is what left islands
+	-- in disconnected pieces with unreachable villages. `self.river` is retained, aimed at
+	-- the pass, for callers that ask where the navigable water is.
 
 	-- --- highland lake ---
 	local lake = self.lake
@@ -918,7 +1025,7 @@ function IslandShape:sample(dx: number, dz: number): (string, number, boolean)
 	-- Never allowed to cut the inner island. The bay is an anchorage carved out of the
 	-- lagoon and the sand arms; if it may also eat the core, the jungle mass degenerates
 	-- into a crescent and the volcano ends up on a spit.
-	local lagoon = if onCore then nil else self.lagoon
+	local lagoon = if onCore or onLandBridge then nil else self.lagoon
 	if lagoon then
 		local ldx, ldz = dx - lagoon.x, dz - lagoon.z
 		local ld = math.sqrt(ldx * ldx + ldz * ldz)
@@ -927,12 +1034,9 @@ function IslandShape:sample(dx: number, dz: number): (string, number, boolean)
 			return "water", self.lagoonBed, false
 		end
 		dw = math.min(dw, ld - lr)
-
-		local mouth = self:lagoonMouthEdge(dx, dz)
-		if mouth <= 0 then
-			return "water", self.lagoonBed, false
-		end
-		dw = math.min(dw, mouth)
+		-- No separate mouth channel: the bay is an anchorage lobe of the lagoon, and the
+		-- lagoon reaches the sea through the ring's tidal pass. A mouth carved straight out
+		-- through the arms was free to land on a causeway and cut the island in two.
 	end
 
 	-- --- land surface ---
