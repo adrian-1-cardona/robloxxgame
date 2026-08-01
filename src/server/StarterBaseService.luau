@@ -121,6 +121,7 @@ end
 -- baseSlot is an independent raft index — not tied to pier PortalCount.
 function StarterBaseService.getBaseCenter(baseSlot: number): Vector3
 	local cfg = Config.StarterBase
+	local anchor = berthAnchor()
 	local offsets = IslandShape.berthGrid(Config.Islands.BerthSlots, cfg.SpacingX, cfg.SlotsPerRow)
 	-- Extra crews beyond the reserved berths continue the grid outward rather than failing.
 	local offset = offsets[baseSlot]
