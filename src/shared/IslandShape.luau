@@ -565,6 +565,27 @@ function IslandShape:riverLocal(dx: number, dz: number): (number, number)
 	return dx * c + dz * s, -dx * s + dz * c
 end
 
+--[[
+	Where the channel is at a given distance along its axis: the offset of its centreline
+	from that axis, and how wide it is there.
+
+	Two sine terms of different wavelengths give a curved, non-repeating course, and the
+	width breathes slightly along it — a valley rather than a slab. Anything that has to
+	meet the river (a bridge, a bank-side prop) must ask for the course here instead of
+	assuming the channel runs down the island's centre line, because it does not.
+]]
+function IslandShape:riverCourse(along: number): (number, number)
+	local river = self.river
+	if not river then
+		return 0, 0
+	end
+	local centre = river.meanderAmp * math.sin(along / river.meanderLen + river.meanderPhase)
+		+ river.meanderAmp * 0.42 * math.sin(along / (river.meanderLen * 0.43) + river.meanderPhase * 1.7)
+	local width = river.width
+		* (1 + river.widthWobble * math.sin(along / (river.meanderLen * 0.8) + river.widthPhase))
+	return centre, width
+end
+
 -- Signed distance outside the channel walls: <= 0 means inside the navigable water.
 function IslandShape:riverEdge(dx: number, dz: number): number
 	local river = self.river
@@ -575,13 +596,8 @@ function IslandShape:riverEdge(dx: number, dz: number): number
 	if math.abs(along) > river.length * 0.5 then
 		return math.huge
 	end
-	-- Curved centreline + a gently varying width: a valley, not a slab.
-	local centre = river.meanderAmp * math.sin(along / river.meanderLen + river.meanderPhase)
-		+ river.meanderAmp * 0.42 * math.sin(along / (river.meanderLen * 0.43) + river.meanderPhase * 1.7)
-	local halfWidth = river.width
-		* 0.5
-		* (1 + river.widthWobble * math.sin(along / (river.meanderLen * 0.8) + river.widthPhase))
-	return math.abs(across - centre) - halfWidth
+	local centre, width = self:riverCourse(along)
+	return math.abs(across - centre) - width * 0.5
 end
 
 -- Signed distance outside the lagoon mouth channel: <= 0 means inside the mouth water.
@@ -844,8 +860,16 @@ function IslandShape:shoreAngleNear(angle: number, avoidLagoon: boolean?): numbe
 	return best
 end
 
+-- Offsets of the settlement clearing's centre from the island centre.
 function IslandShape:villageCenter(): (number, number)
 	return self.villageX, self.villageZ
+end
+
+-- Radius of usable ground around a point: dry land, clear of the landmark's slopes and the
+-- lake. Catalog overrides use this to validate a hand-picked settlement position before it
+-- is accepted, so a bad override degrades to the generated site instead of a broken island.
+function IslandShape:clearingRadiusAt(dx: number, dz: number): number
+	return self:_shelfFit(dx, dz)
 end
 
 -- ==========================================================================================
