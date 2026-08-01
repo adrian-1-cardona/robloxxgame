@@ -860,6 +860,141 @@ function IslandShape:shoreAngleNear(angle: number, avoidLagoon: boolean?): numbe
 	return best
 end
 
+-- Reads an (X, Z) offset out of a catalog field. Accepts anything with numeric X and Z, so
+-- it works for a real Vector3 on the server and for a plain table in the headless specs.
+local function readOffset(value: any): (number?, number?)
+	if value == nil or type(value) == "string" or type(value) == "number" then
+		return nil, nil
+	end
+	local ok, x, z = pcall(function()
+		return value.X, value.Z
+	end)
+	if ok and type(x) == "number" and type(z) == "number" then
+		return x, z
+	end
+	return nil, nil
+end
+
+--[[
+	Apply hand-authored catalog overrides to a generated shape.
+
+	This lives here, next to the generator, so the server and the headless specs apply the
+	same overrides. Each one is re-validated: an override that would put the settlement in
+	the water, or the volcano on top of it, is rejected and the generated layout is kept, so
+	a typo in the catalog degrades instead of shipping a broken island.
+
+	Supported fields:
+		LagoonWidth, LagoonOffset
+		VolcanoOffset, VolcanoBaseRadius, VolcanoHeight, Volcano
+		SettlementOffset, VillageRadiusFactor
+]]
+function IslandShape.applyOverrides(shape, entry: { [string]: any }): { string }
+	local half = shape.half
+	local applied: { string } = {}
+
+	local lagoon = shape.lagoon
+	if lagoon then
+		local x, z = readOffset(entry.LagoonOffset)
+		if x and (x ~= 0 or z ~= 0) then
+			lagoon.x, lagoon.z = x, z
+			lagoon.distance = math.sqrt(x * x + z * z)
+			lagoon.angle = math.atan2(z, x)
+			table.insert(applied, "LagoonOffset")
+		end
+		local width = tonumber(entry.LagoonWidth)
+		if width then
+			lagoon.baseR = math.clamp(width * 0.5, half * 0.12, half * 0.62)
+			table.insert(applied, "LagoonWidth")
+		end
+	end
+
+	local lm = shape.landmark
+	if lm then
+		local x, z = readOffset(entry.VolcanoOffset)
+		if x and (x ~= 0 or z ~= 0) then
+			lm.x, lm.z = x, z
+			lm.distance = math.sqrt(x * x + z * z)
+			lm.angle = math.atan2(z, x)
+			table.insert(applied, "VolcanoOffset")
+		end
+		local baseR = tonumber(entry.VolcanoBaseRadius)
+		if baseR then
+			lm.baseR = math.clamp(baseR, half * 0.10, half * 0.55)
+			table.insert(applied, "VolcanoBaseRadius")
+		end
+		local height = tonumber(entry.VolcanoHeight)
+		if height then
+			lm.height = math.clamp(height, 20, shape.size * 0.30)
+			table.insert(applied, "VolcanoHeight")
+		end
+		if entry.Volcano == true and lm.kind ~= "volcano" then
+			lm.kind = "volcano"
+			lm.craterR = lm.baseR * 0.17
+			lm.craterDepth = lm.height * 0.13
+			-- A cone is a cone: drop the ridge elongation so it does not read as a spine.
+			lm.elongation = 0
+			table.insert(applied, "Volcano")
+		end
+	end
+
+	-- The clearing has to be re-fitted whenever a landform moves, or the village keeps a
+	-- clearing that was measured before the volcano was relocated on top of it.
+	local sx, sz = readOffset(entry.SettlementOffset)
+	local factor = tonumber(entry.VillageRadiusFactor)
+	if sx and (sx ~= 0 or sz ~= 0) then
+		local fitted = shape:clearingRadiusAt(sx, sz)
+		if fitted > half * 0.06 then
+			local radius = math.min(fitted, half * 0.30)
+			if factor then
+				radius = math.min(radius, half * factor)
+			end
+			shape.villageX, shape.villageZ = sx, sz
+			shape.buildableRadius = radius
+			shape.shelf = {
+				x = sx,
+				z = sz,
+				radius = radius,
+				feather = math.max(radius * 0.55, 20),
+			}
+			table.insert(applied, "SettlementOffset")
+		else
+			table.insert(applied, "SettlementOffset(rejected)")
+		end
+	elseif factor and shape.shelf then
+		local radius = math.min(shape.buildableRadius, half * factor)
+		shape.buildableRadius = radius
+		shape.shelf.radius = radius
+		shape.shelf.feather = math.max(radius * 0.55, 20)
+		table.insert(applied, "VillageRadiusFactor")
+	end
+
+	return applied
+end
+
+--[[
+	Build the shape for a catalog entry, overrides included. Single entry point shared by
+	the server (IslandTerrain) and the headless specs, so what CI measures is what ships.
+]]
+function IslandShape.forEntry(entry: { [string]: any }, seaOffset: number?)
+	local size = entry.SizeStuds
+	local shape = IslandShape.new(entry.Id, size, {
+		biome = entry.Biome or "beach",
+		theme = entry.Theme or "wild",
+		seaOffset = seaOffset,
+		volcano = entry.Volcano,
+		lake = entry.Lake,
+		lagoon = entry.Lagoon,
+		river = if entry.River == true
+			then {
+				angle = tonumber(entry.RiverAngle) or 0,
+				width = tonumber(entry.RiverWidth) or math.max(110, size * 0.07),
+			}
+			else nil,
+	})
+	IslandShape.applyOverrides(shape, entry)
+	return shape
+end
+
 -- Offsets of the settlement clearing's centre from the island centre.
 function IslandShape:villageCenter(): (number, number)
 	return self.villageX, self.villageZ

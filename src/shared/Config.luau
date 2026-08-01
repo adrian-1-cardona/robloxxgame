@@ -192,17 +192,25 @@ local Config = {
 		-- Villagers spawn with the opening archipelago. Towns must already look inhabited
 		-- from the raft; landing is not required to make their residents appear.
 		Catalog = {
-			-- The first playable view after boarding: one irregular low-poly volcanic
-			-- island. Each crew begins in the protected central lagoon, with a dense
-			-- jungle, dockside town, and faceted volcano framing the harbor—never a
-			-- circular atoll or dome-shaped hill field.
+			-- The first playable view after boarding: one irregular volcanic island with a
+			-- sheltered lagoon, a dockside town on its shore and a tall smoking cone behind
+			-- it. Its silhouette comes from src/shared/IslandShape.luau like every other
+			-- isle, so it is never a circular atoll or a dome-shaped hill field.
+			--
+			-- The bay's position and size, the cone's position and footprint, and the town
+			-- site are deliberately NOT pinned here. Pinning them produced a lagoon centred
+			-- on the island (a moat, and the exact bullseye the shape generator exists to
+			-- avoid) whose rim then swallowed the volcano that was pinned inside it. The
+			-- generator already guarantees what this island wants: an off-centre bay with a
+			-- mouth to the sea, the landmark on the opposite flank, and the town fitted to
+			-- the bay shore. Only the things that cannot be derived are stated.
 			{
 				Id = "arrival_hub",
 				Name = "Emberlagoon Haven",
 				Offset = Vector3.new(0, 0, 0),
 				SizeStuds = 1500,
-				-- Keep the jungle biome classification for dense tropical vegetation;
-				-- Volcano = true below adds the explicit landmark without changing that.
+				-- Jungle biome for dense tropical vegetation; Volcano = true turns the
+				-- island's landmark into a crater cone without changing the flora.
 				Biome = "jungle",
 				Theme = "town",
 				Abandoned = false,
@@ -210,23 +218,16 @@ local Config = {
 				SafeHarbor = true,
 				Merchant = true,
 				Lagoon = true,
-				LagoonWidth = 780,
-				LagoonDepth = 610,
-				LagoonOffset = Vector3.new(0, 0, 0),
-				-- Retained as a compatibility marker for the boarding/raft contract. The
-				-- terrain generator converts it into the irregular central lagoon below.
+				-- A tall cone: this is the first landmark a crew ever sees.
+				Volcano = true,
+				VolcanoHeight = 260,
+				-- Retained as the boarding/raft contract marker. The generator turns it
+				-- into a meandering channel through the island.
 				River = true,
 				RiverWidth = 440,
-				-- Keep the town on the south shore, facing back across the water toward
-				-- the spawn raft and the jungle-covered volcanic landmark.
-				SettlementOffset = Vector3.new(0, 0, 410),
-				SettlementTopYOffset = 9,
-				VillageRadiusFactor = 0.36,
+				-- The town looks north across its own harbour, back toward the spawn raft.
 				HarborFacingAngle = math.pi,
-				Volcano = true,
-				VolcanoOffset = Vector3.new(120, 0, -310),
-				VolcanoBaseRadius = 230,
-				VolcanoHeight = 260,
+				VillageRadiusFactor = 0.36,
 				Docks = 3,
 				Lighthouse = true,
 				Church = true,

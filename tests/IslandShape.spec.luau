@@ -121,22 +121,11 @@ local TOP_Y = Config.Islands.TopY
 -- Heights from IslandShape are relative to TopY, so sea level is a negative offset.
 local SEA_OFFSET = OceanConfig.SurfaceY - TOP_Y
 
--- Mirrors IslandService.shapeFor: the spec must build shapes exactly the way the server
--- does, or it verifies geometry the game never renders.
+-- The same entry point the server uses (IslandTerrain.shapeFor delegates to it), catalog
+-- overrides included. Building shapes any other way here would verify geometry the game
+-- never renders.
 local function shapeFor(entry)
-	return IslandShape.new(entry.Id, entry.SizeStuds, {
-		biome = entry.Biome or "beach",
-		theme = entry.Theme or "wild",
-		seaOffset = SEA_OFFSET,
-		volcano = entry.Volcano,
-		lake = entry.Lake,
-		river = if entry.River == true
-			then {
-				angle = tonumber(entry.RiverAngle) or 0,
-				width = tonumber(entry.RiverWidth) or math.max(110, entry.SizeStuds * 0.07),
-			}
-			else nil,
-	})
+	return IslandShape.forEntry(entry, SEA_OFFSET)
 end
 
 -- -------------------------------------------------------------------------------------

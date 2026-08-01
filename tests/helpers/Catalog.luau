@@ -41,6 +41,16 @@ local function stringField(block: string, name: string): string?
 	return string.match(block, name .. '%s*=%s*"([^"]+)"')
 end
 
+-- `Name = Vector3.new(x, y, z)` -> a plain table with X/Y/Z, which is all IslandShape's
+-- override reader needs.
+local function vectorField(block: string, name: string): { X: number, Y: number, Z: number }?
+	local x, y, z = string.match(block, name .. "%s*=%s*Vector3%.new%(([^,]+),([^,]+),([^%)]+)%)")
+	if not x then
+		return nil
+	end
+	return { X = tonumber(x) or 0, Y = tonumber(y) or 0, Z = tonumber(z) or 0 }
+end
+
 local function boolField(block: string, name: string): boolean?
 	local raw = field(block, name)
 	if raw == nil then
@@ -73,27 +83,23 @@ function Catalog.load(): { { [string]: any } }
 			Volcano = boolField(block, "Volcano"),
 			Lighthouse = boolField(block, "Lighthouse"),
 			Abandoned = boolField(block, "Abandoned"),
+			-- Hand-authored silhouette overrides (see IslandShape.applyOverrides).
+			Lagoon = boolField(block, "Lagoon"),
+			LagoonWidth = numberField(block, "LagoonWidth"),
+			LagoonOffset = vectorField(block, "LagoonOffset"),
+			VolcanoOffset = vectorField(block, "VolcanoOffset"),
+			VolcanoBaseRadius = numberField(block, "VolcanoBaseRadius"),
+			VolcanoHeight = numberField(block, "VolcanoHeight"),
+			SettlementOffset = vectorField(block, "SettlementOffset"),
+			VillageRadiusFactor = numberField(block, "VillageRadiusFactor"),
 		})
 	end
 	return entries
 end
 
--- Mirrors IslandService.shapeForEntry so specs and previews match the running server.
+-- The same entry point the server uses, catalog overrides included.
 function Catalog.shapeFor(IslandShape, entry: { [string]: any })
-	local river = nil
-	if entry.River == true then
-		river = {
-			angle = entry.RiverAngle or 0,
-			width = entry.RiverWidth or math.max(110, entry.SizeStuds * 0.07),
-		}
-	end
-	return IslandShape.new(entry.Id, entry.SizeStuds, {
-		biome = entry.Biome,
-		theme = entry.Theme,
-		river = river,
-		volcano = entry.Volcano,
-		seaOffset = -3,
-	})
+	return IslandShape.forEntry(entry, -3)
 end
 
 -- Fraction of the island's own footprint (inside the coastline) that is inland water:
