@@ -223,7 +223,30 @@ function IslandShape.new(id: string, size: number, opts: { [string]: any }?)
 			mouthMeanderLen = math.max(half * 0.30, 60),
 			mouthMeanderPhase = rand() * TAU,
 		}
-		self:_fitLagoon()
+		--[[
+			Spawn basin: an area the bay MUST cover in open water.
+
+			The arrival island is where crews board, and their rafts are placed on a fixed
+			line of slots through the island's own centre. Generating the bay freely put dry
+			land and a 127-stud river channel under those slots, so rafts would have spawned
+			inside terrain. Pinning the bay to the island centre instead is what produced the
+			moat/bullseye silhouette, so the basin is expressed as a REQUIREMENT here: the
+			bay keeps its irregular rim and stays on one flank, but it is grown and moved so
+			every slot is over water, and its mouth is aimed outward so crews can sail out.
+		]]
+		if o.spawnBasinRadius then
+			-- A minimum rim, NOT a relocation. Two other approaches were tried and both
+			-- reintroduced the symmetry this generator exists to avoid: pinning the bay to
+			-- the island centre made it a moat, and inflating baseR until the smallest
+			-- harmonic bearing covered the basin blew the bay out to over half the island.
+			-- Holding the rim at a floor keeps the bay off centre and modest, and the
+			-- harmonics still carry the rest of its outline outward.
+			self.lagoonMinRim = o.spawnBasinRadius
+			self.lagoon.mouthAngle = self.lagoon.angle
+		end
+		-- NOTE: the bay is fitted further down, once the river and the lake exist. Fitting
+		-- it here made the area cap measure a height field with no channel and no lake in
+		-- it, so it always read well under the limit and never actually fired.
 	end
 
 	-- ---- River (navigable sea-to-sea channel) ----------------------------------------
@@ -255,7 +278,9 @@ function IslandShape.new(id: string, size: number, opts: { [string]: any }?)
 	-- Opposite the lagoon, on solid ground, clear of the channel.
 	local spec = BIOME_LANDMARK[self.biome] or BIOME_LANDMARK.beach
 	local wantsVolcano = self.biome == "volcanic" and o.volcano ~= false
-	local landmarkAngle = self:_pickLandmarkAngle(rand, lagoonAngle)
+	-- Read the bay's FINAL bearing, not the raw draw: a catalog override or a boarding
+	-- basin can move it, and the landmark has to end up opposite wherever it actually is.
+	local landmarkAngle = self:_pickLandmarkAngle(rand, if self.lagoon then self.lagoon.angle else lagoonAngle)
 	local baseR = half * spec.baseR
 	local coastAtLandmark = self:coastRadius(landmarkAngle)
 	local offset = math.clamp(coastAtLandmark * 0.46, baseR * 0.45, math.max(coastAtLandmark - baseR * 0.75, baseR * 0.45))
@@ -298,6 +323,11 @@ function IslandShape.new(id: string, size: number, opts: { [string]: any }?)
 			bed = -9.5,
 		}
 	end
+
+	-- Fit the bay now that every other water feature exists: the geometric clamp keeps it
+	-- inside the coastal band, and the area cap can see the channel and the lake it shares
+	-- the island with.
+	self:_fitLagoon()
 
 	-- ---- Settlement shelf ------------------------------------------------------------
 	-- A modest, OFF-CENTRE flattening the village is built on. Deliberately not a large
@@ -346,7 +376,8 @@ function IslandShape:_fitLagoon()
 		local shapeFactor = math.clamp(1 + harmonics(lagoon.profile, a), 0.50, 1.55)
 		allowed = math.min(allowed, limit / shapeFactor)
 	end
-	lagoon.baseR = math.clamp(math.min(lagoon.baseR, allowed), self.half * 0.10, self.half * 0.34)
+	local floor = self.half * 0.10
+	lagoon.baseR = math.clamp(math.min(lagoon.baseR, allowed), floor, self.half * 0.34)
 
 	-- (2) Area cap. Measured on the real height field, so it accounts for the mouth, the
 	-- river and the lake all contributing inland water on the same island.
@@ -354,12 +385,23 @@ function IslandShape:_fitLagoon()
 		if self:waterFraction() <= MAX_WATER_FRACTION then
 			break
 		end
-		lagoon.baseR *= 0.92
-		lagoon.mouthHalfWidth *= 0.96
-		if lagoon.baseR < self.half * 0.10 then
+		if lagoon.baseR * 0.92 < floor then
+			lagoon.mouthHalfWidth *= 0.96
 			break
 		end
+		lagoon.baseR *= 0.92
+		lagoon.mouthHalfWidth *= 0.96
 	end
+end
+
+-- Where crew rafts berth on a boarding island: the centre of its sheltered bay, as offsets
+-- from the island centre. Rafts used to be placed on a line through the island's centre,
+-- which is why the hub had to keep water in the middle of itself.
+function IslandShape:berthAnchor(): (number, number)
+	if self.lagoon then
+		return self.lagoon.x, self.lagoon.z
+	end
+	return 0, 0
 end
 
 -- Fraction of the island's own footprint (inside the coastline) that is inland water.
@@ -514,7 +556,12 @@ function IslandShape:lagoonRadius(angle: number): number
 	if not lagoon then
 		return 0
 	end
-	return lagoon.baseR * math.clamp(1 + harmonics(lagoon.profile, angle), 0.50, 1.55)
+	local rim = lagoon.baseR * math.clamp(1 + harmonics(lagoon.profile, angle), 0.50, 1.55)
+	-- Boarding islands hold a minimum rim so the crew berths stay over open water.
+	if self.lagoonMinRim then
+		return math.max(rim, self.lagoonMinRim)
+	end
+	return rim
 end
 
 function IslandShape:lakeRadius(angle: number): number
@@ -876,6 +923,49 @@ local function readOffset(value: any): (number?, number?)
 end
 
 --[[
+	Water a boarding island must keep clear, derived from the raft geometry.
+
+	Crew rafts are placed on a fixed line of slots running through the boarding island's own
+	centre (StarterBaseService.getBaseCenter: origin + (slot - 1) * spacing along +X), and a
+	raft is not a swimmer: it needs open water under its whole footprint plus its collision
+	pad. Kept here as a pure function of the raft numbers so the server and the specs derive
+	the same basin, and so changing the raft size or slot spacing cannot silently strand a
+	crew inside terrain.
+]]
+function IslandShape.berthGrid(
+	slots: number,
+	spacing: number,
+	perRow: number
+): ({ { x: number, z: number } }, number)
+	local columns = math.max(math.min(slots, perRow), 1)
+	local rows = math.ceil(slots / columns)
+	local spanX = (columns - 1) * spacing
+	local spanZ = (rows - 1) * spacing
+	local offsets = {}
+	for index = 0, slots - 1 do
+		table.insert(offsets, {
+			x = (index % columns) * spacing - spanX * 0.5,
+			z = math.floor(index / columns) * spacing - spanZ * 0.5,
+		})
+	end
+	-- Radius of the circle that contains every berth, measured from the grid's centre.
+	return offsets, math.sqrt(spanX * spanX + spanZ * spanZ) * 0.5
+end
+
+-- Smallest bay rim that keeps a whole berth grid, plus each raft's footprint and collision
+-- pad, over open water.
+function IslandShape.spawnBasinRadius(
+	slots: number,
+	spacing: number,
+	perRow: number,
+	raftSize: number,
+	pad: number
+): number
+	local _, reach = IslandShape.berthGrid(slots, spacing, perRow)
+	return reach + raftSize * 0.5 + pad + 40
+end
+
+--[[
 	Apply hand-authored catalog overrides to a generated shape.
 
 	This lives here, next to the generator, so the server and the headless specs apply the
@@ -975,7 +1065,7 @@ end
 	Build the shape for a catalog entry, overrides included. Single entry point shared by
 	the server (IslandTerrain) and the headless specs, so what CI measures is what ships.
 ]]
-function IslandShape.forEntry(entry: { [string]: any }, seaOffset: number?)
+function IslandShape.forEntry(entry: { [string]: any }, seaOffset: number?, extra: { [string]: any }?)
 	local size = entry.SizeStuds
 	local shape = IslandShape.new(entry.Id, size, {
 		biome = entry.Biome or "beach",
@@ -984,6 +1074,7 @@ function IslandShape.forEntry(entry: { [string]: any }, seaOffset: number?)
 		volcano = entry.Volcano,
 		lake = entry.Lake,
 		lagoon = entry.Lagoon,
+		spawnBasinRadius = extra and extra.spawnBasinRadius,
 		river = if entry.River == true
 			then {
 				angle = tonumber(entry.RiverAngle) or 0,

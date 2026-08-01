@@ -14,6 +14,7 @@ local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local IslandShape = require(Shared:WaitForChild("IslandShape"))
 local IslandRaster = require(Shared:WaitForChild("IslandRaster"))
 local OceanConfig = require(Shared:WaitForChild("OceanConfig"))
+local Config = require(Shared:WaitForChild("Config"))
 
 local IslandTerrain = {}
 
@@ -45,8 +46,25 @@ local BOXES_PER_YIELD = 450
 		VolcanoOffset (Vector3), VolcanoBaseRadius, VolcanoHeight
 		SettlementOffset (Vector3), VillageRadiusFactor
 ]]
+-- A boarding island's bay has to stay big enough to float every crew raft that berths in it.
+local function spawnBasinRadiusFor(entry: { [string]: any }): number?
+	if entry.SafeHarbor ~= true then
+		return nil
+	end
+	local base = Config.StarterBase
+	return IslandShape.spawnBasinRadius(
+		Config.Islands.BerthSlots,
+		base.SpacingX,
+		base.SlotsPerRow,
+		base.SizeStuds,
+		Config.Islands.RaftCollisionPad
+	)
+end
+
 function IslandTerrain.shapeFor(entry: { [string]: any }, topY: number)
-	return IslandShape.forEntry(entry, OceanConfig.SurfaceY - topY)
+	return IslandShape.forEntry(entry, OceanConfig.SurfaceY - topY, {
+		spawnBasinRadius = spawnBasinRadiusFor(entry),
+	})
 end
 
 -- Grid resolution: fine enough that the coastline reads as sculpted, coarse enough that an

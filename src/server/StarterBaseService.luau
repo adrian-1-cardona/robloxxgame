@@ -12,6 +12,7 @@ local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
 local OceanConfig = require(Shared:WaitForChild("OceanConfig"))
 local LobbyWorld = require(Shared:WaitForChild("LobbyWorld"))
+local IslandShape = require(Shared:WaitForChild("IslandShape"))
 
 local RaftStarterKit = require(script.Parent:WaitForChild("RaftStarterKit"))
 
@@ -70,12 +71,62 @@ local function shiftModel(model: Model, fromCFrame: CFrame, toCFrame: CFrame)
 	model:PivotTo(toCFrame)
 end
 
+--[[
+	Where concurrent crew rafts berth.
+
+	Rafts used to be laid out on a single line running +X from Config.StarterBase.Origin,
+	which is also the centre of the arrival island. That forced the arrival island to keep
+	480 studs of open water through its own middle: a moat, and the reason its lagoon could
+	not be shaped like a real bay.
+
+	They now sit in a compact grid inside that island's sheltered bay. The bay's position is
+	derived from the same deterministic silhouette the terrain is built from, so this needs
+	no coordinates of its own and cannot drift out of sync with the island.
+]]
+local berthAnchorCache: Vector3? = nil
+
+local function berthAnchor(): Vector3
+	if berthAnchorCache then
+		return berthAnchorCache
+	end
+	local origin = Config.StarterBase.Origin
+	local anchor = origin
+	for _, entry in Config.Islands.Catalog do
+		if entry.SafeHarbor == true then
+			local shape = IslandShape.forEntry(entry, OceanConfig.SurfaceY - Config.Islands.TopY, {
+				spawnBasinRadius = StarterBaseService.berthBasinRadius(),
+			})
+			local dx, dz = shape:berthAnchor()
+			-- Catalog offsets are relative to the same origin, so the island's own offset
+			-- has to be added back in.
+			anchor = origin + Vector3.new(entry.Offset.X + dx, 0, entry.Offset.Z + dz)
+			break
+		end
+	end
+	berthAnchorCache = anchor
+	return anchor
+end
+
+function StarterBaseService.berthBasinRadius(): number
+	local cfg = Config.StarterBase
+	return IslandShape.spawnBasinRadius(
+		Config.Islands.BerthSlots,
+		cfg.SpacingX,
+		cfg.SlotsPerRow,
+		cfg.SizeStuds,
+		Config.Islands.RaftCollisionPad
+	)
+end
+
 -- baseSlot is an independent raft index — not tied to pier PortalCount.
 function StarterBaseService.getBaseCenter(baseSlot: number): Vector3
 	local cfg = Config.StarterBase
-	-- Slot 1 at origin, then ±SpacingX for additional concurrent crews
-	local offsetIndex = baseSlot - 1
-	return cfg.Origin + Vector3.new(offsetIndex * cfg.SpacingX, 0, 0)
+	local offsets = IslandShape.berthGrid(Config.Islands.BerthSlots, cfg.SpacingX, cfg.SlotsPerRow)
+	-- Extra crews beyond the reserved berths continue the grid outward rather than failing.
+	local offset = offsets[baseSlot]
+		or { x = (baseSlot - 1) % cfg.SlotsPerRow * cfg.SpacingX, z = math.floor((baseSlot - 1) / cfg.SlotsPerRow) * cfg.SpacingX }
+	local anchor = berthAnchor()
+	return Vector3.new(anchor.X + offset.x, cfg.Origin.Y, anchor.Z + offset.z)
 end
 
 function StarterBaseService.getSpawnCFrame(baseSlot: number, slotIndex: number?): CFrame

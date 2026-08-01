@@ -83,6 +83,7 @@ function Catalog.load(): { { [string]: any } }
 			Volcano = boolField(block, "Volcano"),
 			Lighthouse = boolField(block, "Lighthouse"),
 			Abandoned = boolField(block, "Abandoned"),
+			SafeHarbor = boolField(block, "SafeHarbor"),
 			-- Hand-authored silhouette overrides (see IslandShape.applyOverrides).
 			Lagoon = boolField(block, "Lagoon"),
 			LagoonWidth = numberField(block, "LagoonWidth"),
@@ -97,9 +98,29 @@ function Catalog.load(): { { [string]: any } }
 	return entries
 end
 
--- The same entry point the server uses, catalog overrides included.
+-- Raft numbers, needed to derive a boarding island's spawn basin the way the server does.
+function Catalog.raftConfig(): { slots: number, spacing: number, perRow: number, size: number, pad: number }
+	local config = Catalog.source()
+	local function number(name: string, fallback: number): number
+		return tonumber(string.match(config, name .. "%s*=%s*([%d%.]+)")) or fallback
+	end
+	return {
+		slots = number("BerthSlots", 4),
+		spacing = number("SpacingX", 160),
+		perRow = number("SlotsPerRow", 2),
+		size = number("SizeStuds", 64),
+		pad = number("RaftCollisionPad", 52),
+	}
+end
+
+-- The same entry point the server uses, catalog overrides and spawn basin included.
 function Catalog.shapeFor(IslandShape, entry: { [string]: any })
-	return IslandShape.forEntry(entry, -3)
+	local basinRadius = nil
+	if entry.SafeHarbor == true then
+		local raft = Catalog.raftConfig()
+		basinRadius = IslandShape.spawnBasinRadius(raft.slots, raft.spacing, raft.perRow, raft.size, raft.pad)
+	end
+	return IslandShape.forEntry(entry, -3, { spawnBasinRadius = basinRadius })
 end
 
 -- Fraction of the island's own footprint (inside the coastline) that is inland water:

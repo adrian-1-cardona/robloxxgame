@@ -30,8 +30,12 @@ local Config = {
 		Thickness = 3,
 		-- Far open ocean — lobby pier is well beyond fog so it feels like a new place
 		Origin = Vector3.new(0, 2.2, 3200),
-		-- Spread concurrent crews along X so planks never overlap (indexed by baseSlot)
+		-- Concurrent crews berth in a compact grid so their planks never overlap, spaced by
+		-- SpacingX on both axes and SlotsPerRow wide. A grid rather than a single row: a row
+		-- of four rafts needs 480 studs of open water in a straight line, which forced the
+		-- arrival island to keep a channel through its own middle.
 		SpacingX = 160,
+		SlotsPerRow = 2,
 		DeckClearance = 3.5,
 		-- Fall into water below this Y → rescue back onto the raft
 		-- Kept slightly above OceanConfig.SurfaceY so swimming terrain water still rescues.
@@ -110,6 +114,11 @@ local Config = {
 		LockoutStuds = 2000,
 		-- Extra pad outside the sand when a locked crew tries to sail back in
 		ApproachPadStuds = 220,
+		-- How many concurrent crew rafts a boarding island (SafeHarbor) must berth in open
+		-- water. Rafts sit on a line of slots through that island's centre, spaced by
+		-- StarterBase.SpacingX, so this drives how much of its lagoon has to stay clear.
+		BerthSlots = 4,
+
 		-- Solid-shoreline collision: the complete raft footprint must remain over water.
 		-- The extra hull margin keeps corners and passengers out of terrain even during a
 		-- high-speed, low-frame-rate approach.

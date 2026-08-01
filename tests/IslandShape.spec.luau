@@ -125,8 +125,22 @@ local SEA_OFFSET = OceanConfig.SurfaceY - TOP_Y
 -- The same entry point the server uses (IslandTerrain.shapeFor delegates to it), catalog
 -- overrides included. Building shapes any other way here would verify geometry the game
 -- never renders.
+local function basinRadiusFor(entry)
+	if entry.SafeHarbor ~= true then
+		return nil
+	end
+	local base = Config.StarterBase
+	return IslandShape.spawnBasinRadius(
+		Config.Islands.BerthSlots,
+		base.SpacingX,
+		base.SlotsPerRow,
+		base.SizeStuds,
+		Config.Islands.RaftCollisionPad
+	)
+end
+
 local function shapeFor(entry)
-	return IslandShape.forEntry(entry, SEA_OFFSET)
+	return IslandShape.forEntry(entry, SEA_OFFSET, { spawnBasinRadius = basinRadiusFor(entry) })
 end
 
 -- -------------------------------------------------------------------------------------
@@ -506,7 +520,44 @@ for _, entry in catalog do
 		)
 	end
 
-	-- 10) The terrain plan must stay affordable. Every cell written individually is tens of
+	-- 10) Boarding islands must float every crew raft. Rafts are placed on a line of slots
+	--     through this island's own centre, so a bay generated without regard for them puts
+	--     rafts inside terrain — which is exactly what happened once the hub's hand-pinned
+	--     central lagoon was removed.
+	if entry.SafeHarbor == true then
+		local base = Config.StarterBase
+		local slots = Config.Islands.BerthSlots
+		local pad = Config.Islands.RaftCollisionPad
+		local halfDeck = base.SizeStuds * 0.5
+		local offsets = IslandShape.berthGrid(slots, base.SpacingX, base.SlotsPerRow)
+		local ax, az = shape:berthAnchor()
+		-- Anything that is not land floats a raft: the bay, the submerged approach shelf,
+		-- and the open sea past the coast all count.
+		local grounded = {}
+		for slot, offset in offsets do
+			-- The whole footprint plus the collision pad, corners included.
+			for _, ox in { -halfDeck - pad, -halfDeck, 0, halfDeck, halfDeck + pad } do
+				for _, oz in { -halfDeck - pad, -halfDeck, 0, halfDeck, halfDeck + pad } do
+					local px, pz = ax + offset.x + ox, az + offset.z + oz
+					if shape:sample(px, pz) == "land" then
+						table.insert(grounded, `berth {slot} at ({math.floor(px)}, {math.floor(pz)})`)
+					end
+				end
+			end
+		end
+		check(
+			`{id}: berths all {slots} crew rafts clear of land`,
+			#grounded == 0,
+			`footprint over land: {table.concat(grounded, ", ")}`
+		)
+		check(
+			`{id}: berths sit inside the island's sheltered bay`,
+			shape.lagoon ~= nil and shape:sample(ax, az) == "water",
+			`bay centre sample = {select(1, shape:sample(ax, az))}`
+		)
+	end
+
+	-- 11) The terrain plan must stay affordable. Every cell written individually is tens of
 	--     thousands of Terrain writes per island; the rectangle merge is what makes a
 	--     sculpted coastline cheap enough to build at runtime, so its effect is asserted
 	--     rather than assumed.
