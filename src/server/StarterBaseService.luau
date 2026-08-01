@@ -124,8 +124,15 @@ function StarterBaseService.getBaseCenter(baseSlot: number): Vector3
 	local offsets = IslandShape.berthGrid(Config.Islands.BerthSlots, cfg.SpacingX, cfg.SlotsPerRow)
 	-- Extra crews beyond the reserved berths continue the grid outward rather than failing.
 	local offset = offsets[baseSlot]
-		or { x = (baseSlot - 1) % cfg.SlotsPerRow * cfg.SpacingX, z = math.floor((baseSlot - 1) / cfg.SlotsPerRow) * cfg.SpacingX }
-	local anchor = berthAnchor()
+	if not offset then
+		local columns = math.max(math.min(Config.Islands.BerthSlots, cfg.SlotsPerRow), 1)
+		local baseRows = math.ceil(Config.Islands.BerthSlots / columns)
+		local spanX = (columns - 1) * cfg.SpacingX
+		local baseZ0 = -((baseRows - 1) * cfg.SpacingX) * 0.5
+		local col = (baseSlot - 1) % columns
+		local row = math.floor((baseSlot - 1) / columns)
+		offset = { x = col * cfg.SpacingX - spanX * 0.5, z = baseZ0 + row * cfg.SpacingX }
+	end
 	return Vector3.new(anchor.X + offset.x, cfg.Origin.Y, anchor.Z + offset.z)
 end
 
