@@ -1424,6 +1424,27 @@ function VillageBuilder.build(
 	local isTown = theme == "town" or theme == "stone_town"
 	local half = size * 0.5
 	local villageRadius = half * (if isTown then 0.62 else 0.5)
+	local configuredRadius = tonumber(entry.VillageRadiusFactor)
+	if configuredRadius then
+		villageRadius = half * configuredRadius
+	end
+	--[[
+		Hard cap from the island's settlement clearing (see IslandShape). Streets are laid
+		out on rings at up to 1.3x villageRadius, so a settlement sized purely as a fraction
+		of the island footprint walked houses off the coast and into the lagoon on any island
+		whose usable ground is smaller than its bounding circle — which, now that islands are
+		not discs, is all of them.
+	]]
+	local buildable = tonumber(deps.buildableRadius)
+	if buildable then
+		villageRadius = math.min(villageRadius, buildable / 1.3)
+	end
+	-- Angle zero preserves the legacy +Z waterfront. The lagoon hub points π so
+	-- its south-bank town looks north across the water toward the volcano.
+	local harborFacingAngle = tonumber(entry.HarborFacingAngle) or 0
+	local harborForward = Vector3.new(math.sin(harborFacingAngle), 0, math.cos(harborFacingAngle))
+	local harborRight = Vector3.new(harborForward.Z, 0, -harborForward.X)
+	local villagerSpots: { Vector3 } = {}
 
 	local villageFolder = Instance.new("Folder")
 	villageFolder.Name = "Village"
@@ -1434,7 +1455,9 @@ function VillageBuilder.build(
 	-- scatter garrison loot inside the courtyard, and hand back guard posts + a merchant
 	-- spot just outside the gate. No houses / campfire / fences.
 	if theme == "castle" then
-		local castleRadius = math.clamp(half * 0.4, 70, 240)
+		-- A keep is one big footprint, so it is clamped to the clearing directly rather
+		-- than through villageRadius.
+		local castleRadius = math.clamp(math.min(half * 0.4, buildable or math.huge), 60, 240)
 		buildCastle(villageFolder, center, topY, castleRadius, islandId)
 
 		-- Wall + gate lighting so the keep glows if the isle is flagged Lit.
@@ -1507,20 +1530,20 @@ function VillageBuilder.build(
 	-- silhouette in the reference instead of leaving houses evenly scattered.
 	if not abandoned and (isTown or theme == "fishing_village") then
 		local waterfrontCount = if isTown then 7 else 5
-		local waterfrontZ = center.Z + villageRadius * 0.72
+		local waterfrontCenter = center + harborForward * villageRadius * 0.72
 		for i = 1, waterfrontCount do
 			local alpha = if waterfrontCount == 1 then 0.5 else (i - 1) / (waterfrontCount - 1)
-			local x = center.X + (alpha - 0.5) * villageRadius * 1.25
-			local pos = Vector3.new(x, topY, waterfrontZ + math.sin(i * 1.9) * 4)
-			buildHouse(villageFolder, CFrame.lookAt(pos, pos + Vector3.new(0, 0, 20)), {
+			local pos = waterfrontCenter
+				+ harborRight * ((alpha - 0.5) * villageRadius * 1.25)
+				+ harborForward * (math.sin(i * 1.9) * 4)
+			buildHouse(villageFolder, CFrame.lookAt(pos, pos + harborForward * 20), {
 				cobblestone = cobble,
 				ruined = false,
 				islandId = islandId,
 			})
-			table.insert(villagerSpots, pos + Vector3.new(0, 2.5, -8))
+			table.insert(villagerSpots, pos + Vector3.new(0, 2.5, 0) - harborForward * 8)
 		end
 	end
-	local villagerSpots: { Vector3 } = {}
 
 	for i = 1, houseCount do
 		local a = (i / houseCount) * math.pi * 2 + math.random() * 0.3

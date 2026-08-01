@@ -30,8 +30,12 @@ local Config = {
 		Thickness = 3,
 		-- Far open ocean — lobby pier is well beyond fog so it feels like a new place
 		Origin = Vector3.new(0, 2.2, 3200),
-		-- Spread concurrent crews along X so planks never overlap (indexed by baseSlot)
+		-- Concurrent crews berth in a compact grid so their planks never overlap, spaced by
+		-- SpacingX on both axes and SlotsPerRow wide. A grid rather than a single row: a row
+		-- of four rafts needs 480 studs of open water in a straight line, which forced the
+		-- arrival island to keep a channel through its own middle.
 		SpacingX = 160,
+		SlotsPerRow = 2,
 		DeckClearance = 3.5,
 		-- Fall into water below this Y → rescue back onto the raft
 		-- Kept slightly above OceanConfig.SurfaceY so swimming terrain water still rescues.
@@ -110,6 +114,11 @@ local Config = {
 		LockoutStuds = 2000,
 		-- Extra pad outside the sand when a locked crew tries to sail back in
 		ApproachPadStuds = 220,
+		-- How many concurrent crew rafts a boarding island (SafeHarbor) must berth in open
+		-- water. Rafts sit on a line of slots through that island's centre, spaced by
+		-- StarterBase.SpacingX, so this drives how much of its lagoon has to stay clear.
+		BerthSlots = 4,
+
 		-- Solid-shoreline collision: the complete raft footprint must remain over water.
 		-- The extra hull margin keeps corners and passengers out of terrain even during a
 		-- high-speed, low-frame-rate approach.
@@ -192,26 +201,42 @@ local Config = {
 		-- Villagers spawn with the opening archipelago. Towns must already look inhabited
 		-- from the raft; landing is not required to make their residents appear.
 		Catalog = {
-			-- The first playable view after boarding: a low-poly island hub inspired by
-			-- the supplied reference. Every crew's raft starts in this broad river, with
-			-- dense block-canopy forest, a harbour village, docks, and a mountain landmark
-			-- framing the route out to sea.
+			-- The first playable view after boarding: one irregular volcanic island with a
+			-- sheltered lagoon, a dockside town on its shore and a tall smoking cone behind
+			-- it. Its silhouette comes from src/shared/IslandShape.luau like every other
+			-- isle, so it is never a circular atoll or a dome-shaped hill field.
+			--
+			-- The bay's position and size, the cone's position and footprint, and the town
+			-- site are deliberately NOT pinned here. Pinning them produced a lagoon centred
+			-- on the island (a moat, and the exact bullseye the shape generator exists to
+			-- avoid) whose rim then swallowed the volcano that was pinned inside it. The
+			-- generator already guarantees what this island wants: an off-centre bay with a
+			-- mouth to the sea, the landmark on the opposite flank, and the town fitted to
+			-- the bay shore. Only the things that cannot be derived are stated.
 			{
 				Id = "arrival_hub",
-				Name = "Rivergate Haven",
+				Name = "Emberlagoon Haven",
 				Offset = Vector3.new(0, 0, 0),
 				SizeStuds = 1500,
+				-- Jungle biome for dense tropical vegetation; Volcano = true turns the
+				-- island's landmark into a crater cone without changing the flora.
 				Biome = "jungle",
 				Theme = "town",
 				Abandoned = false,
 				Hub = true,
 				SafeHarbor = true,
 				Merchant = true,
+				Lagoon = true,
+				-- A tall cone: this is the first landmark a crew ever sees.
+				Volcano = true,
+				VolcanoHeight = 260,
+				-- Retained as the boarding/raft contract marker. The generator turns it
+				-- into a meandering channel through the island.
 				River = true,
-				-- The channel runs east/west through the spawn point; 440 studs keeps
-				-- concurrent 64-stud rafts comfortably inside the waterway.
-				RiverAngle = 0,
 				RiverWidth = 440,
+				-- The town looks north across its own harbour, back toward the spawn raft.
+				HarborFacingAngle = math.pi,
+				VillageRadiusFactor = 0.36,
 				Docks = 3,
 				Lighthouse = true,
 				Church = true,
