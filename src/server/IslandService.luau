@@ -367,6 +367,7 @@ local function scatterSettlementForest(
 	local half = size * 0.5
 	local count = math.clamp(math.floor(size / 16), 64, 110)
 	local river = features and features.river
+	local lagoon = features and features.lagoon
 	for _ = 1, count do
 		local a = math.random() * math.pi * 2
 		local r = half * (0.68 + math.random() * 0.22)
@@ -374,7 +375,7 @@ local function scatterSettlementForest(
 		local z = center.Z + math.sin(a) * r
 		-- Keep the navigable waterway clear: floating forest props make a river feel
 		-- broken and can block the raft even though the terrain channel is open.
-		if river then
+		if river and not lagoon then
 			local yaw = math.atan2(math.cos(river.angle), math.sin(river.angle))
 			local localPos = (CFrame.new(center.X, 0, center.Z) * CFrame.Angles(0, yaw, 0))
 				:PointToObjectSpace(Vector3.new(x, 0, z))
@@ -895,22 +896,26 @@ local function buildDriftwood(model: Model, topY: number, x: number, z: number)
 	end
 end
 
--- Low rounded grass/sand mound — gentle rolling terrain so the flat isn't dead flat
+-- Low-poly ground shelf: a few tilted rectangular facets keep clear walking space
+-- while avoiding the old half-buried ball that made hills look like smooth domes.
 local function buildDune(model: Model, topY: number, x: number, z: number, grass: boolean)
 	local w = 8 + math.random() * 10
 	local h = 1.6 + math.random() * 2.4
-	makePart({
-		Name = "Dune",
-		Parent = model,
-		Size = Vector3.new(w, h * 2, w * (0.8 + math.random() * 0.4)),
-		-- Half-buried ball so only a smooth rise shows above the sand
-		CFrame = CFrame.new(x, topY - h * 0.5, z),
-		Color = if grass then Color3.fromRGB(74, 138, 66) else Color3.fromRGB(224, 204, 160),
-		Material = if grass then Enum.Material.Grass else Enum.Material.Sand,
-		CanCollide = false,
-		CastShadow = false,
-		Shape = Enum.PartType.Ball,
-	})
+	local color = if grass then Color3.fromRGB(74, 138, 66) else Color3.fromRGB(224, 204, 160)
+	local material = if grass then Enum.Material.Grass else Enum.Material.Sand
+	for i = -1, 1 do
+		makePart({
+			Name = "GroundFacet",
+			Parent = model,
+			Size = Vector3.new(w * (0.52 + math.abs(i) * 0.12), h * 1.5, w * 0.42),
+			CFrame = CFrame.new(x + i * w * 0.22, topY + h * 0.18, z + (i % 2) * w * 0.08)
+				* CFrame.Angles(math.rad(i * 7), math.rad(i * 18), math.rad(-i * 9)),
+			Color = color,
+			Material = material,
+			CanCollide = false,
+			CastShadow = false,
+		})
+	end
 end
 
 -- A conifer/pine — the signature tree of temperate "highland" and cold "mountain" isles.
@@ -991,7 +996,7 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 	local feat = features or {}
 	local function blocked(x: number, z: number): boolean
 		local river = feat.river
-		if river then
+		if river and not feat.lagoon then
 			local yaw = math.atan2(math.cos(river.angle), math.sin(river.angle))
 			local localPos = (CFrame.new(center.X, 0, center.Z) * CFrame.Angles(0, yaw, 0))
 				:PointToObjectSpace(Vector3.new(x, 0, z))
@@ -1004,6 +1009,18 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 			local dx, dz = x - lake.pos.X, z - lake.pos.Z
 			if dx * dx + dz * dz < (lake.radius + 6) * (lake.radius + 6) then
 				return true
+			end
+		end
+		local lagoon = feat.lagoon
+		if lagoon then
+			for _, cut in lagoon.cuts do
+				local halfWidth = lagoon.width * cut[3] * 0.5 + 12
+				local halfDepth = lagoon.depth * cut[4] * 0.5 + 12
+				if math.abs(x - lagoon.pos.X - cut[1]) < halfWidth
+					and math.abs(z - lagoon.pos.Z - cut[2]) < halfDepth
+				then
+					return true
+				end
 			end
 		end
 		local volcano = feat.volcano
@@ -1445,6 +1462,106 @@ local function fillFacetedRidge(
 	end
 end
 
+-- Hand-authored arrival terrain: a single, asymmetric tropical landmass surrounding
+-- a wide lagoon. Every landform is made of rotated blocks and planar ridges so the
+-- opening world cannot regress to a circular atoll or smooth dome landscape.
+local function generateLagoonHubTerrain(center: Vector3, topY: number, size: number, features: { [string]: any })
+	local terrain = Workspace.Terrain
+	local lagoon = features.lagoon
+	if not lagoon then
+		return
+	end
+	local surfaceY = OceanConfig.SurfaceY
+	local baseBottom = surfaceY - 40
+	local half = size * 0.5
+	local grass = Enum.Material.LeafyGrass
+
+	local function landTile(offsetX: number, offsetZ: number, width: number, depth: number, yawDegrees: number, height: number)
+		local cf = CFrame.new(center.X + offsetX, 0, center.Z + offsetZ) * CFrame.Angles(0, math.rad(yawDegrees), 0)
+		local fullHeight = height - baseBottom
+		terrain:FillBlock(
+			cf * CFrame.new(0, baseBottom + fullHeight * 0.5, 0),
+			Vector3.new(width * 1.08, fullHeight, depth * 1.08),
+			Enum.Material.Sand
+		)
+		terrain:FillBlock(
+			cf * CFrame.new(0, height - 3, 0),
+			Vector3.new(width, 6, depth),
+			grass
+		)
+	end
+
+	-- Overlapping skewed plates form one readable island outline with bays and headlands.
+	for _, tile in {
+		{ -405, -290, 560, 470, -14, topY + 4 },
+		{ 225, -330, 620, 490, 9, topY + 8 },
+		{ -445, 230, 540, 585, 17, topY + 5 },
+		{ 260, 275, 655, 570, -11, topY + 9 },
+		{ 0, 575, 850, 300, 4, topY + 6 },
+		{ 0, -595, 820, 285, -3, topY + 8 },
+	} do
+		landTile(tile[1], tile[2], tile[3], tile[4], tile[5], tile[6])
+	end
+
+	-- Broken outer ridges give the coast a low-poly silhouette and forested slopes.
+	for i = 1, 14 do
+		local a = (i / 14) * math.pi * 2 + (i % 3 - 1) * 0.11
+		local r = half * (0.59 + (i % 4) * 0.045)
+		fillFacetedRidge(
+			terrain,
+			Vector3.new(center.X + math.cos(a) * r, topY, center.Z + math.sin(a) * r),
+			a + math.pi + (i % 2) * 0.12,
+			150 + (i % 3) * 28,
+			68 + (i % 4) * 12,
+			34 + (i % 5) * 9,
+			if i % 3 == 0 then Enum.Material.Rock else grass
+		)
+	end
+
+	-- The volcano is a fan of steep planar ridges, not stacked FillBall spheres.
+	local volcano = features.volcano
+	if volcano then
+		for i = 1, 11 do
+			local a = (i / 11) * math.pi * 2 + (i % 2) * 0.08
+			local outer = Vector3.new(math.cos(a), 0, math.sin(a))
+			local base = volcano.pos + outer * volcano.baseR * 0.58
+			fillFacetedRidge(
+				terrain,
+				Vector3.new(base.X, topY + 4, base.Z),
+				math.atan2(-outer.Z, -outer.X),
+				volcano.baseR * (0.9 + (i % 3) * 0.06),
+				volcano.baseR * (0.40 + (i % 2) * 0.06),
+				volcano.height * (0.86 + (i % 4) * 0.035),
+				if i % 3 == 0 then Enum.Material.Basalt else Enum.Material.Rock
+			)
+		end
+		terrain:FillBlock(
+			CFrame.new(volcano.pos.X, topY + volcano.height - 4, volcano.pos.Z) * CFrame.Angles(0, math.rad(18), 0),
+			Vector3.new(volcano.craterR * 2.2, 18, volcano.craterR * 1.8),
+			Enum.Material.Air
+		)
+	end
+
+	-- Carve the central lagoon only after all land is placed, then refill at sea level.
+	local clearTop = topY + 320
+	local clearBottom = surfaceY - 48
+	for _, cut in lagoon.cuts do
+		local width = lagoon.width * cut[3]
+		local depth = lagoon.depth * cut[4]
+		local cf = CFrame.new(lagoon.pos.X + cut[1], 0, lagoon.pos.Z + cut[2]) * CFrame.Angles(0, math.rad(cut[5]), 0)
+		terrain:FillBlock(
+			cf * CFrame.new(0, (clearTop + clearBottom) * 0.5, 0),
+			Vector3.new(width, clearTop - clearBottom, depth),
+			Enum.Material.Air
+		)
+		terrain:FillBlock(
+			cf * CFrame.new(0, (surfaceY + clearBottom) * 0.5, 0),
+			Vector3.new(width - 7, surfaceY - clearBottom, depth - 7),
+			Enum.Material.Water
+		)
+	end
+end
+
 -- Enhanced terrain generation with compact village foundations and faceted relief.
 local function generateIslandTerrain(
 	id: string,
@@ -1462,6 +1579,14 @@ local function generateIslandTerrain(
 	local surfaceY = OceanConfig.SurfaceY
 	local isTown = theme == "town" or theme == "stone_town"
 	local hasVillage = theme ~= "wild" and theme ~= "abandoned"
+
+	-- The starting isle uses a handcrafted lagoon layout rather than the generic
+	-- radial generator. Keep the special case entirely in gameplay terrain so the
+	-- boarding lobby stays unchanged.
+	if features.lagoon then
+		generateLagoonHubTerrain(center, topY, size, features)
+		return
+	end
 
 	local grassMat = if biome == "jungle" or biome == "volcanic"
 		then Enum.Material.LeafyGrass
@@ -2429,17 +2554,39 @@ local function planIslandFeatures(
 	local half = size * 0.5
 	local features: { [string]: any } = { docks = {} }
 
-	if biome == "volcanic" and entry.Volcano ~= false then
-		-- Rise the cone on the "back" flank (−Z-ish) so the town core, harbour front
-		-- (+Z) and the merchant/campfire keep flat ground — the village then climbs the
-		-- lower slopes just like the reference tropical isle.
+	if (biome == "volcanic" or entry.Volcano == true) and entry.Volcano ~= false then
+		-- Arrival hubs can pin the cone to a hand-authored flank; all other volcanic
+		-- isles retain their deterministic variation.
 		local vAngle = math.pi * 1.5 + rng:NextNumber(-0.4, 0.4)
+		local volcanoOffset = entry.VolcanoOffset
+		local volcanoPos = if typeof(volcanoOffset) == "Vector3"
+			then center + (volcanoOffset :: Vector3)
+			else Vector3.new(center.X + math.cos(vAngle) * half * 0.5, center.Y, center.Z + math.sin(vAngle) * half * 0.5)
 		features.volcano = {
-			pos = Vector3.new(center.X + math.cos(vAngle) * half * 0.5, center.Y, center.Z + math.sin(vAngle) * half * 0.5),
-			baseR = half * 0.32,
-			height = rng:NextNumber(135, 180),
-			craterR = half * 0.08,
+			pos = volcanoPos,
+			baseR = tonumber(entry.VolcanoBaseRadius) or half * 0.32,
+			height = tonumber(entry.VolcanoHeight) or rng:NextNumber(135, 180),
+			craterR = tonumber(entry.VolcanoCraterRadius) or half * 0.08,
 			angle = vAngle,
+		}
+	end
+
+	if entry.Lagoon == true then
+		local lagoonOffset = entry.LagoonOffset
+		features.lagoon = {
+			pos = if typeof(lagoonOffset) == "Vector3" then center + (lagoonOffset :: Vector3) else center,
+			width = tonumber(entry.LagoonWidth) or size * 0.5,
+			depth = tonumber(entry.LagoonDepth) or size * 0.4,
+			radius = math.min(tonumber(entry.LagoonWidth) or size * 0.5, tonumber(entry.LagoonDepth) or size * 0.4) * 0.42,
+			surfaceY = OceanConfig.SurfaceY,
+			-- Offset rectangular cuts deliberately create a natural, asymmetric harbour
+			-- instead of a circular lake or a straight canal.
+			cuts = {
+				{ -80, -35, 0.72, 0.72, -8 },
+				{ 205, 28, 0.42, 0.52, 13 },
+				{ -232, 82, 0.34, 0.47, -18 },
+				{ 48, -214, 0.48, 0.34, 9 },
+			},
 		}
 	end
 
@@ -2535,6 +2682,14 @@ local function planIslandFeatures(
 		for i = 1, dcount do
 			local a = baseA + (i - 1) * (math.pi * 2 / dcount) * 0.55
 			table.insert(features.docks, { angle = a, target = "sea" })
+		end
+		-- The arrival town's piers run from the south bank into the lagoon, not out
+		-- through the outer coast. A small fan leaves room for boats to maneuver.
+		if features.lagoon then
+			for i, dock in features.docks do
+				dock.target = "lagoon"
+				dock.angle = math.pi * 0.5 + (i - (dcount + 1) * 0.5) * 0.34
+			end
 		end
 		-- On mountain isles the first pier reaches out over the lake instead of the sea.
 		if biome == "mountain" and features.lake then
@@ -2966,20 +3121,24 @@ local function decorateShore(
 
 	-- Docks / piers.
 	for _, dock in features.docks do
-		if dock.target == "lake" and features.lake then
-			local lake = features.lake
-			-- Reach out from the settlement-facing shore across the lake.
-			local toCenter = math.atan2(center.Z - lake.pos.Z, center.X - lake.pos.X)
-			buildDock(model, lake.pos, lake.surfaceY, toCenter, lake.radius + 1, lake.radius * 0.18, {
+		if (dock.target == "lake" and features.lake) or (dock.target == "lagoon" and features.lagoon) then
+			local water = if dock.target == "lagoon" then features.lagoon else features.lake
+			local toCenter = if dock.target == "lagoon"
+				then dock.angle
+				else math.atan2(center.Z - water.pos.Z, center.X - water.pos.X)
+			buildDock(model, water.pos, water.surfaceY, toCenter, water.radius + 20, math.max(
+				water.radius * 0.58,
+				Config.StarterBase.SizeStuds * 0.5 + Config.Islands.RaftCollisionPad + 40
+			), {
 				islandId = islandId,
-				deckY = lake.surfaceY + 1.2,
+				deckY = water.surfaceY + 1.2,
 				width = 6,
 				rowboat = true,
 			})
-			-- A rowboat drifting on the lake.
-			local bx = lake.pos.X + math.cos(toCenter + 1.2) * lake.radius * 0.4
-			local bz = lake.pos.Z + math.sin(toCenter + 1.2) * lake.radius * 0.4
-			buildRowboat(model, CFrame.new(bx, lake.surfaceY + 0.4, bz) * CFrame.Angles(0, toCenter, 0))
+			-- A rowboat drifting within the protected harbor rather than outside at sea.
+			local bx = water.pos.X + math.cos(toCenter + 1.2) * water.radius * 0.4
+			local bz = water.pos.Z + math.sin(toCenter + 1.2) * water.radius * 0.4
+			buildRowboat(model, CFrame.new(bx, water.surfaceY + 0.4, bz) * CFrame.Angles(0, toCenter, 0))
 		else
 			local startR = half * 0.8
 			-- Twin Peaks: pier starts at the outer edge of a sand pad, not mid-channel.
@@ -3022,6 +3181,11 @@ end
 -- crossing stays high enough for a raft to pass beneath; it is a pedestrian landmark,
 -- not a river blocker.
 local function decorateArrivalHub(model: Model, center: Vector3, topY: number, features: { [string]: any })
+	-- Emberlagoon has its own dock fan and asymmetric harbor; do not layer the
+	-- legacy river bridge/peak set across it.
+	if features.lagoon then
+		return
+	end
 	local river = features.river
 	if not river then
 		return
@@ -3258,7 +3422,12 @@ local function buildFlatIsland(entry: { [string]: any }, folder: Folder): Island
 				return ArmorService.spawnArmorPickup(parent, armorId, cf)
 			end,
 		}
-		local layout = VillageBuilder.build(model, center, size, topY, entry, deps)
+		local settlementOffset = entry.SettlementOffset
+		local settlementCenter = if typeof(settlementOffset) == "Vector3"
+			then center + (settlementOffset :: Vector3)
+			else center
+		local settlementTopY = topY + (tonumber(entry.SettlementTopYOffset) or 0)
+		local layout = VillageBuilder.build(model, settlementCenter, size, settlementTopY, entry, deps)
 
 		record.villagerPlan = {
 			spots = layout.villagerSpots,
@@ -3426,6 +3595,11 @@ function IslandService.paintTerrain()
 	local baseH = baseTop - baseBottom
 	local baseY = (baseTop + baseBottom) * 0.5
 	for _, isle in IslandService._islands do
+		-- The arrival world has its own irregular block-built sand shelf. Repainting
+		-- it as a cylinder would recreate the circular-atoll silhouette we removed.
+		if isle.safeHarbor then
+			continue
+		end
 		Terrain:FillCylinder(
 			CFrame.new(isle.center.X, baseY, isle.center.Z),
 			baseH,
