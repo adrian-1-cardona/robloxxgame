@@ -122,7 +122,7 @@ end
 
 -- height is a fraction of island size; baseR a fraction of half.
 local BIOME_LANDMARK = {
-	volcanic = { kind = "volcano", height = 0.150, baseR = 0.30, falloff = 1.30, facets = 7 },
+	volcanic = { kind = "volcano", height = 0.150, baseR = 0.34, falloff = 1.30, facets = 7 },
 	mountain = { kind = "peak", height = 0.155, baseR = 0.34, falloff = 1.42, facets = 6 },
 	jungle = { kind = "ridge", height = 0.105, baseR = 0.31, falloff = 1.18, facets = 5 },
 	highland = { kind = "ridge", height = 0.096, baseR = 0.32, falloff = 1.14, facets = 5 },
@@ -134,7 +134,10 @@ local BIOME_LANDMARK = {
 -- Ceiling on how much of an island's own footprint may be inland water. The reference
 -- island is land with a bay bitten out of it; past roughly a third, the land degenerates
 -- into thin arms with nowhere to walk, build a village, or place a forest.
-local MAX_WATER_FRACTION = 0.30
+-- An atoll is legitimately part water: the reference island's lagoon is roughly a third of
+-- its footprint. The cap exists to stop the land degenerating into thin strands with
+-- nowhere to walk, build a village, or grow a forest.
+local MAX_WATER_FRACTION = 0.32
 
 --[[
 	opts:
@@ -180,6 +183,9 @@ function IslandShape.new(id: string, size: number, opts: { [string]: any }?)
 	self.riseWidth = math.max(half * 0.085, 26)
 	self.reliefScale = math.max(half * 0.17, 44)
 	self.hillCrest = 17 + rand() * 11
+	-- The sandy arms are low dunes, not hills, and most of their surface stays bare sand.
+	self.armCrest = 6 + rand() * 4
+	self.armSandLine = 4.6 + rand() * 1.6
 	self.shelfHeight = 1.1
 	self.shelfWidth = math.max(half * 0.055, 22)
 	self.shelfTop = self.seaOffset - 3.0
@@ -197,19 +203,67 @@ function IslandShape.new(id: string, size: number, opts: { [string]: any }?)
 	self.minCoast = minCoast
 	self.maxCoast = maxCoast
 
-	-- ---- The lagoon ------------------------------------------------------------------
-	-- A single bay bitten out of ONE flank, with an organic rim and a mouth to the sea.
-	-- Placed off centre on purpose: a lagoon centred on the island would read as a moat
-	-- and the whole isle as a bullseye, which is the look we are avoiding.
+	-- ---- The atoll: sandy outer arms, lagoon, and an off-centre inner island ---------
+	-- This is the reference silhouette: a WIDE sand ring wraps a lagoon, and a separate
+	-- jungle-covered inner island carrying the volcano sits inside it, off to one side.
+	--
+	-- The ring is what makes an island read as a tropical atoll rather than a green lump,
+	-- but it is also how this generator previously produced a bullseye. Three things keep
+	-- it organic here: the ring WIDTH varies with bearing, the lagoon's inner rim varies
+	-- with bearing AND is shifted off centre (the `coreShift` cosine term), and the lagoon
+	-- only opens across two or three windows, with solid land bridges joining the arms to
+	-- the inner island between them.
+	self.ringBase = 0.180 + rand() * 0.055
+	self.ringProfile = {
+		{ k = 2, amp = 0.040, phase = rand() * TAU },
+		{ k = 3, amp = 0.026, phase = rand() * TAU },
+		{ k = 5, amp = 0.015, phase = rand() * TAU },
+	}
+	-- The inner island has to be broad enough to carry a volcano, a jungle and a village.
+	-- Keep its rim gently irregular: strong high-order harmonics here tear it into thin
+	-- spikes that read as damage rather than as a coastline.
+	self.coreBase = 0.440 + rand() * 0.065
+	self.coreProfile = {
+		{ k = 2, amp = 0.060, phase = rand() * TAU },
+		{ k = 3, amp = 0.038, phase = rand() * TAU },
+		{ k = 5, amp = 0.018, phase = rand() * TAU },
+	}
+	-- Push the inner island off centre so the lagoon is broad on one side and narrow on
+	-- the other, the way the reference has its ships anchored in the wide southern water.
+	self.coreAngle = rand() * TAU
+	self.coreShift = half * (0.040 + rand() * 0.060)
+
+	local windowCount = 2 + math.floor(rand() * 1.99)
+	self.lagoonWindows = {}
+	local firstWindow = rand() * TAU
+	for i = 1, windowCount do
+		local centre = firstWindow + (i - 1) * (TAU / windowCount) + (rand() - 0.5) * 0.45
+		local halfWidth = (0.60 + rand() * 0.32) * (math.pi / windowCount)
+		table.insert(self.lagoonWindows, {
+			center = centre % TAU,
+			halfWidth = halfWidth,
+			feather = halfWidth * 0.5,
+		})
+	end
+
+	-- ---- The bay ---------------------------------------------------------------------
+	-- An extra lobe bitten out of ONE flank, with an organic rim and a mouth to the sea.
+	-- It merges with the lagoon into a single connected water system and is what the
+	-- arrival island's spawn basin is pinned to.
 	local lagoonAngle = rand() * TAU
 	if o.lagoon ~= false then
-		local lagoonDist = half * (0.26 + rand() * 0.10)
+		-- Sit the bay OUT IN THE LAGOON ANNULUS, between the inner island's rim and the
+		-- sandy arms — not near the island centre. Centred, it carved a crescent out of the
+		-- inner island and left the volcano perched on a thin arc. Out here it instead
+		-- widens the lagoon into an anchorage, which is where the reference moors its ships
+		-- and where crew rafts berth.
+		local lagoonDist = half * (0.50 + rand() * 0.09)
 		self.lagoon = {
 			angle = lagoonAngle,
 			x = math.cos(lagoonAngle) * lagoonDist,
 			z = math.sin(lagoonAngle) * lagoonDist,
 			distance = lagoonDist,
-			baseR = half * (0.26 + rand() * 0.07),
+			baseR = half * (0.15 + rand() * 0.06),
 			profile = {
 				{ k = 2, amp = 0.150, phase = rand() * TAU },
 				{ k = 3, amp = 0.105, phase = rand() * TAU },
@@ -218,7 +272,7 @@ function IslandShape.new(id: string, size: number, opts: { [string]: any }?)
 			},
 			-- The mouth: a curved channel from the bay out through the coastal arm.
 			mouthAngle = lagoonAngle + (rand() - 0.5) * 0.5,
-			mouthHalfWidth = math.max(half * (0.075 + rand() * 0.035), 34),
+			mouthHalfWidth = math.max(half * (0.045 + rand() * 0.020), 30),
 			mouthMeanderAmp = half * (0.025 + rand() * 0.025),
 			mouthMeanderLen = math.max(half * 0.30, 60),
 			mouthMeanderPhase = rand() * TAU,
@@ -241,8 +295,34 @@ function IslandShape.new(id: string, size: number, opts: { [string]: any }?)
 			-- harmonic bearing covered the basin blew the bay out to over half the island.
 			-- Holding the rim at a floor keeps the bay off centre and modest, and the
 			-- harmonics still carry the rest of its outline outward.
-			self.lagoonMinRim = o.spawnBasinRadius
+			local basin = o.spawnBasinRadius :: number
+			self.lagoonMinRim = basin
 			self.lagoon.mouthAngle = self.lagoon.angle
+
+			-- A berth grid for four rafts needs a disc of clear water roughly 550 studs
+			-- across. No atoll lagoon on a 750-stud island can contain that: the annulus
+			-- between the inner island and the sand arms is only ~130 studs wide, and
+			-- drawing the inner island in far enough to fit the basin dissolves the jungle
+			-- core into a sandbar (measured: 92% of the island turned to beach).
+			--
+			-- So the boarding island gets an OPEN HARBOUR instead of an enclosed lagoon: the
+			-- sand ring is notched away across the bay's bearing, and the anchorage is
+			-- pushed out far enough that its whole basin clears the inner island. Berths
+			-- nearest the island lie in sheltered harbour water and the outermost lie just
+			-- beyond the coast in open sea — all of them afloat. Every other island keeps
+			-- the closed atoll silhouette.
+			local harbourDistance = self:coreRadius(lagoonAngle) + basin + self.beachWidth * 1.5
+			self.lagoon.distance = harbourDistance
+			self.lagoon.x = math.cos(lagoonAngle) * harbourDistance
+			self.lagoon.z = math.sin(lagoonAngle) * harbourDistance
+			self.lagoon.baseR = math.max(self.lagoon.baseR, basin)
+			-- Open the sand arms and the lagoon across the harbour mouth.
+			self.ringNotch = { center = lagoonAngle % TAU, halfWidth = 0.62, feather = 0.34 }
+			table.insert(self.lagoonWindows, {
+				center = lagoonAngle % TAU,
+				halfWidth = 0.62,
+				feather = 0.30,
+			})
 		end
 		-- NOTE: the bay is fitted further down, once the river and the lake exist. Fitting
 		-- it here made the area cap measure a height field with no channel and no lake in
@@ -257,7 +337,11 @@ function IslandShape.new(id: string, size: number, opts: { [string]: any }?)
 		-- trench turns an island into two separate halves of blue. Cap it at a width a
 		-- real river would have on a landmass this size.
 		local requested = (river.width :: number?) or (size * 0.07)
-		local width = math.clamp(requested, 70, size * 0.085)
+		-- Wide enough to read as a channel, never wide enough to halve the island. The
+		-- ceiling has to be raised to a floor of its own, or a small isle produces
+		-- `clamp(min > max)`.
+		local maxWidth = math.max(size * 0.055, 62)
+		local width = math.clamp(requested, 55, maxWidth)
 		self.river = {
 			angle = (river.angle :: number?) or 0,
 			width = width,
@@ -281,15 +365,33 @@ function IslandShape.new(id: string, size: number, opts: { [string]: any }?)
 	-- Read the bay's FINAL bearing, not the raw draw: a catalog override or a boarding
 	-- basin can move it, and the landmark has to end up opposite wherever it actually is.
 	local landmarkAngle = self:_pickLandmarkAngle(rand, if self.lagoon then self.lagoon.angle else lagoonAngle)
-	local baseR = half * spec.baseR
-	local coastAtLandmark = self:coastRadius(landmarkAngle)
-	local offset = math.clamp(coastAtLandmark * 0.46, baseR * 0.45, math.max(coastAtLandmark - baseR * 0.75, baseR * 0.45))
+	-- The landmark belongs on the INNER ISLAND, which is the only part of an atoll broad
+	-- and high enough to carry it. Anchoring it to the inner island's centre (rather than
+	-- to a fraction of the coast radius) is what keeps the cone out of the lagoon and off
+	-- the low sand arms, where it would look like a mountain growing out of a beach.
+	local coreCentreX = math.cos(self.coreAngle) * self.coreShift
+	local coreCentreZ = math.sin(self.coreAngle) * self.coreShift
+	-- Keep the foot inside the inner island's narrowest bearing.
+	local coreNarrowest = math.huge
+	for i = 0, 35 do
+		coreNarrowest = math.min(coreNarrowest, self:coreRadius((i / 36) * TAU))
+	end
+	-- Leave most of the inner island free. At 0.82 of the narrowest core bearing the cone's
+	-- foot covered nearly the whole jungle mass, so the settlement fitter could only find a
+	-- 38-stud ring of flat ground and villages came out cramped against the lagoon.
+	local baseR = math.min(half * spec.baseR, math.max(coreNarrowest * 0.55, half * 0.12))
+	-- Drift the peak well off the inner island's centre so one side of the core stays open
+	-- for the village — the reference has its town on the shore below the volcano, not
+	-- wrapped around it.
+	local drift = math.max(coreNarrowest - baseR, 0) * 0.55
+	local lmX = coreCentreX + math.cos(landmarkAngle) * drift
+	local lmZ = coreCentreZ + math.sin(landmarkAngle) * drift
 	local landmark = {
 		kind = if wantsVolcano then "volcano" else spec.kind,
 		angle = landmarkAngle,
-		x = math.cos(landmarkAngle) * offset,
-		z = math.sin(landmarkAngle) * offset,
-		distance = offset,
+		x = lmX,
+		z = lmZ,
+		distance = math.sqrt(lmX * lmX + lmZ * lmZ),
 		baseR = baseR,
 		height = size * spec.height,
 		falloff = spec.falloff,
@@ -379,18 +481,25 @@ function IslandShape:_fitLagoon()
 	local floor = self.half * 0.10
 	lagoon.baseR = math.clamp(math.min(lagoon.baseR, allowed), floor, self.half * 0.34)
 
-	-- (2) Area cap. Measured on the real height field, so it accounts for the mouth, the
-	-- river and the lake all contributing inland water on the same island.
-	for _ = 1, 12 do
+	-- (2) Area cap. Measured on the real height field, so it accounts for the atoll lagoon,
+	-- the bay, its mouth, the river and the lake all contributing water to one island.
+	-- Growing the inner island is the first lever, because on an atoll the lagoon annulus
+	-- holds far more water than the bay lobe does; shrinking only the bay would pin it at
+	-- its floor without ever bringing the total down.
+	for _ = 1, 16 do
 		if self:waterFraction() <= MAX_WATER_FRACTION then
 			break
 		end
-		if lagoon.baseR * 0.92 < floor then
+		local coreCeiling = self.coreMax or 0.56
+		if self.coreBase < coreCeiling then
+			self.coreBase = math.min(self.coreBase * 1.06, coreCeiling)
+		elseif lagoon.baseR * 0.92 >= floor then
+			lagoon.baseR *= 0.92
+			lagoon.mouthHalfWidth *= 0.96
+		else
 			lagoon.mouthHalfWidth *= 0.96
 			break
 		end
-		lagoon.baseR *= 0.92
-		lagoon.mouthHalfWidth *= 0.96
 	end
 end
 
@@ -551,6 +660,70 @@ function IslandShape:coastRadius(angle: number): number
 end
 
 -- Bay rim distance from the lagoon's own centre, at a bearing measured from that centre.
+-- Width of the sandy outer arm at this bearing. Varies so the ring is never a clean band.
+function IslandShape:ringWidth(angle: number): number
+	local v = self.ringBase + harmonics(self.ringProfile, angle)
+	local width = self.half * math.clamp(v, 0.10, 0.34)
+	-- A boarding island's harbour mouth: the sand arm thins to nothing so the anchorage
+	-- opens to the sea instead of being walled in behind a beach.
+	local notch = self.ringNotch
+	if notch then
+		local d = math.abs(angleDelta(angle, notch.center))
+		local w = 0
+		if d <= notch.halfWidth then
+			w = 1
+		elseif d < notch.halfWidth + notch.feather then
+			w = 1 - smoothstep((d - notch.halfWidth) / notch.feather)
+		end
+		width *= 1 - w
+	end
+	return width
+end
+
+-- Distance from the island centre to the inner island's rim at this bearing. The cosine
+-- term shifts the whole inner mass off centre, which is what stops the lagoon reading as
+-- a concentric moat.
+function IslandShape:coreRadius(angle: number): number
+	local v = self.coreBase + harmonics(self.coreProfile, angle)
+	local shift = self.coreShift * math.cos(angle - self.coreAngle)
+	return math.max(self.half * math.clamp(v, 0.16, 0.62) + shift, self.half * 0.10)
+end
+
+-- 1 in the middle of an open lagoon window, 0 on a solid land bridge.
+function IslandShape:lagoonWindowWeight(angle: number): number
+	local best = 0
+	for _, w in self.lagoonWindows do
+		local d = math.abs(angleDelta(angle, w.center))
+		if d <= w.halfWidth then
+			best = math.max(best, 1)
+		elseif d < w.halfWidth + w.feather then
+			best = math.max(best, 1 - smoothstep((d - w.halfWidth) / w.feather))
+		end
+	end
+	return best
+end
+
+-- Inner / outer radius of the lagoon at this bearing, or nil where a land bridge carries
+-- the arms straight through to the inner island.
+function IslandShape:lagoonBand(angle: number): (number?, number?)
+	local weight = self:lagoonWindowWeight(angle)
+	if weight <= 0.02 then
+		return nil, nil
+	end
+	local outer = self:coastRadius(angle) - self:ringWidth(angle)
+	local core = self:coreRadius(angle)
+	if core >= outer then
+		return nil, nil
+	end
+	-- Fade the lagoon shut toward each window edge so its shoreline curves into the land
+	-- bridge instead of stopping at a straight wall.
+	local inner = lerp(outer, core, weight)
+	if outer - inner < self.half * 0.03 then
+		return nil, nil
+	end
+	return inner, outer
+end
+
 function IslandShape:lagoonRadius(angle: number): number
 	local lagoon = self.lagoon
 	if not lagoon then
@@ -662,10 +835,10 @@ function IslandShape:lagoonMouthEdge(dx: number, dz: number): number
 	local across = -ldx * s + ldz * c
 	local centre = lagoon.mouthMeanderAmp
 		* math.sin(along / lagoon.mouthMeanderLen + lagoon.mouthMeanderPhase)
-	-- Flare the mouth toward open water. A constant-width channel reads as a drawn pipe
-	-- joining a balloon to the sea; an estuary that widens as it leaves the bay reads as a
-	-- real harbour entrance, and it gives rafts room to turn coming in.
-	local widen = 1 + (along / math.max(self.half * 0.60, 1)) * 1.05
+	-- Flare the mouth gently toward open water so it reads as a tidal pass through the sand
+	-- arm. The flare has to stay modest and capped: an aggressive one turns the pass into a
+	-- broad straight-edged wedge, which renders as a rectangle laid over the lagoon.
+	local widen = math.min(1 + (along / math.max(self.half * 0.90, 1)) * 0.45, 1.55)
 	return math.abs(across - centre) - lagoon.mouthHalfWidth * widen
 end
 
@@ -698,8 +871,15 @@ function IslandShape:sample(dx: number, dz: number): (string, number, boolean)
 	-- sand band, so every waterline gets a beach.
 	local dw = coast - r
 
-	-- --- navigable river ---
-	if self.river then
+	-- Is this point on the inner island? Several features below must not cut into it.
+	local onCore = r <= self:coreRadius(angle)
+
+	-- --- navigable channel ---
+	-- On an atoll the channel is a tidal PASS: it cuts the sand arms so the lagoon connects
+	-- to the open sea, and stops at the inner island. Letting it run the full sea-to-sea
+	-- length instead drew a blue ribbon straight across the atoll and sliced the jungle
+	-- core in half, which is both unlike the reference and a worse place to live.
+	if self.river and not onCore then
 		local edge = self:riverEdge(dx, dz)
 		if edge <= 0 then
 			return "water", self.channelBed, false
@@ -719,8 +899,26 @@ function IslandShape:sample(dx: number, dz: number): (string, number, boolean)
 		dw = math.min(dw, ld - lr)
 	end
 
-	-- --- the lagoon and its mouth ---
-	local lagoon = self.lagoon
+	-- --- the atoll lagoon, between the sandy arms and the inner island ---
+	local lagoonInner, lagoonOuter = self:lagoonBand(angle)
+	local onArm = false
+	if lagoonInner and lagoonOuter then
+		if r >= lagoonInner and r <= lagoonOuter then
+			return "water", self.lagoonBed, false
+		end
+		dw = math.min(dw, math.abs(r - lagoonInner), math.abs(r - lagoonOuter))
+		onArm = r > lagoonOuter
+	else
+		-- A land bridge: this bearing is continuous land from the coast to the inner
+		-- island, so the arm and the core are the same surface here.
+		onArm = r > self:coastRadius(angle) - self:ringWidth(angle)
+	end
+
+	-- --- the bay and its mouth ---
+	-- Never allowed to cut the inner island. The bay is an anchorage carved out of the
+	-- lagoon and the sand arms; if it may also eat the core, the jungle mass degenerates
+	-- into a crescent and the volcano ends up on a spit.
+	local lagoon = if onCore then nil else self.lagoon
 	if lagoon then
 		local ldx, ldz = dx - lagoon.x, dz - lagoon.z
 		local ld = math.sqrt(ldx * ldx + ldz * ldz)
@@ -747,6 +945,13 @@ function IslandShape:sample(dx: number, dz: number): (string, number, boolean)
 	if dw <= beachWidth then
 		beach = true
 		height = 0.25 + 2.0 * (dw / beachWidth)
+	elseif onArm then
+		-- The sandy outer arms stay low and dune-like, and read as SAND across most of
+		-- their width with only scattered scrub on the higher humps — the broad pale
+		-- beaches that dominate the reference island.
+		local rise = smoothstep((dw - beachWidth) / (self.riseWidth * 1.5))
+		height = 1.4 + rise * self.armCrest * (0.30 + 1.15 * n)
+		beach = height < self.armSandLine
 	else
 		local rise = smoothstep((dw - beachWidth) / self.riseWidth)
 		height = 2.25 + rise * self.hillCrest * (0.35 + 1.25 * n)
