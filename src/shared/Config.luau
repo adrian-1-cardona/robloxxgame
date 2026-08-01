@@ -192,26 +192,41 @@ local Config = {
 		-- Villagers spawn with the opening archipelago. Towns must already look inhabited
 		-- from the raft; landing is not required to make their residents appear.
 		Catalog = {
-			-- The first playable view after boarding: a low-poly island hub inspired by
-			-- the supplied reference. Every crew's raft starts in this broad river, with
-			-- dense block-canopy forest, a harbour village, docks, and a mountain landmark
-			-- framing the route out to sea.
+			-- The first playable view after boarding: one irregular low-poly volcanic
+			-- island. Each crew begins in the protected central lagoon, with a dense
+			-- jungle, dockside town, and faceted volcano framing the harbor—never a
+			-- circular atoll or dome-shaped hill field.
 			{
 				Id = "arrival_hub",
-				Name = "Rivergate Haven",
+				Name = "Emberlagoon Haven",
 				Offset = Vector3.new(0, 0, 0),
 				SizeStuds = 1500,
+				-- Keep the jungle biome classification for dense tropical vegetation;
+				-- Volcano = true below adds the explicit landmark without changing that.
 				Biome = "jungle",
 				Theme = "town",
 				Abandoned = false,
 				Hub = true,
 				SafeHarbor = true,
 				Merchant = true,
+				Lagoon = true,
+				LagoonWidth = 780,
+				LagoonDepth = 610,
+				LagoonOffset = Vector3.new(0, 0, 0),
+				-- Retained as a compatibility marker for the boarding/raft contract. The
+				-- terrain generator converts it into the irregular central lagoon below.
 				River = true,
-				-- The channel runs east/west through the spawn point; 440 studs keeps
-				-- concurrent 64-stud rafts comfortably inside the waterway.
-				RiverAngle = 0,
 				RiverWidth = 440,
+				-- Keep the town on the south shore, facing back across the water toward
+				-- the spawn raft and the jungle-covered volcanic landmark.
+				SettlementOffset = Vector3.new(0, 0, 410),
+				SettlementTopYOffset = 9,
+				VillageRadiusFactor = 0.36,
+				HarborFacingAngle = math.pi,
+				Volcano = true,
+				VolcanoOffset = Vector3.new(120, 0, -310),
+				VolcanoBaseRadius = 230,
+				VolcanoHeight = 260,
 				Docks = 3,
 				Lighthouse = true,
 				Church = true,
