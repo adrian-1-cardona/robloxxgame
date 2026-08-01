@@ -37,7 +37,10 @@ local catalogEnd = string.find(config, "\n\t\t},\n\t},", catalogStart, true)
 local catalog = string.sub(config, catalogStart, catalogEnd)
 local _, islandCount = string.gsub(catalog, '\n\t\t\t\tId = "', "")
 
-check("opening catalog contains twelve islands around the hub", islandCount == 12)
+check("opening catalog contains twelve islands plus the river-spawn hub", islandCount == 13)
+check("arrival hub is centered on the crew spawn river", string.find(catalog, 'Id = "arrival_hub"', 1, true) ~= nil
+	and string.find(catalog, "SafeHarbor = true", 1, true) ~= nil
+	and string.find(catalog, "RiverWidth = 440", 1, true) ~= nil)
 check("at least one opening island has a river", string.find(catalog, "River = true", 1, true) ~= nil)
 check("starter raft is a compact 64-stud voyage platform", string.find(config, "SizeStuds = 64", 1, true) ~= nil)
 check("river is much wider than the 64-stud raft", string.find(catalog, "RiverWidth = 300", 1, true) ~= nil)
@@ -49,9 +52,16 @@ check("village residents spawn during island construction", string.find(islands,
 check("river bridges are not added to the island decoration pass", string.find(islands, "buildRiverBridge(model, center", 1, true) == nil)
 check("peak bridges are not added to island decoration", string.find(islands, "buildRopeBridge(model, a, b)", 1, true) == nil)
 check(
-	"island surfaces use layered rolling shoulders",
+	"island surfaces use angular low-poly ridges instead of generic domes",
 	string.find(islands, "local shoulderCount =", 1, true) ~= nil
-		and string.find(islands, "Layered spheres create climbable slopes", 1, true) ~= nil
+		and string.find(islands, "fillFacetedRidge", 1, true) ~= nil
+		and string.find(islands, "without a giant flat disc or rounded dome", 1, true) ~= nil
+)
+check(
+	"all scattered vegetation samples dry terrain above the ocean",
+	string.find(islands, "params.IgnoreWater = true", 1, true) ~= nil
+		and string.find(islands, "result.Position.Y <= OceanConfig.SurfaceY + 0.65", 1, true) ~= nil
+		and string.find(islands, "local function dryGroundY", 1, true) ~= nil
 )
 check("raft collision has no through-island river exception", string.find(islands, "inNavigableRiver", 1, true) == nil)
 check(
@@ -87,6 +97,12 @@ check(
 check(
 	"river terrain includes rocky ravine banks",
 	string.find(islands, "Broken rock walls and raised grassy shoulders", 1, true) ~= nil
+)
+check(
+	"arrival hub has a raised crossing and landmark skyline",
+	string.find(islands, "decorateArrivalHub", 1, true) ~= nil
+		and string.find(islands, 'Name = "HubCrossingDeck"', 1, true) ~= nil
+		and string.find(islands, "buildHotAirBalloon(model, peak", 1, true) ~= nil
 )
 
 print(`\nResults: {passed} passed, {failed} failed\n`)

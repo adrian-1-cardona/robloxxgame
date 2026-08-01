@@ -45,6 +45,9 @@ export type IslandRecord = {
 		abandoned: boolean,
 	}?,
 	populated: boolean?,
+	-- The arrival hub contains the crew spawn channel. It is deliberately excluded
+	-- from the circular shore guard because crews begin inside that waterway.
+	safeHarbor: boolean?,
 }
 
 type CrewIslandState = {
@@ -331,12 +334,25 @@ local function buildTieredForestTree(model: Model, topY: number, x: number, z: n
 	end
 end
 
-local function terrainSurfaceY(x: number, z: number, fallbackY: number): number
-	local result = Workspace:Raycast(Vector3.new(x, fallbackY + 180, z), Vector3.new(0, -360, 0))
-	if result then
-		return result.Position.Y
+local function terrainSurfaceY(x: number, z: number, fallbackY: number): number?
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Include
+	params.FilterDescendantsInstances = { Workspace.Terrain }
+	params.IgnoreWater = true
+	local result = Workspace:Raycast(
+		Vector3.new(x, fallbackY + 280, z),
+		Vector3.new(0, -420, 0),
+		params
+	)
+	if not result or result.Material == Enum.Material.Water then
+		return nil
 	end
-	return fallbackY
+	-- A placement must have dry terrain clearly above the sea. This is the final guard
+	-- against trees, shrubs, loot, and shoreline clutter appearing on open water.
+	if result.Position.Y <= OceanConfig.SurfaceY + 0.65 then
+		return nil
+	end
+	return result.Position.Y
 end
 
 -- A dense outer woodland keeps the view from each village framed by hills and trees,
@@ -367,6 +383,9 @@ local function scatterSettlementForest(
 			end
 		end
 		local groundY = terrainSurfaceY(x, z, topY)
+		if not groundY then
+			continue
+		end
 		if math.random() < 0.3 then
 			buildTieredForestTree(model, groundY, x, z)
 		else
@@ -1010,6 +1029,12 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 		end
 		return false
 	end
+	local function dryGroundY(x: number, z: number): number?
+		if blocked(x, z) then
+			return nil
+		end
+		return terrainSurfaceY(x, z, topY)
+	end
 
 	-- Which flora suits this biome. Tropical isles get palms; temperate highlands and cold
 	-- mountains get pines instead; volcanic + mountain isles also grow loot-y gem clusters.
@@ -1038,10 +1063,11 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 			end
 			local x = center.X + math.cos(angle) * r
 			local z = center.Z + math.sin(angle) * r
-			if blocked(x, z) then
+			local groundY = dryGroundY(x, z)
+			if not groundY then
 				continue
 			end
-			buildPalm(model, topY, x, z)
+			buildPalm(model, groundY, x, z)
 		end
 	end
 
@@ -1053,10 +1079,11 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 			local r = half * (0.18 + math.random() * 0.68)
 			local x = center.X + math.cos(angle) * r
 			local z = center.Z + math.sin(angle) * r
-			if blocked(x, z) then
+			local groundY = dryGroundY(x, z)
+			if not groundY then
 				continue
 			end
-			buildPine(model, topY, x, z, snowy)
+			buildPine(model, groundY, x, z, snowy)
 		end
 	end
 
@@ -1068,10 +1095,11 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 			local r = half * (0.2 + math.random() * 0.66)
 			local x = center.X + math.cos(angle) * r
 			local z = center.Z + math.sin(angle) * r
-			if blocked(x, z) then
+			local groundY = dryGroundY(x, z)
+			if not groundY then
 				continue
 			end
-			buildGem(model, topY, x, z)
+			buildGem(model, groundY, x, z)
 		end
 	end
 
@@ -1084,10 +1112,11 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 		end
 		local x = center.X + math.cos(angle) * r
 		local z = center.Z + math.sin(angle) * r
-		if blocked(x, z) then
+		local groundY = dryGroundY(x, z)
+		if not groundY then
 			continue
 		end
-		buildBush(model, topY, x, z, biome == "jungle")
+		buildBush(model, groundY, x, z, biome == "jungle")
 	end
 
 	local tuftCount = math.floor(size / 17)
@@ -1096,10 +1125,11 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 		local r = half * (0.2 + math.random() * 0.65)
 		local x = center.X + math.cos(angle) * r
 		local z = center.Z + math.sin(angle) * r
-		if blocked(x, z) then
+		local groundY = dryGroundY(x, z)
+		if not groundY then
 			continue
 		end
-		buildGrassTuft(model, topY, x, z)
+		buildGrassTuft(model, groundY, x, z)
 	end
 
 	-- Broadleaf trees for jungle / palm / volcanic isles (volcanic isles are lush tropical
@@ -1114,10 +1144,11 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 			local r = half * (0.22 + math.random() * 0.6)
 			local x = center.X + math.cos(angle) * r
 			local z = center.Z + math.sin(angle) * r
-			if blocked(x, z) then
+			local groundY = dryGroundY(x, z)
+			if not groundY then
 				continue
 			end
-			buildJungleTree(model, topY, x, z)
+			buildJungleTree(model, groundY, x, z)
 		end
 	end
 
@@ -1131,10 +1162,11 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 			local r = half * (0.25 + math.random() * 0.5)
 			local x = center.X + math.cos(angle) * r
 			local z = center.Z + math.sin(angle) * r
-			if blocked(x, z) then
+			local groundY = dryGroundY(x, z)
+			if not groundY then
 				continue
 			end
-			buildGiantTree(model, topY, x, z)
+			buildGiantTree(model, groundY, x, z)
 		end
 
 		local fernCount = if biome == "jungle" then math.floor(size / 18) else math.floor(size / 32)
@@ -1143,10 +1175,11 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 			local r = half * (0.15 + math.random() * 0.7)
 			local x = center.X + math.cos(angle) * r
 			local z = center.Z + math.sin(angle) * r
-			if blocked(x, z) then
+			local groundY = dryGroundY(x, z)
+			if not groundY then
 				continue
 			end
-			buildFern(model, topY, x, z)
+			buildFern(model, groundY, x, z)
 		end
 
 		local vineCount = math.clamp(math.floor(size / 160), 2, 7)
@@ -1156,10 +1189,11 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 			local h = 24 + math.random() * 18
 			local x = center.X + math.cos(angle) * r
 			local z = center.Z + math.sin(angle) * r
-			if blocked(x, z) then
+			local groundY = dryGroundY(x, z)
+			if not groundY then
 				continue
 			end
-			buildClimbVine(model, topY, x, z, h)
+			buildClimbVine(model, groundY, x, z, h)
 		end
 	end
 
@@ -1170,10 +1204,11 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 		local r = half * (0.2 + math.random() * 0.62)
 		local x = center.X + math.cos(angle) * r
 		local z = center.Z + math.sin(angle) * r
-		if blocked(x, z) then
+		local groundY = dryGroundY(x, z)
+		if not groundY then
 			continue
 		end
-		buildDune(model, topY, x, z, math.random() < 0.6)
+		buildDune(model, groundY, x, z, math.random() < 0.6)
 	end
 
 	-- Rock outcrops — a few inland, more clustered near the shoreline
@@ -1183,10 +1218,11 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 		local r = half * (0.35 + math.random() * 0.55)
 		local x = center.X + math.cos(angle) * r
 		local z = center.Z + math.sin(angle) * r
-		if blocked(x, z) then
+		local groundY = dryGroundY(x, z)
+		if not groundY then
 			continue
 		end
-		buildRock(model, topY, x, z)
+		buildRock(model, groundY, x, z)
 	end
 
 	-- Weathered driftwood logs washed up along the beach ring
@@ -1194,7 +1230,12 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 	for _ = 1, driftCount do
 		local angle = math.random() * math.pi * 2
 		local r = half * (0.72 + math.random() * 0.2)
-		buildDriftwood(model, topY, center.X + math.cos(angle) * r, center.Z + math.sin(angle) * r)
+		local x = center.X + math.cos(angle) * r
+		local z = center.Z + math.sin(angle) * r
+		local groundY = dryGroundY(x, z)
+		if groundY then
+			buildDriftwood(model, groundY, x, z)
+		end
 	end
 
 	-- Scattered flowers for colour (shadowless, so nearly free). Tropical + temperate only.
@@ -1205,10 +1246,11 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 			local r = half * (0.18 + math.random() * 0.62)
 			local x = center.X + math.cos(angle) * r
 			local z = center.Z + math.sin(angle) * r
-			if blocked(x, z) then
+			local groundY = dryGroundY(x, z)
+			if not groundY then
 				continue
 			end
-			buildFlower(model, topY, x, z)
+			buildFlower(model, groundY, x, z)
 		end
 	end
 end
@@ -1362,7 +1404,48 @@ local function seedFromId(id: string): number
 	return h
 end
 
--- Enhanced terrain generation with better foundations for medieval villages
+-- Lay an angular ridge from low ground toward a raised spine. Tilted voxel slabs give
+-- the shoreline and hills planar low-poly faces rather than the hemispherical silhouette
+-- produced by stacking FillBall calls.
+local function fillFacetedRidge(
+	terrain: Terrain,
+	origin: Vector3,
+	yaw: number,
+	length: number,
+	width: number,
+	rise: number,
+	material: Enum.Material
+)
+	local segments = 5
+	local segmentLength = length / segments
+	for segment = 1, segments do
+		local t0 = (segment - 1) / segments
+		local t1 = segment / segments
+		local t = (t0 + t1) * 0.5
+		local distance = (t - 0.5) * length
+		local sectionRise = rise * t
+		local sectionWidth = width * (1 - t * 0.42)
+		local thickness = math.max(10, width * (0.34 - t * 0.08))
+		local pitch = -math.atan2(rise / segments, segmentLength)
+		local center = Vector3.new(
+			origin.X + math.cos(yaw) * distance,
+			origin.Y + sectionRise - thickness * 0.38,
+			origin.Z + math.sin(yaw) * distance
+		)
+		local ok = pcall(function()
+		terrain:FillBlock(
+			CFrame.new(center) * CFrame.Angles(0, -yaw + math.pi * 0.5, pitch),
+			Vector3.new(sectionLength + 4, thickness, sectionWidth),
+			material
+		)
+		end)
+		if not ok then
+			terrain:FillBall(center, math.max(sectionWidth * 0.34, 8), material)
+		end
+	end
+end
+
+-- Enhanced terrain generation with compact village foundations and faceted relief.
 local function generateIslandTerrain(
 	id: string,
 	center: Vector3,
@@ -1427,8 +1510,8 @@ local function generateIslandTerrain(
 		landColumn(cx + math.cos(a) * dist, cz + math.sin(a) * dist, lobeR, lobeTop, grassMat)
 	end
 
-	-- 2) A modest grass cap supports the central streets; overlapping rolling shoulders
-	-- carry the terrain out toward the forest instead of one enormous level cylinder.
+	-- 2) A modest grass cap supports only the central streets. Angular ridge fans carry
+	-- the terrain toward the forest without a giant flat disc or rounded dome.
 	local capTop = topY + (if hasVillage then 0.2 else 0.3)
 	local capBottom = topY - 3.5
 	local capH = capTop - capBottom
@@ -1445,16 +1528,17 @@ local function generateIslandTerrain(
 		local rise = rng:NextNumber(18, 54)
 		local px = cx + math.cos(a) * d
 		local pz = cz + math.sin(a) * d
-		-- Layered spheres create climbable slopes, ridgelines, and shallow valleys.
-		-- Their bases overlap the main landmass, so there are no floating decorations.
-		for step = 0, 4 do
-			local t = step / 4
-			Terrain:FillBall(
-				Vector3.new(px, topY - r * 0.45 + rise * t, pz),
-				math.max(r * (1 - t * 0.16), 6),
-				if t > 0.7 and biome == "jungle" then Enum.Material.LeafyGrass else grassMat
-			)
-		end
+		-- Overlapping tilted slabs create climbable planar slopes, broken ridgelines,
+		-- and shallow valleys while keeping the low-poly silhouette from the references.
+		fillFacetedRidge(
+			Terrain,
+			Vector3.new(px, topY - r * 0.12, pz),
+			a + rng:NextNumber(-0.35, 0.35),
+			r * rng:NextNumber(1.8, 2.7),
+			r * rng:NextNumber(1.25, 1.8),
+			rise,
+			if biome == "jungle" then Enum.Material.LeafyGrass else grassMat
+		)
 	end
 
 	-- 3) Enhanced biome relief with village-friendly positioning
@@ -1593,13 +1677,15 @@ local function generateIslandTerrain(
 				continue
 			end
 
-			local steps = 6
-			for s = 0, steps do
-				local t = s / steps
-				local y = topY + peakExtra * t
-				local r = baseR * (1 - t * 0.72)
-				Terrain:FillBall(Vector3.new(hx, y, hz), math.max(r, 3), if t > 0.55 then hillRock else grassMat)
-			end
+			fillFacetedRidge(
+				Terrain,
+				Vector3.new(hx, topY, hz),
+				a + rng:NextNumber(-0.4, 0.4),
+				baseR * 2.4,
+				baseR * 1.8,
+				peakExtra,
+				hillRock
+			)
 		end
 	end
 
@@ -1641,14 +1727,15 @@ local function generateIslandTerrain(
 			local d = half * rng:NextNumber(0.58, 0.84)
 			local radius = half * rng:NextNumber(0.09, 0.16)
 			local rise = rng:NextNumber(20, 48)
-			for step = 0, 6 do
-				local t = step / 6
-				Terrain:FillBall(
-					Vector3.new(cx + math.cos(a) * d, topY + t * rise, cz + math.sin(a) * d),
-					math.max(radius * (1 - t * 0.72), 3),
-					if t > 0.58 then Enum.Material.Rock else grassMat
-				)
-			end
+			fillFacetedRidge(
+				Terrain,
+				Vector3.new(cx + math.cos(a) * d, topY, cz + math.sin(a) * d),
+				a + rng:NextNumber(-0.3, 0.3),
+				radius * 2.6,
+				radius * 1.9,
+				rise,
+				if biome == "jungle" then Enum.Material.LeafyGrass else grassMat
+			)
 		end
 	end
 
@@ -2930,6 +3017,84 @@ local function decorateShore(
 	end
 end
 
+-- The fixed arrival isle needs a few hand-authored landmarks so the first view reads
+-- as a real low-poly hub rather than another randomly populated destination. The
+-- crossing stays high enough for a raft to pass beneath; it is a pedestrian landmark,
+-- not a river blocker.
+local function decorateArrivalHub(model: Model, center: Vector3, topY: number, features: { [string]: any })
+	local river = features.river
+	if not river then
+		return
+	end
+	local width = river.width
+	local bridgeX = center.X + 120
+	local bridgeY = topY + 13
+	local stone = Color3.fromRGB(112, 116, 108)
+	local darkStone = Color3.fromRGB(72, 78, 74)
+
+	-- Broad arched-looking deck across the channel, with its supports planted well
+	-- beyond the navigable water. The wood rail inserts echo the harbour reference.
+	makePart({
+		Name = "HubCrossingDeck",
+		Parent = model,
+		Size = Vector3.new(22, 2.4, width + 52),
+		CFrame = CFrame.new(bridgeX, bridgeY, center.Z),
+		Color = stone,
+		Material = Enum.Material.Cobblestone,
+		CastShadow = true,
+	})
+	for _, z in { -(width * 0.5 + 16), width * 0.5 + 16 } do
+		makePart({
+			Name = "HubCrossingAbutment",
+			Parent = model,
+			Size = Vector3.new(18, bridgeY - OceanConfig.SurfaceY + 2, 14),
+			CFrame = CFrame.new(bridgeX, (bridgeY + OceanConfig.SurfaceY - 2) * 0.5, center.Z + z),
+			Color = darkStone,
+			Material = Enum.Material.Rock,
+			CastShadow = true,
+		})
+	end
+	for _, z in { -width * 0.34, width * 0.34 } do
+		makePart({
+			Name = "HubBridgeRail",
+			Parent = model,
+			Size = Vector3.new(1.1, 3.2, width * 0.26),
+			CFrame = CFrame.new(bridgeX - 9, bridgeY + 2, center.Z + z),
+			Color = DOCK_POST,
+			Material = Enum.Material.Wood,
+			CanCollide = false,
+		})
+		makePart({
+			Name = "HubBridgeRail",
+			Parent = model,
+			Size = Vector3.new(1.1, 3.2, width * 0.26),
+			CFrame = CFrame.new(bridgeX + 9, bridgeY + 2, center.Z + z),
+			Color = DOCK_POST,
+			Material = Enum.Material.Wood,
+			CanCollide = false,
+		})
+	end
+
+	-- A rocky rainforest peak on the northern bank supplies the unmistakable skyline
+	-- from the hub reference without covering the river spawn or settlement paths.
+	local peak = Vector3.new(center.X - 300, topY, center.Z - width * 0.5 - 150)
+	for ridge = 1, 8 do
+		local angle = (ridge / 8) * math.pi * 2
+		local length = 185 + (ridge % 3) * 14
+		local outward = Vector3.new(math.cos(angle), 0, math.sin(angle))
+		fillFacetedRidge(
+			Workspace.Terrain,
+			peak + outward * (length * 0.5),
+			angle + math.pi,
+			length,
+			58 + (ridge % 2) * 14,
+			175 + (ridge % 3) * 12,
+			if ridge % 3 == 0 then Enum.Material.LeafyGrass else Enum.Material.Rock
+		)
+	end
+	buildHotAirBalloon(model, peak + Vector3.new(56, 170, 38), Color3.fromRGB(214, 60, 36), 0.8)
+end
+
 local function buildFlatIsland(entry: { [string]: any }, folder: Folder): IslandRecord
 	local thickness = Config.Islands.Thickness
 	local topY = Config.Islands.TopY
@@ -2982,6 +3147,9 @@ local function buildFlatIsland(entry: { [string]: any }, folder: Folder): Island
 
 	-- Docks / piers, lighthouse, crater lava, waterfalls, moored + beached boats.
 	decorateShore(model, center, size, topY, biome, entry, features)
+	if entry.Hub == true then
+		decorateArrivalHub(model, center, topY, features)
+	end
 
 	local marker = makePart({
 		Name = "IsleMarker",
@@ -3030,6 +3198,7 @@ local function buildFlatIsland(entry: { [string]: any }, folder: Folder): Island
 		model = model,
 		label = nil, -- No longer displaying island names in-game
 		npcs = {},
+		safeHarbor = entry.SafeHarbor == true,
 	}
 	if features.river then
 		local river = features.river
@@ -3331,6 +3500,12 @@ end
 -- abused to cut through land at high speed.
 function IslandService.collideRaft(fromPos: Vector3, toPos: Vector3): (Vector3, string?)
 	for _, isle in IslandService._islands do
+		-- Crews are initially placed inside Rivergate's carved central channel. The
+		-- hub's real terrain banks still provide visual boundaries; omit only its
+		-- broad circular guard so the raft can leave the starting waterway.
+		if isle.safeHarbor then
+			continue
+		end
 		local minDist = isle.size * 0.5 + Config.Islands.RaftCollisionPad
 		if segmentHitsCircle(fromPos, toPos, isle.center, minDist) then
 			return fromPos, isle.name
