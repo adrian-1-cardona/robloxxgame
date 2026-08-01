@@ -96,6 +96,7 @@ local function loadModule(path: string, name: string)
 end
 
 local IslandShape = loadModule("src/shared/IslandShape.luau", "IslandShape")
+local IslandRaster = loadModule("src/shared/IslandRaster.luau", "IslandRaster")
 local Config = loadModule("src/shared/Config.luau", "Config")
 local OceanConfig = loadModule("src/shared/OceanConfig.luau", "OceanConfig")
 
@@ -504,6 +505,38 @@ for _, entry in catalog do
 			`stations with no water = {blocked}/{stations}`
 		)
 	end
+
+	-- 10) The terrain plan must stay affordable. Every cell written individually is tens of
+	--     thousands of Terrain writes per island; the rectangle merge is what makes a
+	--     sculpted coastline cheap enough to build at runtime, so its effect is asserted
+	--     rather than assumed.
+	local step = math.clamp(entry.SizeStuds / 90, 8, 16)
+	local boxes, rasterStats = IslandRaster.build(shape, { step = step, topY = TOP_Y, quantize = 2 })
+	local naive = rasterStats.cells * 2
+	check(
+		`{id}: terrain plan is merged into rectangles (<= 40% of one box per cell)`,
+		#boxes <= naive * 0.40,
+		`{#boxes} boxes vs {naive} cells`
+	)
+	check(
+		`{id}: terrain plan stays under 4,000 Terrain writes`,
+		#boxes < 4000,
+		`{#boxes} boxes`
+	)
+	check(
+		`{id}: submerged repaint is a handful of boxes, not a per-cell replay`,
+		#IslandRaster.submergedBoxes(shape, { step = 48, topY = TOP_Y }) < 220,
+		`{#IslandRaster.submergedBoxes(shape, { step = 48, topY = TOP_Y })} boxes`
+	)
+	-- Nothing in the plan may be water above the waterline, or an island would ship with
+	-- water hanging over its own beaches.
+	local floatingWater = 0
+	for _, box in boxes do
+		if box.water and box.bottom > TOP_Y + SEA_OFFSET then
+			floatingWater += 1
+		end
+	end
+	check(`{id}: no water is written above sea level`, floatingWater == 0, `{floatingWater} boxes`)
 
 	fingerprints[id] = table.concat({
 		string.format("%.4f", shape:coastRadius(0)),
