@@ -1450,6 +1450,16 @@ function VillageBuilder.build(
 	villageFolder.Name = "Village"
 	villageFolder.Parent = model
 
+	-- Snap a world position to the actual terrain surface. If deps.groundY is available
+	-- (server with sculpted terrain), use it; otherwise fall back to the flat topY so the
+	-- builder still works in headless tests that skip terrain sculpting.
+	local function groundSnap(x: number, z: number): number
+		if deps.groundY then
+			return deps.groundY(x, z, topY)
+		end
+		return topY
+	end
+
 	-- === Castle isles ===============================================================
 	-- Some islands are just one huge castle rising out of the jungle. Build the keep,
 	-- scatter garrison loot inside the courtyard, and hand back guard posts + a merchant
@@ -1466,7 +1476,8 @@ function VillageBuilder.build(
 			for i = 1, lamps do
 				local a = (i / lamps) * math.pi * 2
 				local r = castleRadius * 0.72
-				buildLampPost(villageFolder, Vector3.new(center.X + math.cos(a) * r, topY, center.Z + math.sin(a) * r))
+				local lx, lz = center.X + math.cos(a) * r, center.Z + math.sin(a) * r
+				buildLampPost(villageFolder, Vector3.new(lx, groundSnap(lx, lz), lz))
 			end
 		end
 
@@ -1475,7 +1486,8 @@ function VillageBuilder.build(
 		for i = 1, 16 do
 			local a = (i / 16) * math.pi * 2 + math.random() * 0.4
 			local r = castleRadius * (0.2 + math.random() * 0.55)
-			table.insert(guardSpots, Vector3.new(center.X + math.cos(a) * r, topY + 2.5, center.Z + math.sin(a) * r))
+			local gx, gz = center.X + math.cos(a) * r, center.Z + math.sin(a) * r
+			table.insert(guardSpots, Vector3.new(gx, groundSnap(gx, gz) + 2.5, gz))
 		end
 
 		-- Treasure: weapon / armor / chest loot inside the walls.
@@ -1486,7 +1498,8 @@ function VillageBuilder.build(
 			local weaponId = Weapons.rollLootWeapon(function(lo, hi)
 				return math.random(lo, hi)
 			end)
-			local cf = CFrame.new(center.X + math.cos(a) * r, topY + 0.5, center.Z + math.sin(a) * r)
+			local wx, wz = center.X + math.cos(a) * r, center.Z + math.sin(a) * r
+			local cf = CFrame.new(wx, groundSnap(wx, wz) + 0.5, wz)
 				* CFrame.Angles(0, math.rad(math.random(0, 360)), 0)
 			WeaponService.spawnWeaponPickup(villageFolder, weaponId, cf)
 		end
@@ -1498,17 +1511,20 @@ function VillageBuilder.build(
 				local armorId = Armor.rollLootArmor(function(lo, hi)
 					return math.random(lo, hi)
 				end)
-				deps.spawnArmorPickup(villageFolder, armorId, CFrame.new(center.X + math.cos(a) * r, topY + 0.4, center.Z + math.sin(a) * r))
+				local ax, az = center.X + math.cos(a) * r, center.Z + math.sin(a) * r
+				deps.spawnArmorPickup(villageFolder, armorId, CFrame.new(ax, groundSnap(ax, az) + 0.4, az))
 			end
 		end
 		local chestCount = (entry.Loot and entry.Loot.Chests) or 0
 		for i = 1, chestCount do
 			local a = (i / math.max(chestCount, 1)) * math.pi * 2 + 0.6
 			local r = castleRadius * (0.2 + math.random() * 0.5)
-			buildChest(villageFolder, CFrame.new(center.X + math.cos(a) * r, topY + 0.85, center.Z + math.sin(a) * r), islandId, deps)
+			local chx, chz = center.X + math.cos(a) * r, center.Z + math.sin(a) * r
+			buildChest(villageFolder, CFrame.new(chx, groundSnap(chx, chz) + 0.85, chz), islandId, deps)
 		end
 
-		local merchantSpot = Vector3.new(center.X, topY + 2.5, center.Z + castleRadius + 16)
+		local msx, msz = center.X, center.Z + castleRadius + 16
+		local merchantSpot = Vector3.new(msx, groundSnap(msx, msz) + 2.5, msz)
 		return { villagerSpots = guardSpots, merchantSpot = merchantSpot }
 	end
 
@@ -1536,6 +1552,8 @@ function VillageBuilder.build(
 			local pos = waterfrontCenter
 				+ harborRight * ((alpha - 0.5) * villageRadius * 1.25)
 				+ harborForward * (math.sin(i * 1.9) * 4)
+			local groundY = groundSnap(pos.X, pos.Z)
+			pos = Vector3.new(pos.X, groundY, pos.Z)
 			buildHouse(villageFolder, CFrame.lookAt(pos, pos + harborForward * 20), {
 				cobblestone = cobble,
 				ruined = false,
@@ -1569,29 +1587,31 @@ function VillageBuilder.build(
 			end
 		end
 		-- Face the house toward the village center
-		local houseCf = CFrame.lookAt(Vector3.new(x, topY, z), Vector3.new(center.X, topY, center.Z))
+		local groundY = groundSnap(x, z)
+		local houseCf = CFrame.lookAt(Vector3.new(x, groundY, z), Vector3.new(center.X, groundY, center.Z))
 		buildHouse(villageFolder, houseCf, {
 			cobblestone = cobble,
 			ruined = abandoned,
 			islandId = islandId,
 		})
 		-- A villager spot by each house
-		table.insert(villagerSpots, Vector3.new(x, topY + 2.5, z))
+		table.insert(villagerSpots, Vector3.new(x, groundY + 2.5, z))
 	end
 
 	-- Central campfire (lit villages) or a cold ash pit (abandoned).
+	local centerGroundY = groundSnap(center.X, center.Z)
 	if abandoned then
 		makePart({
 			Name = "ColdPit",
 			Parent = villageFolder,
 			Size = Vector3.new(4, 0.5, 4),
-			CFrame = CFrame.new(center.X, topY + 0.3, center.Z),
+			CFrame = CFrame.new(center.X, centerGroundY + 0.3, center.Z),
 			Color = ASH,
 			Material = Enum.Material.Ground,
 			CanCollide = false,
 		})
 	else
-		buildCampfire(villageFolder, Vector3.new(center.X, topY + 0.3, center.Z))
+		buildCampfire(villageFolder, Vector3.new(center.X, centerGroundY + 0.3, center.Z))
 	end
 
 	-- Theme flavour: each settlement type gets a distinctive landmark so isles feel
@@ -1601,24 +1621,29 @@ function VillageBuilder.build(
 			for i = 1, 4 do
 				local a = (i / 4) * math.pi * 2 + 0.4
 				local r = villageRadius * 0.6
-				local cf = CFrame.new(center.X + math.cos(a) * r, topY, center.Z + math.sin(a) * r)
+				local fx, fz = center.X + math.cos(a) * r, center.Z + math.sin(a) * r
+				local cf = CFrame.new(fx, groundSnap(fx, fz), fz)
 				buildFishRack(villageFolder, cf)
 			end
 		elseif theme == "town" then
 			for i = 1, 3 do
 				local a = (i / 3) * math.pi * 2
 				local r = villageRadius * 0.32
-				local cf = CFrame.new(center.X + math.cos(a) * r, topY, center.Z + math.sin(a) * r)
+				local mx, mz = center.X + math.cos(a) * r, center.Z + math.sin(a) * r
+				local cf = CFrame.new(mx, groundSnap(mx, mz), mz)
 				buildMarketStall(villageFolder, cf)
 			end
 		elseif theme == "stone_town" then
-			buildWell(villageFolder, Vector3.new(center.X + villageRadius * 0.22, topY, center.Z))
-			local towerPos = Vector3.new(center.X - villageRadius * 0.5, topY, center.Z - villageRadius * 0.4)
+			local wx, wz = center.X + villageRadius * 0.22, center.Z
+			buildWell(villageFolder, Vector3.new(wx, groundSnap(wx, wz), wz))
+			local tx, tz = center.X - villageRadius * 0.5, center.Z - villageRadius * 0.4
+			local towerPos = Vector3.new(tx, groundSnap(tx, tz), tz)
 			buildWatchtower(villageFolder, towerPos)
 			-- A climbable ladder so players can actually get up on the watchtower.
 			buildLadder(villageFolder, towerPos + Vector3.new(3.4, 0, 0), 18)
 		elseif cobble then
-			buildWell(villageFolder, Vector3.new(center.X + villageRadius * 0.22, topY, center.Z))
+			local wx, wz = center.X + villageRadius * 0.22, center.Z
+			buildWell(villageFolder, Vector3.new(wx, groundSnap(wx, wz), wz))
 		end
 	end
 
@@ -1626,9 +1651,11 @@ function VillageBuilder.build(
 	if not abandoned then
 		if entry.Church == true then
 			-- Church sits on the near side of the square, facing the heart.
+			local cx, cz = center.X, center.Z + villageRadius * 0.72
+			local cgy = groundSnap(cx, cz) + 0.8
 			local churchCf = CFrame.lookAt(
-				Vector3.new(center.X, topY + 0.8, center.Z + villageRadius * 0.72),
-				Vector3.new(center.X, topY + 0.8, center.Z)
+				Vector3.new(cx, cgy, cz),
+				Vector3.new(center.X, cgy, center.Z)
 			)
 			buildChurch(villageFolder, churchCf, islandId)
 		end
@@ -1637,8 +1664,10 @@ function VillageBuilder.build(
 		for i = 1, mansions do
 			local a = (i / math.max(mansions, 1)) * math.pi * 2 + 1.1
 			local r = villageRadius * 0.82
-			local pos = Vector3.new(center.X + math.cos(a) * r, topY + 0.8, center.Z + math.sin(a) * r)
-			buildMansion(villageFolder, CFrame.lookAt(pos, Vector3.new(center.X, topY + 0.8, center.Z)), cobble, islandId)
+			local mx, mz = center.X + math.cos(a) * r, center.Z + math.sin(a) * r
+			local mgy = groundSnap(mx, mz) + 0.8
+			local pos = Vector3.new(mx, mgy, mz)
+			buildMansion(villageFolder, CFrame.lookAt(pos, Vector3.new(center.X, mgy, center.Z)), cobble, islandId)
 		end
 
 		if entry.Lit == true then
@@ -1647,12 +1676,14 @@ function VillageBuilder.build(
 			for i = 1, lamps do
 				local a = (i / lamps) * math.pi * 2
 				local r = villageRadius * 0.55
-				buildLampPost(villageFolder, Vector3.new(center.X + math.cos(a) * r, topY, center.Z + math.sin(a) * r))
+				local lx, lz = center.X + math.cos(a) * r, center.Z + math.sin(a) * r
+				buildLampPost(villageFolder, Vector3.new(lx, groundSnap(lx, lz), lz))
 			end
 			for i = 1, 4 do
 				local a = (i / 4) * math.pi * 2 + 0.5
 				local r = villageRadius * 0.25
-				buildLampPost(villageFolder, Vector3.new(center.X + math.cos(a) * r, topY, center.Z + math.sin(a) * r))
+				local lx, lz = center.X + math.cos(a) * r, center.Z + math.sin(a) * r
+				buildLampPost(villageFolder, Vector3.new(lx, groundSnap(lx, lz), lz))
 			end
 		end
 
@@ -1662,8 +1693,10 @@ function VillageBuilder.build(
 		for i = 1, ruins do
 			local a = (i / ruins) * math.pi * 2 + 2.3
 			local r = villageRadius * (0.98 + math.random() * 0.22)
-			local pos = Vector3.new(center.X + math.cos(a) * r, topY, center.Z + math.sin(a) * r)
-			buildHouse(villageFolder, CFrame.lookAt(pos, Vector3.new(center.X, topY, center.Z)), {
+			local rx, rz = center.X + math.cos(a) * r, center.Z + math.sin(a) * r
+			local rgy = groundSnap(rx, rz)
+			local pos = Vector3.new(rx, rgy, rz)
+			buildHouse(villageFolder, CFrame.lookAt(pos, Vector3.new(center.X, rgy, center.Z)), {
 				cobblestone = cobble,
 				ruined = true,
 				islandId = islandId,
@@ -1676,7 +1709,8 @@ function VillageBuilder.build(
 	for i = 1, torchPosts do
 		local a = (i / torchPosts) * math.pi * 2
 		local r = villageRadius * 0.75
-		local cf = CFrame.new(center.X + math.cos(a) * r, topY + 1.7, center.Z + math.sin(a) * r)
+		local tx, tz = center.X + math.cos(a) * r, center.Z + math.sin(a) * r
+		local cf = CFrame.new(tx, groundSnap(tx, tz) + 1.7, tz)
 		local torch = LootPropFactory.createTorchWorld(villageFolder, cf)
 		torch:SetAttribute("IslandId", islandId)
 		-- Abandoned torches are unlit (kill the flame + light)
@@ -1690,10 +1724,10 @@ function VillageBuilder.build(
 	end
 
 	if not abandoned then
-		buildFenceRing(villageFolder, center, topY, villageRadius * 0.95)
+		buildFenceRing(villageFolder, center, centerGroundY, villageRadius * 0.95)
 		
 		-- Add cobblestone streets connecting the village
-		buildCobblestoneStreets(villageFolder, center, topY, villagerSpots, villageRadius)
+		buildCobblestoneStreets(villageFolder, center, centerGroundY, villagerSpots, villageRadius)
 	end
 
 	-- Weapon pickups scattered through the village (all villages have loot).
@@ -1701,10 +1735,11 @@ function VillageBuilder.build(
 	for _ = 1, weaponCount do
 		local a = math.random() * math.pi * 2
 		local r = villageRadius * (0.2 + math.random() * 0.7)
+		local wx, wz = center.X + math.cos(a) * r, center.Z + math.sin(a) * r
 		local weaponId = Weapons.rollLootWeapon(function(lo, hi)
 			return math.random(lo, hi)
 		end)
-		local cf = CFrame.new(center.X + math.cos(a) * r, topY + 0.5, center.Z + math.sin(a) * r)
+		local cf = CFrame.new(wx, groundSnap(wx, wz) + 0.5, wz)
 			* CFrame.Angles(0, math.rad(math.random(0, 360)), 0)
 		WeaponService.spawnWeaponPickup(villageFolder, weaponId, cf)
 	end
@@ -1718,7 +1753,8 @@ function VillageBuilder.build(
 			local armorId = Armor.rollLootArmor(function(lo, hi)
 				return math.random(lo, hi)
 			end)
-			local cf = CFrame.new(center.X + math.cos(a) * r, topY + 0.4, center.Z + math.sin(a) * r)
+			local ax, az = center.X + math.cos(a) * r, center.Z + math.sin(a) * r
+			local cf = CFrame.new(ax, groundSnap(ax, az) + 0.4, az)
 			deps.spawnArmorPickup(villageFolder, armorId, cf)
 		end
 	end
@@ -1728,14 +1764,16 @@ function VillageBuilder.build(
 	for i = 1, chestCount do
 		local a = (i / math.max(chestCount, 1)) * math.pi * 2 + 0.6
 		local r = villageRadius * (0.3 + math.random() * 0.5)
-		local cf = CFrame.new(center.X + math.cos(a) * r, topY + 0.85, center.Z + math.sin(a) * r)
+		local chx, chz = center.X + math.cos(a) * r, center.Z + math.sin(a) * r
+		local cf = CFrame.new(chx, groundSnap(chx, chz) + 0.85, chz)
 		buildChest(villageFolder, cf, islandId, deps)
 	end
 
+	local msx, msz = center.X + villageRadius * 0.35, center.Z + villageRadius * 0.15
 	local merchantSpot = Vector3.new(
-		center.X + villageRadius * 0.35,
-		topY + 2.5,
-		center.Z + villageRadius * 0.15
+		msx,
+		groundSnap(msx, msz) + 2.5,
+		msz
 	)
 
 	-- Setup Level-of-Detail system for performance optimization
