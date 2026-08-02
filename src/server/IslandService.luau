@@ -2476,6 +2476,10 @@ local function buildFlatIsland(entry: { [string]: any }, folder: Folder): Island
 			spawnArmorPickup = function(parent: Instance, armorId: string, cf: CFrame)
 				return ArmorService.spawnArmorPickup(parent, armorId, cf)
 			end,
+			-- Terrain surface query so villages sit on the sculpted ground, not a flat plane.
+			groundY = function(x: number, z: number, fallbackY: number): number
+				return terrainSurfaceY(x, z, fallbackY) or fallbackY
+			end,
 		}
 		-- The village stands on the shape's settlement clearing: the one patch of the
 		-- island that is guaranteed to be dry, flat, off the landmark's slopes and clear
@@ -2756,9 +2760,8 @@ local function shoreClearance(isle: IslandRecord, x: number, z: number): number
 	if not shape then
 		return distance - isle.size * 0.5
 	end
-	local angle = math.atan2(dz, dx)
 	-- Even when outside maxCoast, compute clearance on the actual bearing; maxCoast is a global max and can over-block narrow flanks.
-	return distance - shape:coastRadius(angle)
+	return distance - shape:coastRadius(math.atan2(dz, dx))
 end
 
 -- Swept shoreline test. The segment is sampled rather than solved analytically because the
@@ -2783,10 +2786,21 @@ end
 function IslandService.collideRaft(fromPos: Vector3, toPos: Vector3): (Vector3, string?)
 	local pad = Config.Islands.RaftCollisionPad
 	for _, isle in IslandService._islands do
-		-- Crews are placed inside the arrival island's sheltered water, so its shoreline
-		-- guard is omitted; its real terrain banks still fence the raft in visually.
+		-- Crews spawn inside the arrival island's sheltered lagoon. Allow exit only:
+		-- skip collision when the raft is within the collision envelope AND moving away
+		-- from the island centre (outward). If the raft is approaching from the sea
+		-- (moving inward), it hits the shoreline normally.
 		if isle.safeHarbor then
-			continue
+			local clearance = shoreClearance(isle, fromPos.X, fromPos.Z)
+			if clearance <= pad then
+				-- Raft is inside the collision zone. Only let it through if it's moving
+				-- away from the island (exiting), not sailing back in.
+				local fromDist = flatDistance(fromPos, isle.center)
+				local toDist = flatDistance(toPos, isle.center)
+				if toDist >= fromDist then
+					continue
+				end
+			end
 		end
 		if segmentHitsShore(fromPos, toPos, isle, pad) then
 			return fromPos, isle.name
