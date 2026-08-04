@@ -1346,6 +1346,28 @@ local function buildScenery(root: Folder)
 	buildDeckProps(scenery)
 end
 
+local function removeLegacyFloatingDockProps(root: Folder)
+	local dock = root:FindFirstChild("Dock")
+	if not dock then
+		return
+	end
+
+	-- The Rojo-synced lobby model still contains the old lighthouse outside the pier
+	-- and eight raised crate blocks from the previous flat map. They are not part of the
+	-- current ship and visibly hover or sit in empty water after the new polish pass.
+	for _, name in { "Lighthouse", "LighthouseStripe", "LighthouseLamp" } do
+		local legacy = dock:FindFirstChild(name)
+		if legacy then
+			legacy:Destroy()
+		end
+	end
+	for _, child in dock:GetChildren() do
+		if child:IsA("BasePart") and string.match(child.Name, "^Crate%d+$") then
+			child:Destroy()
+		end
+	end
+end
+
 local function clearPathwayMarkers(root: Folder)
 	-- Strip leftover path stripes, foam runways, and red buoy “blocks” near berths
 	local killNames = {
@@ -1959,6 +1981,7 @@ function LobbyWorld.polish(root: Folder)
 	end
 
 	buildBarriers(root)
+	removeLegacyFloatingDockProps(root)
 	buildScenery(root)
 	clearPathwayMarkers(root)
 	hideVoyageStagingBoat(root)

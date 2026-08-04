@@ -2480,6 +2480,11 @@ local function buildFlatIsland(entry: { [string]: any }, folder: Folder): Island
 				end
 				return fallbackY
 			end,
+			-- Used by VillageBuilder to reject water/lagoon positions even when a
+			-- temporary terrain raycast misses during voxel generation.
+			isLand = function(x: number, z: number): boolean
+				return shape:isLand(x - center.X, z - center.Z)
+			end,
 		}
 		-- The village stands on the shape's settlement clearing: the one patch of the
 		-- island that is guaranteed to be dry, flat, off the landmark's slopes and clear
@@ -2992,6 +2997,20 @@ local function moveNpc(model: Model, root: BasePart, nextPos: Vector3, lookAt: V
 	end
 end
 
+-- Return the actual dry surface for NPC movement. The old AI reset every moved NPC to
+-- island.topY, which put villagers in the air over hills and below the ground in dips.
+local function npcGroundY(isle: IslandRecord, x: number, z: number): number?
+	if isle.shape then
+		local height = isle.shape:landHeight(x - isle.center.X, z - isle.center.Z)
+		if not height then
+			return nil
+		end
+		local terrainY = terrainSurfaceY(x, z, isle.topY)
+		return terrainY or isle.topY + height
+	end
+	return isle.topY
+end
+
 local function updateNpcs(dt: number)
 	local vcfg = Config.Islands.Villager
 	-- Cache player positions once per tick to avoid re-fetching for every NPC
@@ -3064,11 +3083,13 @@ local function updateNpcs(dt: number)
 				local maxR = isle.size * 0.48
 				if fromCenter.Magnitude > maxR then
 					fromCenter = fromCenter.Unit * maxR
-					nextPos = Vector3.new(isle.center.X + fromCenter.X, isle.topY + 2.5, isle.center.Z + fromCenter.Z)
-				else
-					nextPos = Vector3.new(nextPos.X, isle.topY + 2.5, nextPos.Z)
+					nextPos = Vector3.new(isle.center.X + fromCenter.X, nextPos.Y, isle.center.Z + fromCenter.Z)
 				end
-				moveNpc(model, root, nextPos, bestPos)
+				local groundY = npcGroundY(isle, nextPos.X, nextPos.Z)
+				if groundY then
+					nextPos = Vector3.new(nextPos.X, groundY + 2.5, nextPos.Z)
+					moveNpc(model, root, nextPos, bestPos)
+				end
 			end
 
 			runtime.attackAccum += dt
@@ -3082,18 +3103,41 @@ local function updateNpcs(dt: number)
 			runtime.wanderAccum -= dt
 			if runtime.wanderAccum <= 0 or not runtime.targetPos then
 				runtime.wanderAccum = 2.5 + math.random() * 3.5
-				local wr = isle.size * 0.5 * vcfg.Passive.WanderRadiusFrac
-				local a = math.random() * math.pi * 2
-				local r = math.random() * wr
-				runtime.targetPos = runtime.homePos + Vector3.new(math.cos(a) * r, 0, math.sin(a) * r)
+				local shelfRadius = if isle.shape and isle.shape.buildableRadius
+					then isle.shape.buildableRadius * 0.82
+					else isle.size * 0.5 * vcfg.Passive.WanderRadiusFrac
+				local wr = math.min(isle.size * 0.5 * vcfg.Passive.WanderRadiusFrac, shelfRadius)
+				for _ = 1, 8 do
+					local a = math.random() * math.pi * 2
+					local r = math.random() * wr
+					local candidateX = runtime.homePos.X + math.cos(a) * r
+					local candidateZ = runtime.homePos.Z + math.sin(a) * r
+					local candidateY = npcGroundY(isle, candidateX, candidateZ)
+					if candidateY then
+						runtime.targetPos = Vector3.new(candidateX, candidateY + 2.5, candidateZ)
+						break
+					end
+				end
+			end
+			if not runtime.targetPos then
+				continue
 			end
 			local target = runtime.targetPos :: Vector3
+			local targetGroundY = npcGroundY(isle, target.X, target.Z)
+			if not targetGroundY then
+				runtime.targetPos = nil
+				continue
+			end
 			local toTarget = Vector3.new(target.X - root.Position.X, 0, target.Z - root.Position.Z)
 			if toTarget.Magnitude > 0.6 then
 				local step = math.min(vcfg.Passive.WanderSpeed * dt, toTarget.Magnitude)
-				local nextPos = root.Position + toTarget.Unit * step
-				nextPos = Vector3.new(nextPos.X, isle.topY + 2.5, nextPos.Z)
-				moveNpc(model, root, nextPos, target)
+				local nextX = root.Position.X + toTarget.Unit.X * step
+				local nextZ = root.Position.Z + toTarget.Unit.Z * step
+				local groundY = npcGroundY(isle, nextX, nextZ)
+				if groundY then
+					local nextPos = Vector3.new(nextX, groundY + 2.5, nextZ)
+					moveNpc(model, root, nextPos, target)
+				end
 			end
 		end
 	end

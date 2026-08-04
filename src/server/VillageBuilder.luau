@@ -368,76 +368,98 @@ local function buildHouse(model: Model, cf: CFrame, opts: { [string]: any })
 end
 
 -- Enhanced cobblestone street network connecting buildings and village center
-local function buildCobblestoneStreets(model: Model, center: Vector3, topY: number, villagerSpots: { Vector3 }, villageRadius: number)
+local function buildCobblestoneStreets(
+	model: Model,
+	center: Vector3,
+	topY: number,
+	villagerSpots: { Vector3 },
+	villageRadius: number,
+	groundAt: (number, number) -> number?
+)
 	local COBBLE_MAIN = Color3.fromRGB(110, 108, 105)
 	local COBBLE_ACCENT = Color3.fromRGB(95, 92, 88)
-	
-	-- Main town square (circular plaza)
+
+	local centreY = groundAt(center.X, center.Z) or topY
 	local squareRadius = villageRadius * 0.25
 	makePart({
 		Name = "TownSquare",
 		Parent = model,
 		Size = Vector3.new(squareRadius * 2, 0.3, squareRadius * 2),
-		CFrame = CFrame.new(center.X, topY + 0.15, center.Z),
+		CFrame = CFrame.new(center.X, centreY + 0.15, center.Z),
 		Color = COBBLE_MAIN,
 		Material = Enum.Material.Cobblestone,
 		CanCollide = false,
 		Shape = Enum.PartType.Cylinder,
 	})
-	
-	-- Radial streets from center to houses
+
+	-- Radial streets are tilted between sampled endpoints instead of being laid on a
+	-- flat plane. Segments that cross water are omitted rather than floating across it.
 	for i, spot in villagerSpots do
-		if i > #villagerSpots * 0.7 then break end -- Don't connect every house to avoid overcrowding
-		
-		local direction = (Vector3.new(spot.X, topY, spot.Z) - Vector3.new(center.X, topY, center.Z)).Unit
-		local distance = (Vector3.new(spot.X, topY, spot.Z) - Vector3.new(center.X, topY, center.Z)).Magnitude
-		local pathLength = distance - squareRadius - 8 -- Leave gaps at both ends
-		
-		if pathLength > 10 then
-			local pathCenter = Vector3.new(center.X, topY, center.Z) + direction * (squareRadius + pathLength * 0.5 + 8)
-			
-			-- Main path
+		if i > #villagerSpots * 0.7 then
+			break
+		end
+		local flat = Vector3.new(spot.X - center.X, 0, spot.Z - center.Z)
+		local distance = flat.Magnitude
+		if distance < squareRadius + 18 then
+			continue
+		end
+		local direction = flat.Unit
+		local start = Vector3.new(center.X, 0, center.Z) + direction * (squareRadius + 8)
+		local finish = Vector3.new(spot.X, 0, spot.Z) - direction * 8
+		local startY = groundAt(start.X, start.Z)
+		local finishY = groundAt(finish.X, finish.Z)
+		if not (startY and finishY) then
+			continue
+		end
+		local startPos = Vector3.new(start.X, startY + 0.2, start.Z)
+		local finishPos = Vector3.new(finish.X, finishY + 0.2, finish.Z)
+		local pathLength = (finishPos - startPos).Magnitude
+		if pathLength <= 10 then
+			continue
+		end
+		local pathCf = CFrame.lookAt((startPos + finishPos) * 0.5, finishPos)
+		makePart({
+			Name = "CobblePath",
+			Parent = model,
+			Size = Vector3.new(4, 0.2, pathLength),
+			CFrame = pathCf,
+			Color = COBBLE_MAIN,
+			Material = Enum.Material.Cobblestone,
+			CanCollide = false,
+		})
+		for side = -1, 1, 2 do
 			makePart({
-				Name = "CobblePath",
+				Name = "PathBorder",
 				Parent = model,
-				Size = Vector3.new(4, 0.2, pathLength),
-				CFrame = CFrame.lookAt(pathCenter, pathCenter + direction) * CFrame.Angles(math.rad(90), 0, 0),
-				Color = COBBLE_MAIN,
+				Size = Vector3.new(0.5, 0.3, pathLength + 2),
+				CFrame = pathCf * CFrame.new(side * 2.2, 0, 0),
+				Color = COBBLE_ACCENT,
 				Material = Enum.Material.Cobblestone,
 				CanCollide = false,
 			})
-			
-			-- Path border stones
-			for side = -1, 1, 2 do
-				makePart({
-					Name = "PathBorder",
-					Parent = model,
-					Size = Vector3.new(0.5, 0.3, pathLength + 2),
-					CFrame = CFrame.lookAt(pathCenter + direction:Cross(Vector3.new(0, 1, 0)) * side * 2.2, pathCenter + direction + direction:Cross(Vector3.new(0, 1, 0)) * side * 2.2) * CFrame.Angles(math.rad(90), 0, 0),
-					Color = COBBLE_ACCENT,
-					Material = Enum.Material.Cobblestone,
-					CanCollide = false,
-				})
-			end
 		end
 	end
-	
-	-- Connecting ring road around the village
+
+	-- The ring follows the relief one segment at a time and simply stops at any water cut.
 	local ringRadius = villageRadius * 0.65
 	local segments = 24
 	for i = 1, segments do
 		local angle1 = (i - 1) / segments * math.pi * 2
 		local angle2 = i / segments * math.pi * 2
-		local pos1 = Vector3.new(center.X + math.cos(angle1) * ringRadius, topY, center.Z + math.sin(angle1) * ringRadius)
-		local pos2 = Vector3.new(center.X + math.cos(angle2) * ringRadius, topY, center.Z + math.sin(angle2) * ringRadius)
-		local segmentCenter = (pos1 + pos2) * 0.5
+		local x1, z1 = center.X + math.cos(angle1) * ringRadius, center.Z + math.sin(angle1) * ringRadius
+		local x2, z2 = center.X + math.cos(angle2) * ringRadius, center.Z + math.sin(angle2) * ringRadius
+		local y1, y2 = groundAt(x1, z1), groundAt(x2, z2)
+		if not (y1 and y2) then
+			continue
+		end
+		local pos1 = Vector3.new(x1, y1 + 0.15, z1)
+		local pos2 = Vector3.new(x2, y2 + 0.15, z2)
 		local segmentLength = (pos2 - pos1).Magnitude
-		
 		makePart({
 			Name = "RingRoad",
 			Parent = model,
 			Size = Vector3.new(3, 0.2, segmentLength),
-			CFrame = CFrame.lookAt(segmentCenter, pos2) * CFrame.Angles(math.rad(90), 0, 0),
+			CFrame = CFrame.lookAt((pos1 + pos2) * 0.5, pos2),
 			Color = COBBLE_MAIN,
 			Material = Enum.Material.Cobblestone,
 			CanCollide = false,
@@ -445,22 +467,32 @@ local function buildCobblestoneStreets(model: Model, center: Vector3, topY: numb
 	end
 end
 
--- A perimeter of short posts + rails around the village heart.
-local function buildFenceRing(model: Model, center: Vector3, topY: number, radius: number)
+-- A perimeter of short posts around the village heart. Each post is planted into the
+-- sampled surface so a sloped clearing cannot leave a line of hovering stakes.
+local function buildFenceRing(
+	model: Model,
+	center: Vector3,
+	topY: number,
+	radius: number,
+	groundAt: (number, number) -> number?
+)
 	local posts = math.clamp(math.floor(radius / 6), 10, 40)
 	for i = 1, posts do
 		local a = (i / posts) * math.pi * 2
 		local x = center.X + math.cos(a) * radius
 		local z = center.Z + math.sin(a) * radius
-		makePart({
-			Name = "FencePost",
-			Parent = model,
-			Size = Vector3.new(0.5, 3, 0.5),
-			CFrame = CFrame.new(x, topY + 1.3, z),
-			Color = WOOD_DARK,
-			Material = Enum.Material.Wood,
-			CanCollide = false,
-		})
+		local groundY = groundAt(x, z)
+		if groundY then
+			makePart({
+				Name = "FencePost",
+				Parent = model,
+				Size = Vector3.new(0.5, 3, 0.5),
+				CFrame = CFrame.new(x, groundY + 1.3, z),
+				Color = WOOD_DARK,
+				Material = Enum.Material.Wood,
+				CanCollide = false,
+			})
+		end
 	end
 end
 
@@ -1370,6 +1402,15 @@ function VillageBuilder.build(
 		return topY
 	end
 
+	-- The shape is the final authority for settlement placement. A terrain raycast can
+	-- miss while voxels are committing, but it must never turn water into a flat fallback.
+	local function groundAt(x: number, z: number): number?
+		if deps.isLand and not deps.isLand(x, z) then
+			return nil
+		end
+		return groundSnap(x, z)
+	end
+
 	-- === Castle isles ===============================================================
 	-- Some islands are just one huge castle rising out of the jungle. Build the keep,
 	-- scatter garrison loot inside the courtyard, and hand back guard posts + a merchant
@@ -1634,10 +1675,10 @@ function VillageBuilder.build(
 	end
 
 	if not abandoned then
-		buildFenceRing(villageFolder, center, centerGroundY, villageRadius * 0.95)
+		buildFenceRing(villageFolder, center, centerGroundY, villageRadius * 0.95, groundAt)
 		
-		-- Add cobblestone streets connecting the village
-		buildCobblestoneStreets(villageFolder, center, centerGroundY, villagerSpots, villageRadius)
+		-- Add cobblestone streets connecting the village, following the actual terrain.
+		buildCobblestoneStreets(villageFolder, center, centerGroundY, villagerSpots, villageRadius, groundAt)
 	end
 
 	-- Weapon pickups scattered through the village (all villages have loot).
@@ -1685,6 +1726,17 @@ function VillageBuilder.build(
 		groundSnap(msx, msz) + 2.5,
 		msz
 	)
+
+	-- Irregular coasts and lagoons do not fit a circle. Remove any individual settlement
+	-- part whose footprint ended up over water or outside the island silhouette instead of
+	-- leaving a detached wall, roof, lamp, or pickup behind.
+	if deps.isLand then
+		for _, desc in villageFolder:GetDescendants() do
+			if desc:IsA("BasePart") and not deps.isLand(desc.Position.X, desc.Position.Z) then
+				desc:Destroy()
+			end
+		end
+	end
 
 	-- Setup Level-of-Detail system for performance optimization
 	setupBuildingLOD(model, center)

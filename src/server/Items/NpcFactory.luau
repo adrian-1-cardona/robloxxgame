@@ -20,6 +20,17 @@ local MERCHANT_BLUE_DEEP = Color3.fromRGB(30, 62, 128)
 local EYE_BLUE = Color3.fromRGB(90, 180, 255)
 local EYE_RED = Color3.fromRGB(255, 60, 50)
 
+-- Pirate colors
+local PIRATE_COAT_RED = Color3.fromRGB(120, 30, 30)
+local PIRATE_COAT_BLACK = Color3.fromRGB(40, 40, 45)
+local PIRATE_PANTS_BLACK = Color3.fromRGB(25, 25, 30)
+local PIRATE_VEST_BROWN = Color3.fromRGB(80, 50, 30)
+local PIRATE_HAT_BLACK = Color3.fromRGB(20, 20, 25)
+local PIRATE_BANDANA_RED = Color3.fromRGB(140, 35, 35)
+local PIRATE_BELT_BROWN = Color3.fromRGB(60, 40, 25)
+local PIRATE_BOOT_BLACK = Color3.fromRGB(30, 30, 35)
+local PIRATE_GREEN_SKIN = Color3.fromRGB(130, 180, 120) -- Matches reference image
+
 local function makePart(props: { [string]: any }): Part
 	local p = Instance.new("Part")
 	p.Name = props.Name or "NpcPart"
