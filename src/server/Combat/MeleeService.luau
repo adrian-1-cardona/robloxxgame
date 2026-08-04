@@ -78,9 +78,9 @@ local function findDamageTarget(
 		if not humanoid then
 			continue
 		end
-		-- Hit island NPCs (villagers / hostile defenders / scavengers). Passive villagers
-		-- flip to defenders on damage via IslandService's health watcher. The merchant has
-		-- no Humanoid, so it's naturally never a valid target.
+		-- Hit island NPCs (villagers / hostile defenders / scavengers) and pirates.
+		-- Passive villagers flip to defenders on damage via IslandService's health watcher. 
+		-- The merchant has no Humanoid, so it's naturally never a valid target.
 		local isNpc = model:GetAttribute("IsNpc") == true or model:GetAttribute("IsPirate") == true
 		if not isNpc then
 			continue
@@ -171,6 +171,28 @@ function MeleeService.tryAttack(player: Player): boolean
 				damage = Config.Club.Damage
 			end
 			victimHumanoid:TakeDamage(damage :: number)
+			
+			-- Handle pirate ship damage for melee attacks
+			local victimModel = victimHumanoid.Parent
+			if victimModel and victimModel:GetAttribute("NpcKind") == "pirate" then
+				local shipId = victimModel:GetAttribute("ShipId")
+				if shipId then
+					-- Find and damage the pirate ship
+					local pirateShipsFolder = game.Workspace:FindFirstChild("PirateShips")
+					if pirateShipsFolder then
+						local shipModel = pirateShipsFolder:FindFirstChild("PirateShip_" .. shipId)
+						if shipModel then
+							local currentHealth = shipModel:GetAttribute("ShipHealth") or 500
+							local newHealth = math.max(0, currentHealth - (damage * 0.3)) -- Reduced ship damage from melee
+							shipModel:SetAttribute("ShipHealth", newHealth)
+							
+							if newHealth <= 0 then
+								print("[MeleeService] Pirate ship", shipId, "destroyed by melee attack!")
+							end
+						end
+					end
+				end
+			end
 		end
 	end)
 

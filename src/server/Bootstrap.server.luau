@@ -30,6 +30,7 @@ local WeatherService = require(script.Parent:WaitForChild("WeatherService"))
 local StarterGearService = require(script.Parent:WaitForChild("StarterGearService"))
 local MeleeService = require(script.Parent:WaitForChild("Combat"):WaitForChild("MeleeService"))
 local LootPropService = require(script.Parent:WaitForChild("LootPropService"))
+local PirateService = require(script.Parent:WaitForChild("PirateService"))
 
 print(`[SurviveAtSea] Booting {Config.GameName} lobby…`)
 
@@ -297,6 +298,13 @@ end)
 -- a separate task so a cold server can never turn world generation into a queue
 -- or wait period between clicking Spawn Base and arriving on the raft.
 PortalService.setBoardingReady(true)
+
+-- === Pirate Attack System ===
+-- Pirates spawn at night on ships to hunt player crews. Must start AFTER all other
+-- services are initialized so it can access party codes and base positions.
+safeStart("PirateService", function()
+	PirateService.start(Toast :: RemoteEvent, getPartyCode, getMemberUserIds)
+end)
 task.spawn(function()
 	while not voyageWorldReady do
 		local voyageWorldOk, voyageWorldErr = pcall(function()

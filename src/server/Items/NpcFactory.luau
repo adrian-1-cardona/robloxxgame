@@ -77,9 +77,11 @@ local function billboardTag(root: BasePart, text: string, color: Color3)
 end
 
 -- Shared humanoid-ish body. Returns the model + head reference so callers can restyle eyes.
-local function buildBody(parent: Instance, cf: CFrame, gearColor: Color3): (Model, BasePart, BasePart)
+local function buildBody(parent: Instance, cf: CFrame, gearColor: Color3, skinColor: Color3?): (Model, BasePart, BasePart)
 	local model = Instance.new("Model")
 	model.Parent = parent
+	
+	local actualSkinColor = skinColor or SKIN
 
 	local root = makePart({
 		Name = "HumanoidRootPart",
@@ -114,7 +116,7 @@ local function buildBody(parent: Instance, cf: CFrame, gearColor: Color3): (Mode
 			Parent = model,
 			Size = Vector3.new(0.7, 2.0, 0.7),
 			CFrame = root.CFrame * CFrame.new(i * 1.45, 0.05, 0),
-			Color = SKIN,
+			Color = actualSkinColor,
 			Material = Enum.Material.SmoothPlastic,
 		})
 	end
@@ -127,7 +129,7 @@ local function buildBody(parent: Instance, cf: CFrame, gearColor: Color3): (Mode
 			Parent = model,
 			Size = Vector3.new(0.9, 2.0, 0.95),
 			CFrame = root.CFrame * CFrame.new(i * 0.5, -1.5, 0),
-			Color = SKIN_DARK,
+			Color = actualSkinColor,
 			Material = Enum.Material.SmoothPlastic,
 		})
 	end
@@ -140,7 +142,7 @@ local function buildBody(parent: Instance, cf: CFrame, gearColor: Color3): (Mode
 		Parent = model,
 		Size = Vector3.new(1.25, 1.25, 1.25),
 		CFrame = root.CFrame * CFrame.new(0, 1.875, 0),
-		Color = SKIN,
+		Color = actualSkinColor,
 		Material = Enum.Material.SmoothPlastic,
 		Shape = Enum.PartType.Ball,
 	})
@@ -229,6 +231,216 @@ function NpcFactory.createVillager(parent: Instance, cf: CFrame, opts: { [string
 		end)
 	end)
 
+	return model, humanoid
+end
+
+-- Creates a pirate NPC with green skin, pirate outfit, and no smiley face
+-- opts: { shipId: string?, health: number?, weapon: string? }
+function NpcFactory.createPirate(parent: Instance, cf: CFrame, opts: { [string]: any }?): (Model, Humanoid)
+	local options = opts or {}
+	local model, root, head = buildBody(parent, cf, PIRATE_COAT_RED, PIRATE_GREEN_SKIN)
+	model.Name = "Pirate"
+	model:SetAttribute("IsNpc", true)
+	model:SetAttribute("NpcKind", "pirate")
+	model:SetAttribute("Hostile", true)
+	model:SetAttribute("IsPirate", true) -- Legacy flag for combat systems
+	
+	if options.shipId then
+		model:SetAttribute("ShipId", options.shipId)
+	end
+	
+	-- Remove the default skirt and replace with pirate clothing
+	local skirt = model:FindFirstChild("Skirt")
+	if skirt then
+		skirt:Destroy()
+	end
+	
+	-- Pirate pants
+	makePart({
+		Name = "PiratePants",
+		Parent = model,
+		Size = Vector3.new(2.1, 2.2, 1.2),
+		CFrame = root.CFrame * CFrame.new(0, -0.7, 0),
+		Color = PIRATE_PANTS_BLACK,
+		Material = Enum.Material.Fabric,
+	})
+	
+	-- Pirate vest
+	makePart({
+		Name = "PirateVest", 
+		Parent = model,
+		Size = Vector3.new(1.9, 1.8, 0.9),
+		CFrame = root.CFrame * CFrame.new(0, 0.15, 0),
+		Color = PIRATE_VEST_BROWN,
+		Material = Enum.Material.Fabric,
+	})
+	
+	-- Pirate coat (over vest)
+	makePart({
+		Name = "PirateCoat",
+		Parent = model,
+		Size = Vector3.new(2.3, 2.0, 1.2),
+		CFrame = root.CFrame * CFrame.new(0, 0.05, 0),
+		Color = PIRATE_COAT_RED,
+		Material = Enum.Material.Fabric,
+	})
+	
+	-- Belt with buckle
+	makePart({
+		Name = "PirateBelt",
+		Parent = model,
+		Size = Vector3.new(2.4, 0.3, 1.3),
+		CFrame = root.CFrame * CFrame.new(0, -0.4, 0),
+		Color = PIRATE_BELT_BROWN,
+		Material = Enum.Material.Fabric,
+	})
+	
+	-- Belt buckle
+	makePart({
+		Name = "BeltBuckle",
+		Parent = model,
+		Size = Vector3.new(0.4, 0.4, 0.2),
+		CFrame = root.CFrame * CFrame.new(0, -0.4, 0.6),
+		Color = Color3.fromRGB(150, 140, 120), -- Gold-ish metal
+		Material = Enum.Material.Metal,
+	})
+	
+	-- Pirate boots (replace lower legs)
+	for i = -1, 1, 2 do
+		makePart({
+			Name = "PirateBoot",
+			Parent = model,
+			Size = Vector3.new(1.0, 1.2, 1.1),
+			CFrame = root.CFrame * CFrame.new(i * 0.5, -2.1, 0),
+			Color = PIRATE_BOOT_BLACK,
+			Material = Enum.Material.Plastic,
+		})
+	end
+	
+	-- Pirate hat (classic tricorn)
+	local hat = makePart({
+		Name = "PirateHat",
+		Parent = model,
+		Size = Vector3.new(2.2, 0.4, 2.2),
+		CFrame = head.CFrame * CFrame.new(0, 0.8, 0),
+		Color = PIRATE_HAT_BLACK,
+		Material = Enum.Material.Fabric,
+	})
+	
+	-- Hat brim (front point)
+	makePart({
+		Name = "HatBrim",
+		Parent = model,
+		Size = Vector3.new(0.3, 0.3, 0.8),
+		CFrame = head.CFrame * CFrame.new(0, 0.9, -1),
+		Color = PIRATE_HAT_BLACK,
+		Material = Enum.Material.Fabric,
+	})
+	
+	-- Bandana under hat
+	makePart({
+		Name = "Bandana",
+		Parent = model,
+		Size = Vector3.new(1.4, 0.2, 1.4),
+		CFrame = head.CFrame * CFrame.new(0, 0.5, 0),
+		Color = PIRATE_BANDANA_RED,
+		Material = Enum.Material.Fabric,
+	})
+	
+	-- Eye patch (no eyes at all, just menacing look)
+	makePart({
+		Name = "EyePatch",
+		Parent = model,
+		Size = Vector3.new(0.4, 0.3, 0.1),
+		CFrame = head.CFrame * CFrame.new(-0.2, 0.1, -0.6),
+		Color = Color3.fromRGB(15, 15, 20),
+		Material = Enum.Material.Fabric,
+	})
+	
+	-- Single menacing red eye (other eye covered by patch)
+	local eye = makePart({
+		Name = "Eye",
+		Parent = model,
+		Size = Vector3.new(0.22, 0.22, 0.14),
+		CFrame = head.CFrame * CFrame.new(0.28, 0.08, -0.6),
+		Color = EYE_RED,
+		Material = Enum.Material.Neon,
+		CastShadow = false,
+	})
+	local light = Instance.new("PointLight")
+	light.Brightness = 0.8
+	light.Range = 6
+	light.Color = EYE_RED
+	light.Parent = eye
+	
+	-- Weapon accessories
+	local weaponType = options.weapon or "cutlass"
+	if weaponType == "cutlass" then
+		-- Cutlass on belt
+		makePart({
+			Name = "Cutlass",
+			Parent = model,
+			Size = Vector3.new(0.2, 2.5, 0.2),
+			CFrame = root.CFrame * CFrame.new(0.8, -0.2, 0) * CFrame.Angles(0, 0, math.rad(-30)),
+			Color = Color3.fromRGB(120, 120, 130), -- Steel blade
+			Material = Enum.Material.Metal,
+		})
+		
+		-- Cutlass handle
+		makePart({
+			Name = "CutlassHandle",
+			Parent = model,
+			Size = Vector3.new(0.3, 0.8, 0.3),
+			CFrame = root.CFrame * CFrame.new(0.8, 0.8, 0),
+			Color = PIRATE_BELT_BROWN,
+			Material = Enum.Material.Wood,
+		})
+	elseif weaponType == "pistol" then
+		-- Flintlock pistol
+		makePart({
+			Name = "Pistol",
+			Parent = model,
+			Size = Vector3.new(0.3, 0.8, 1.2),
+			CFrame = root.CFrame * CFrame.new(-0.8, -0.1, 0.2),
+			Color = Color3.fromRGB(40, 35, 30),
+			Material = Enum.Material.Metal,
+		})
+	end
+	
+	-- Create humanoid with pirate-specific stats
+	local humanoid = Instance.new("Humanoid")
+	humanoid.Name = "Humanoid"
+	humanoid.MaxHealth = options.health or 80 -- Tougher than villagers
+	humanoid.Health = humanoid.MaxHealth
+	humanoid.WalkSpeed = 0
+	humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Subject
+	humanoid.HealthDisplayType = Enum.HumanoidHealthDisplayType.DisplayWhenDamaged
+	humanoid.Parent = model
+	
+	-- Pirate name tag (menacing red)
+	billboardTag(root, "Pirate", EYE_RED)
+	
+	-- Death behavior
+	humanoid.Died:Connect(function()
+		-- Drop some loot when pirates die
+		local dropChance = math.random()
+		if dropChance < 0.3 then -- 30% chance to drop doubloons
+			-- This would integrate with the loot system
+			print("[Pirate] Dropped loot!")
+		end
+		
+		for _, p in model:GetDescendants() do
+			if p:IsA("BasePart") then
+				p.CanCollide = false
+			end
+		end
+		task.delay(5, function() -- Longer cleanup time for pirates
+			if model.Parent then
+				model:Destroy()
+			end
+		end)
+	end)
+	
 	return model, humanoid
 end
 
