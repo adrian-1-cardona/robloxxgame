@@ -103,18 +103,20 @@ end
 local function collectFocusPoints(): { Vector3 }
 	local points = {
 		Vector3.new(0, SURFACE_Y, 40), -- boarding pier
-		Config.StarterBase.Origin,
 	}
 
-	for _, center in IslandService.getWorldCenters() do
-		table.insert(points, center)
-	end
-
+	-- Only stream water around active rafts (where players actually are).
+	-- Islands get water from the raft's streaming radius as the crew sails near them.
 	for _, model in StarterBaseService._basesByCode do
 		local deck = model.PrimaryPart or model:FindFirstChild("Deck")
 		if deck and deck:IsA("BasePart") then
 			table.insert(points, deck.Position)
 		end
+	end
+
+	-- Keep water around the starter base origin in case a raft hasn't spawned yet
+	if #StarterBaseService._basesByCode == 0 then
+		table.insert(points, Config.StarterBase.Origin)
 	end
 
 	return points

@@ -1185,9 +1185,11 @@ function IslandShape:randomLandPoint(rand: () -> number, opts: { [string]: any }
 end
 
 -- Where a pier should start (just inside the beach) and end (clear of the shore).
+-- The start is pushed well into the beach so the deck visibly overlaps with the
+-- sand/grass terrain and never looks disconnected from the island.
 function IslandShape:dockSpan(angle: number, clearance: number): (number, number)
 	local coast = self:coastRadius(angle)
-	return coast - self.beachWidth * 1.1, coast + clearance
+	return coast - self.beachWidth * 1.8, coast + clearance
 end
 
 -- A land bearing near `angle` whose shore is real beach: piers, lighthouses and shore

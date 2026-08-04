@@ -411,7 +411,59 @@ function LootPropFactory.spawnFromKind(kind: LootKind, parent: Instance, cf: CFr
 	return LootPropFactory.createCrateWorld(parent, cf, propId)
 end
 
+-- Floating name label so loot props are visible from a distance without requiring
+-- a hover / proximity prompt activation. Matches the weapon/armor pickup tag style.
+function LootPropFactory.attachNameLabel(model: Model)
+	local primary = model.PrimaryPart
+	if not primary then
+		return
+	end
+	-- Don't double-attach
+	if primary:FindFirstChild("LootNameTag") then
+		return
+	end
+	-- Merchant NPC and other special props don't need a generic loot tag
+	if model:GetAttribute("NoPickup") == true then
+		return
+	end
+
+	local kind = model:GetAttribute("LootKind")
+	local displayName = if typeof(kind) == "string" then kind else model.Name:gsub("Loot", "")
+
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "LootNameTag"
+	billboard.Size = UDim2.fromOffset(120, 28)
+	billboard.StudsOffset = Vector3.new(0, 2.4, 0)
+	billboard.AlwaysOnTop = true
+	billboard.MaxDistance = 50
+	billboard.Adornee = primary
+	billboard.Parent = primary
+
+	local label = Instance.new("TextLabel")
+	label.Name = "Label"
+	label.BackgroundTransparency = 0.4
+	label.BackgroundColor3 = Color3.fromRGB(18, 30, 40)
+	label.Size = UDim2.fromScale(1, 1)
+	label.Font = Enum.Font.GothamBold
+	label.TextScaled = true
+	label.TextColor3 = Color3.fromRGB(230, 220, 190)
+	label.Text = displayName
+	label.Parent = billboard
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 5)
+	corner.Parent = label
+
+	local sizeConstraint = Instance.new("UITextSizeConstraint")
+	sizeConstraint.MinTextSize = 8
+	sizeConstraint.MaxTextSize = 14
+	sizeConstraint.Parent = label
+end
+
 function LootPropFactory.attachPickupPrompt(model: Model)
+	-- Attach a floating name label so the item is visible from a distance (like weapons/armor).
+	LootPropFactory.attachNameLabel(model)
+
 	-- Some draggable props (the merchant) can never be pocketed into a backpack.
 	if model:GetAttribute("NoPickup") == true then
 		return

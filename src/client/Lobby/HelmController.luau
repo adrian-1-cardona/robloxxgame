@@ -170,19 +170,22 @@ local function showMobileArrows()
 	gui.Parent = player:WaitForChild("PlayerGui")
 
 	-- Keep steering clear of the default mobile jump button on the right.
+	-- Position at bottom-left, well below the InventoryHUD panel and above the
+	-- system safe area. Horizontal layout (left/right arrows side-by-side) avoids
+	-- vertical overlap with the HUD panel above.
 	local stack = Instance.new("Frame")
 	stack.Name = "ArrowStack"
 	stack.AnchorPoint = Vector2.new(0, 1)
-	stack.Position = UDim2.new(0, 18, 1, -160)
-	stack.Size = UDim2.fromOffset(size, size * 2 + gap)
+	stack.Position = UDim2.new(0, 24, 1, -24)
+	stack.Size = UDim2.fromOffset(size * 2 + gap, size)
 	stack.BackgroundTransparency = 1
 	stack.Parent = gui
 
-	local function makeArrow(name: string, text: string, yOffset: number): TextButton
+	local function makeArrow(name: string, text: string, xOffset: number): TextButton
 		local btn = Instance.new("TextButton")
 		btn.Name = name
-		btn.AnchorPoint = Vector2.new(0.5, 0)
-		btn.Position = UDim2.new(0.5, 0, 0, yOffset)
+		btn.AnchorPoint = Vector2.new(0, 0.5)
+		btn.Position = UDim2.new(0, xOffset, 0.5, 0)
 		btn.Size = UDim2.fromOffset(size, size)
 		btn.BackgroundColor3 = Color3.fromRGB(10, 28, 42)
 		btn.BackgroundTransparency = 0.12
@@ -219,8 +222,8 @@ local function showMobileArrows()
 		return btn
 	end
 
-	local up = makeArrow("Forward", "▲", 0)
-	local down = makeArrow("Backward", "▼", size + gap)
+	local up = makeArrow("Forward", "▲", size + gap)
+	local down = makeArrow("Backward", "▼", 0)
 	bindArrowHold(up, function(held)
 		mobileForward = held
 	end)

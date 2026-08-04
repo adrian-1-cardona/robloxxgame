@@ -53,127 +53,12 @@ local function makePart(props: { [string]: any }): Part
 	return p
 end
 
--- Level-of-Detail system for buildings based on distance from players
-local function setupBuildingLOD(model: Model, center: Vector3)
-	local LOD_NEAR = 150   -- Full detail
-	local LOD_MID = 300    -- Medium detail
-	local LOD_FAR = 500    -- Low detail
-	
-	local lodFolder = Instance.new("Folder")
-	lodFolder.Name = "LODController"
-	lodFolder.Parent = model
-	
-	-- Create LOD script for runtime distance checking
-	local lodScript = Instance.new("Script")
-	lodScript.Name = "BuildingLOD"
-	lodScript.Parent = lodFolder
-	
-		-- LOD script code (runs on server with optimizations)
-	lodScript.Source = [[
-		local Players = game:GetService("Players")
-		local RunService = game:GetService("RunService")
-		
-		local model = script.Parent.Parent
-		local center = Vector3.new(]] .. center.X .. [[, ]] .. center.Y .. [[, ]] .. center.Z .. [[)
-		local LOD_NEAR = 150
-		local LOD_MID = 300
-		local LOD_FAR = 500
-		
-		-- Cache for performance
-		local detailParts = {}
-		local borderParts = {}
-		local decorativeParts = {}
-		
-		-- Categorize parts on startup
-		for _, child in pairs(model:GetChildren()) do
-			if child.Name == "Village" then
-				for _, building in pairs(child:GetChildren()) do
-					for _, part in pairs(building:GetDescendants()) do
-						if part:IsA("BasePart") then
-							if part.Name:match("TimberPost") or part.Name:match("TimberBeam") or 
-							   part.Name:match("WindowFrame") or part.Name:match("WindowShutter") then
-								table.insert(detailParts, part)
-							elseif part.Name:match("DoorHandle") or part.Name:match("RoofSupport") or
-								   part.Name:match("ChimneyCap") or part.Name:match("StepRail") then
-								table.insert(borderParts, part)
-							elseif part.Name:match("PathBorder") or part.Name:match("Rubble") or
-								   part.Name:match("Finial") or part.Name:match("LanternFrame") then
-								table.insert(decorativeParts, part)
-							end
-						end
-					end
-				end
-			end
-		end
-		
-		local function getClosestPlayerDistance()
-			local minDist = math.huge
-			for _, player in pairs(Players:GetPlayers()) do
-				if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-					local dist = (player.Character.HumanoidRootPart.Position - center).Magnitude
-					minDist = math.min(minDist, dist)
-				end
-			end
-			return minDist
-		end
-		
-		local function setDetailLevel(level)
-			-- Level 0: High detail (all visible)
-			-- Level 1: Medium detail (hide fine details)  
-			-- Level 2: Low detail (hide most decorative elements)
-			
-			-- Performance optimization: batch operations
-			local hideDetail = level >= 2
-			local hideBorder = level >= 1
-			local hideDecorative = level >= 2
-			
-			for _, part in pairs(detailParts) do
-				if part.Parent then
-					part.Transparency = hideDetail and 1 or 0
-				end
-			end
-			
-			for _, part in pairs(borderParts) do
-				if part.Parent then
-					part.Transparency = hideBorder and 1 or 0
-				end
-			end
-			
-			for _, part in pairs(decorativeParts) do
-				if part.Parent then
-					part.Transparency = hideDecorative and 1 or 0
-				end
-			end
-		end
-		
-		local lastLevel = -1
-		local updateTimer = 0
-		local UPDATE_INTERVAL = 1.0  -- Update every second for performance
-		
-		RunService.Heartbeat:Connect(function(dt)
-			updateTimer += dt
-			if updateTimer < UPDATE_INTERVAL then
-				return
-			end
-			updateTimer = 0
-			
-			local dist = getClosestPlayerDistance()
-			local level = 0
-			
-			if dist > LOD_FAR then
-				level = 2  -- Low detail
-			elseif dist > LOD_MID then 
-				level = 1  -- Medium detail
-			else
-				level = 0  -- High detail
-			end
-			
-			if level ~= lastLevel then
-				setDetailLevel(level)
-				lastLevel = level
-			end
-		end)
-	]]
+-- Level-of-Detail: previously spawned a per-building Script with its own Heartbeat, which
+-- was extremely expensive with 20-40 buildings per island. Removed: village parts already
+-- have CastShadow=false (the main GPU cost) and the per-frame player-distance checks in
+-- dozens of scripts added significant server CPU overhead for minimal visual benefit.
+local function setupBuildingLOD(_model: Model, _center: Vector3)
+	-- Intentionally empty — LOD is handled by Roblox's built-in streaming now.
 end
 
 -- Enhanced medieval house with detailed timber framing and architectural variety.
@@ -198,12 +83,13 @@ local function buildHouse(model: Model, cf: CFrame, opts: { [string]: any })
 	local w, d = 16, 14
 	local wallH = if ruined then 4.5 else 8.5  -- Slightly taller for more impressive medieval look
 
-	-- Enhanced stone foundation
+	-- Enhanced stone foundation — extends deeper so it never floats above
+	-- the sculpted terrain even on bumpy/knolly ground.
 	local foundation = makePart({
 		Name = "HouseFoundation",
 		Parent = model,
-		Size = Vector3.new(w + 1, 1.2, d + 1),
-		CFrame = cf * CFrame.new(0, 0.6, 0),
+		Size = Vector3.new(w + 1, 3.0, d + 1),
+		CFrame = cf * CFrame.new(0, -0.3, 0),
 		Color = STONE_DARK,
 		Material = Enum.Material.Cobblestone,
 	})
@@ -448,17 +334,17 @@ local function buildHouse(model: Model, cf: CFrame, opts: { [string]: any })
 				CanCollide = false,
 			})
 			
-			-- Window pane (diamond pattern)
+			-- Window pane (warm glass look without emission glow)
 			local pane = makePart({
 				Name = "Window",
 				Parent = model,
 				Size = Vector3.new(0.2, 1.8, 2.0),
 				CFrame = cf * CFrame.new(i * w * 0.5, wallY - wallH * 0.1, d * 0.1),
 				Color = GLASS_WARM,
-				Material = Enum.Material.Neon,
+				Material = Enum.Material.Glass,
 				CanCollide = false,
 			})
-			pane.Transparency = 0.12
+			pane.Transparency = 0.35
 			
 			-- Window shutters
 			for j = -1, 1, 2 do
@@ -999,10 +885,10 @@ local function buildChurch(model: Model, cf: CFrame, islandId: string?)
 				Size = Vector3.new(0.3, 3.4, 1.6),
 				CFrame = cf * CFrame.new(side * w * 0.5, wallY, i * d * 0.16),
 				Color = STAINED[((i + 2) % #STAINED) + 1],
-				Material = Enum.Material.Neon,
+				Material = Enum.Material.Glass,
 				CanCollide = false,
 			})
-			pane.Transparency = 0.12
+			pane.Transparency = 0.25
 		end
 	end
 
@@ -1153,10 +1039,10 @@ local function buildMansion(model: Model, cf: CFrame, cobble: boolean, islandId:
 					Size = Vector3.new(0.3, 2.6, 1.6),
 					CFrame = cf * CFrame.new(i * w * 0.5, baseY, zf * d),
 					Color = GLASS_WARM,
-					Material = Enum.Material.Neon,
+					Material = Enum.Material.Glass,
 					CanCollide = false,
 				})
-				pane.Transparency = 0.15
+				pane.Transparency = 0.35
 			end
 		end
 	end

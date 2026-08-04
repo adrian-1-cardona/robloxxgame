@@ -11,7 +11,7 @@ local OceanConfig = {
 	-- Streaming chunk grid around rafts / lobby (infinite sail).
 	ChunkStuds = 256,
 	-- Keep this many chunks in each direction from every focus point.
-	KeepRadiusChunks = 3,
+	KeepRadiusChunks = 4,
 	-- How often the server refreshes which chunks stay filled.
 	StreamHz = 2,
 

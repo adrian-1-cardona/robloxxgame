@@ -29,7 +29,7 @@ local Config = {
 		SizeStuds = 64,
 		Thickness = 3,
 		-- Far open ocean — lobby pier is well beyond fog so it feels like a new place
-		Origin = Vector3.new(0, 2.2, 3200),
+		Origin = Vector3.new(0, 3.0, 3200),
 		-- Concurrent crews berth in a compact grid so their planks never overlap, spaced by
 		-- SpacingX on both axes and SlotsPerRow wide. A grid rather than a single row: a row
 		-- of four rafts needs 480 studs of open water in a straight line, which forced the
@@ -38,8 +38,8 @@ local Config = {
 		SlotsPerRow = 2,
 		DeckClearance = 3.5,
 		-- Fall into water below this Y → rescue back onto the raft
-		-- Kept slightly above OceanConfig.SurfaceY so swimming terrain water still rescues.
-		WaterRescueY = 1.2,
+		-- Must be below the deck bottom so players don't get rescued while standing on deck.
+		WaterRescueY = -0.5,
 	},
 
 	-- Starter gear: wooden club given when you board a crew raft.
@@ -72,8 +72,8 @@ local Config = {
 		TurnLerp = 7.5,
 		-- Stand offset from deck center (aft). Y is ignored — stand sits on deck top.
 		StandLocalOffset = Vector3.new(0, 0, 22),
-		LookSendHz = 20,
-		ThrottleSendHz = 30,
+		LookSendHz = 15,
+		ThrottleSendHz = 15,
 		-- Deadzone for console left-stick Y (and any analog throttle)
 		StickDeadzone = 0.18,
 		-- Generous for phone / VR laser / console approach
@@ -122,7 +122,7 @@ local Config = {
 		-- Solid-shoreline collision: the complete raft footprint must remain over water.
 		-- The extra hull margin keeps corners and passengers out of terrain even during a
 		-- high-speed, low-frame-rate approach.
-		RaftCollisionPad = 52,
+		RaftCollisionPad = 58,
 
 		-- Legacy hostile "pirate" tuning — kept for back-compat; hostile villagers reuse it.
 		Pirate = {

@@ -284,7 +284,7 @@ function StarterBaseService.ensureBase(code: string, baseSlot: number): Model
 			CFrame = spec.CFrame,
 			Color = rimColor,
 			Material = Enum.Material.Wood,
-			CanCollide = false,
+			CanCollide = true,
 		})
 	end
 
@@ -474,8 +474,16 @@ function StarterBaseService.startWaterRescue(
 )
 	local RunService = game:GetService("RunService")
 	local waterY = Config.StarterBase.WaterRescueY
+	local rescueAccum = 0
+	local RESCUE_INTERVAL = 0.25 -- Check 4 times per second instead of every frame
 
-	RunService.Heartbeat:Connect(function()
+	RunService.Heartbeat:Connect(function(dt)
+		rescueAccum += dt
+		if rescueAccum < RESCUE_INTERVAL then
+			return
+		end
+		rescueAccum = 0
+
 		for _, player in Players:GetPlayers() do
 			if rescueDebounce[player.UserId] then
 				continue

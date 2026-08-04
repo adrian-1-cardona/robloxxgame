@@ -2477,8 +2477,22 @@ local function buildFlatIsland(entry: { [string]: any }, folder: Folder): Island
 				return ArmorService.spawnArmorPickup(parent, armorId, cf)
 			end,
 			-- Terrain surface query so villages sit on the sculpted ground, not a flat plane.
+			-- Falls back to the shape's own height function if the raycast fails, so props
+			-- never float above the visible terrain.
 			groundY = function(x: number, z: number, fallbackY: number): number
-				return terrainSurfaceY(x, z, fallbackY) or fallbackY
+				local terrY = terrainSurfaceY(x, z, fallbackY)
+				if terrY then
+					return terrY
+				end
+				-- Raycast missed — use the island shape's predicted land height as a
+				-- secondary source instead of flat topY. This prevents floating buildings
+				-- on terrain that hasn't fully committed voxels yet.
+				local dx, dz = x - center.X, z - center.Z
+				local shapeH = shape:landHeight(dx, dz)
+				if shapeH then
+					return topY + shapeH
+				end
+				return fallbackY
 			end,
 		}
 		-- The village stands on the shape's settlement clearing: the one patch of the
@@ -2770,12 +2784,18 @@ end
 local function segmentHitsShore(fromPos: Vector3, toPos: Vector3, isle: IslandRecord, pad: number): boolean
 	local dx, dz = toPos.X - fromPos.X, toPos.Z - fromPos.Z
 	local travel = math.sqrt(dx * dx + dz * dz)
-	local steps = math.clamp(math.ceil(travel / 12), 1, 48)
+	-- Sample every 8 studs (down from 12) so even at max speed on a slow frame the raft
+	-- cannot skip through the collision boundary between samples.
+	local steps = math.clamp(math.ceil(travel / 8), 1, 64)
 	for i = 0, steps do
 		local t = i / steps
 		if shoreClearance(isle, fromPos.X + dx * t, fromPos.Z + dz * t) <= pad then
 			return true
 		end
+	end
+	-- Also check the destination point directly (avoids floating-point rounding on the last step)
+	if shoreClearance(isle, toPos.X, toPos.Z) <= pad then
+		return true
 	end
 	return false
 end
@@ -2973,6 +2993,17 @@ end
 
 local function updateNpcs(dt: number)
 	local vcfg = Config.Islands.Villager
+	-- Cache player positions once per tick to avoid re-fetching for every NPC
+	local playerPositions: { { player: Player, pos: Vector3, hum: Humanoid } } = {}
+	for _, plr in Players:GetPlayers() do
+		local character = plr.Character
+		local hrp = character and character:FindFirstChild("HumanoidRootPart")
+		local hum = character and character:FindFirstChildOfClass("Humanoid")
+		if hrp and hrp:IsA("BasePart") and hum and hum.Health > 0 then
+			table.insert(playerPositions, { player = plr, pos = hrp.Position, hum = hum })
+		end
+	end
+
 	for _, runtime in IslandService._npcs do
 		if not runtime.alive then
 			continue
@@ -3008,21 +3039,15 @@ local function updateNpcs(dt: number)
 			local bestPlayer: Player? = nil
 			local bestDist = combat.AggroRange
 			local bestPos: Vector3? = nil
-			for _, plr in Players:GetPlayers() do
-				local character = plr.Character
-				local hrp = character and character:FindFirstChild("HumanoidRootPart")
-				local hum = character and character:FindFirstChildOfClass("Humanoid")
-				if not (hrp and hrp:IsA("BasePart") and hum and hum.Health > 0) then
+			for _, info in playerPositions do
+				if flatDistance(info.pos, isle.center) > isle.size * 0.5 + 18 then
 					continue
 				end
-				if flatDistance(hrp.Position, isle.center) > isle.size * 0.5 + 18 then
-					continue
-				end
-				local d = flatDistance(hrp.Position, root.Position)
+				local d = flatDistance(info.pos, root.Position)
 				if d < bestDist then
 					bestDist = d
-					bestPlayer = plr
-					bestPos = hrp.Position
+					bestPlayer = info.player
+					bestPos = info.pos
 				end
 			end
 
@@ -3188,7 +3213,7 @@ function IslandService.start(
 		end
 
 		lockAccum += dt
-		if lockAccum >= 0.2 then
+		if lockAccum >= 1.0 then
 			lockAccum = 0
 			updateVisitLockouts()
 		end
