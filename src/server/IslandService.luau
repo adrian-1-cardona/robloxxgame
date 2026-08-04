@@ -2756,6 +2756,29 @@ local function segmentHitsDock(fromPos: Vector3, toPos: Vector3, dock: DockColli
 	return exit >= 0 and enter <= 1
 end
 
+-- Check if a position is over sand material (for beach landing detection)
+local function isOverSand(position: Vector3): boolean
+	local terrain = workspace.Terrain
+	local region = Region3.new(position - Vector3.new(4, 10, 4), position + Vector3.new(4, 0, 4))
+	region = terrain:ExpandToGrid(region)
+	
+	local materials, _ = terrain:ReadVoxels(region, 4)
+	local size = materials.Size
+	
+	for x = 1, size.X do
+		for y = 1, size.Y do
+			for z = 1, size.Z do
+				local material = materials[x][y][z]
+				if material == Enum.Material.Sand or material == Enum.Material.Sandstone then
+					return true
+				end
+			end
+		end
+	end
+	
+	return false
+end
+
 --[[
 	Shoreline distance at a world position: how far outside this island's coast the point
 	is, in studs (negative when it is over the island's own footprint).
@@ -2795,8 +2818,14 @@ local function segmentHitsShore(fromPos: Vector3, toPos: Vector3, isle: IslandRe
 	local steps = math.clamp(math.ceil(travel / 8), 1, 64)
 	for i = 0, steps do
 		local t = i / steps
-		if shoreClearance(isle, fromPos.X + dx * t, fromPos.Z + dz * t) <= pad then
-			return true
+		local samplePos = Vector3.new(fromPos.X + dx * t, fromPos.Y, fromPos.Z + dz * t)
+		
+		-- Only block if we hit sand/beach material - allow water and deeper areas
+		if shoreClearance(isle, samplePos.X, samplePos.Z) <= pad then
+			if isOverSand(samplePos) then
+				return true
+			end
+		end
 		end
 	end
 	-- Also check the destination point directly (avoids floating-point rounding on the last step)

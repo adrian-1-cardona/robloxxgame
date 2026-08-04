@@ -32,11 +32,13 @@ export type PirateNpc = {
 	model: Model,
 	humanoid: Humanoid,
 	shipId: string,
-	state: "onShip" | "boarding" | "fighting" | "dead",
+	state: "onShip" | "boarding" | "fighting" | "dead" | "neutral",
 	targetPlayer: Player?,
 	lastAttackTime: number,
 	homePosition: Vector3, -- Position on ship
 	weapon: "cutlass" | "pistol",
+	isHostile: boolean, -- Whether this pirate is actively hostile
+	wasAttacked: boolean, -- Whether this pirate has been attacked by players
 }
 
 local PirateService = {}
@@ -51,16 +53,16 @@ PirateService._getMemberUserIds = nil :: ((string) -> { number })?
 PirateService._started = false
 
 -- Configuration
-local MAX_SHIPS_PER_CREW = 2
-local MAX_TOTAL_SHIPS = 8
-local SPAWN_CHECK_INTERVAL = 5 -- seconds
+local MAX_SHIPS_PER_CREW = 2 -- Restored for proper nighttime pirate pressure
+local MAX_TOTAL_SHIPS = 6 -- Keep reduced for performance but allow more pirate activity
+local SPAWN_CHECK_INTERVAL = 6 -- seconds (balanced spawn timing)
 local SHIP_SPAWN_DISTANCE = 200 -- studs from player raft
 local SHIP_DESPAWN_DISTANCE = 400 -- studs - ships despawn if too far
 local ATTACK_RANGE = 150 -- studs - ships start attacking in this range
-local PIRATE_SPAWN_CHANCE = 0.7 -- 70% chance per spawn check during night
-local UPDATE_FREQUENCY = 0.1 -- seconds between AI updates
-local MAX_PIRATES_UPDATED_PER_FRAME = 10 -- Performance: limit pirates updated per frame
-local MAX_SHIPS_UPDATED_PER_FRAME = 5 -- Performance: limit ships updated per frame
+local PIRATE_SPAWN_CHANCE = 0.65 -- 65% chance per spawn check during night - active but not overwhelming
+local UPDATE_FREQUENCY = 0.15 -- seconds between AI updates (good performance balance)
+local MAX_PIRATES_UPDATED_PER_FRAME = 8 -- Performance: limit pirates updated per frame
+local MAX_SHIPS_UPDATED_PER_FRAME = 3 -- Performance: limit ships updated per frame
 
 -- Get all active crew codes that have spawned bases
 local function getActiveCrewCodes(): { string }
@@ -93,7 +95,8 @@ end
 -- Check if it's currently nighttime
 local function isNighttime(): boolean
 	local state = DayNight.getState(Workspace:GetServerTimeNow())
-	return state.phase == "Night"
+	-- Only spawn pirates during the Night phase, not during Day or transitions
+	return state.phase == "Night" and state.phaseAlpha > 0.1 -- Wait a bit into night before spawning
 end
 
 -- Generate a unique ID for ships/pirates
@@ -192,11 +195,13 @@ local function spawnPirateShip(targetCrewCode: string): PirateShip?
 			model = pirateModel,
 			humanoid = pirateHumanoid,
 			shipId = shipId,
-			state = "onShip",
+			state = "onShip", -- Start on ship and ready to attack
 			targetPlayer = nil,
 			lastAttackTime = 0,
 			homePosition = piratePos.Position,
 			weapon = weaponType,
+			isHostile = true, -- Pirates are hostile at night by default
+			wasAttacked = false, -- Track if pirate was attacked
 		}
 		
 		table.insert(ship.crew, pirate)
@@ -366,11 +371,19 @@ local function updatePirateAI(pirate: PirateNpc, dt: number)
 	local now = Workspace:GetServerTimeNow()
 	local shouldUpdateTargeting = (now % 0.5) < dt -- Update targeting twice per second
 	
-	-- Find nearby players to target (only if targeting update is due)
-	if shouldUpdateTargeting or not pirate.targetPlayer then
+	-- Check if this pirate was attacked (makes them hostile)
+	if not pirate.wasAttacked and humanoid.Health < humanoid.MaxHealth then
+		pirate.wasAttacked = true
+		pirate.isHostile = true
+		print(`[PirateService] Pirate on ship {pirate.shipId} became hostile after taking damage`)
+	end
+	
+	-- Find nearby players to target (only if targeting update is due AND pirate is hostile OR during night)
+	-- During nighttime, pirates are aggressive by default
+	if pirate.isHostile and (shouldUpdateTargeting or not pirate.targetPlayer) then
 		local nearestPlayer = nil
 		local nearestDistance = math.huge
-		local maxEngageRange = 50 -- studs
+		local maxEngageRange = 45 -- studs - good engagement range for nighttime pirate attacks
 		
 		-- Performance: Only check players, not all characters in workspace
 		for _, player in Players:GetPlayers() do
@@ -388,8 +401,8 @@ local function updatePirateAI(pirate: PirateNpc, dt: number)
 		pirate.targetPlayer = nearestPlayer
 	end
 	
-	-- Pirate AI behavior
-	if pirate.targetPlayer and pirate.targetPlayer.Character then
+	-- Pirate AI behavior - attack players during nighttime
+	if pirate.isHostile and pirate.targetPlayer and pirate.targetPlayer.Character then
 		pirate.state = "fighting"
 		
 		local playerRoot = pirate.targetPlayer.Character:FindFirstChild("HumanoidRootPart")
@@ -397,8 +410,8 @@ local function updatePirateAI(pirate: PirateNpc, dt: number)
 			local direction = (playerRoot.Position - root.Position).Unit
 			local distance = (playerRoot.Position - root.Position).Magnitude
 			
-			-- Move toward player (simple chase AI)
-			local moveSpeed = 12 -- studs per second
+			-- Move toward player (aggressive chase AI during night)
+			local moveSpeed = 12 -- studs per second - good speed for pirate attacks
 			local newPos = root.Position + direction * moveSpeed * dt
 			
 			-- Performance: Use CFrame.lookAt less frequently for smooth movement
@@ -411,7 +424,7 @@ local function updatePirateAI(pirate: PirateNpc, dt: number)
 			-- Attack if in range
 			local attackRange = if pirate.weapon == "cutlass" then 8 else 25
 			if distance < attackRange then
-				local attackCooldown = if pirate.weapon == "cutlass" then 1.2 else 2.0
+				local attackCooldown = if pirate.weapon == "cutlass" then 1.2 else 2.0 -- Normal attack speeds
 				
 				if now - pirate.lastAttackTime >= attackCooldown then
 					pirate.lastAttackTime = now
@@ -419,21 +432,21 @@ local function updatePirateAI(pirate: PirateNpc, dt: number)
 					local playerHumanoid = pirate.targetPlayer.Character:FindFirstChildOfClass("Humanoid")
 					if playerHumanoid then
 						if pirate.weapon == "cutlass" then
-							playerHumanoid:TakeDamage(15) -- Pirate melee damage
+							playerHumanoid:TakeDamage(15) -- Normal pirate melee damage
 						elseif pirate.weapon == "pistol" then
-							playerHumanoid:TakeDamage(20) -- Pirate ranged damage
+							playerHumanoid:TakeDamage(20) -- Normal pirate ranged damage
 						end
 					end
 				end
 			end
 		end
 	else
-		-- No target, return to ship position
+		-- No target or not hostile, return to ship position
 		pirate.targetPlayer = nil
 		pirate.state = "onShip"
 		
 		local homeDirection = (pirate.homePosition - root.Position).Unit
-		local returnSpeed = 8
+		local returnSpeed = 8 -- Normal return speed
 		local newPos = root.Position + homeDirection * returnSpeed * dt
 		
 		-- Performance: Smooth return movement without excessive CFrame.lookAt calls
@@ -455,6 +468,15 @@ local function updatePirateSystem(dt: number)
 	end
 	local deltaTime = PirateService._updateAccumulator
 	PirateService._updateAccumulator = 0
+	
+	-- Early exit if it's daytime (no pirates should be active)
+	if not isNighttime() then
+		-- Despawn any lingering pirates from previous night
+		if next(PirateService._ships) then
+			despawnAllPirates()
+		end
+		return
+	end
 	
 	-- Performance optimization: Update ships in batches to prevent frame drops
 	local shipIds = {}
@@ -489,8 +511,10 @@ local function updatePirateSystem(dt: number)
 			for _, pirate in ship.crew do
 				pirate.state = "dead"
 			end
-			-- Destroy ship model
-			PirateShipFactory.destroyShip(ship.model)
+			-- Destroy ship model safely
+			pcall(function()
+				PirateShipFactory.destroyShip(ship.model)
+			end)
 			PirateService._ships[shipId] = nil
 		end
 	end
