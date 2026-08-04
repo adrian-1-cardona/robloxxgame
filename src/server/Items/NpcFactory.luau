@@ -76,7 +76,8 @@ local function buildBody(parent: Instance, cf: CFrame, gearColor: Color3): (Mode
 		Size = Vector3.new(2, 2, 1),
 		CFrame = cf,
 		Color = gearColor,
-		CanCollide = true,
+		Transparency = 1,
+		CanCollide = false,
 	})
 	model.PrimaryPart = root
 

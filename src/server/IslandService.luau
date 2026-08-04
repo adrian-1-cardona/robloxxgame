@@ -1219,11 +1219,30 @@ local function populateIsland(record: IslandRecord)
 	local spots = plan.spots
 	local spotCount = math.max(#spots, 1)
 	local center, topY = record.center, record.topY
+	local shape = record.shape
+
+	local function groundYAt(x: number, z: number): number
+		local terrainY = terrainSurfaceY(x, z, topY)
+		if terrainY then
+			return terrainY
+		end
+		local height = shape and shape:landHeight(x - center.X, z - center.Z)
+		return if height then topY + height else topY
+	end
+
 	local function spotAt(i: number): CFrame
-		local base = spots[((i - 1) % spotCount) + 1] or Vector3.new(center.X, topY + 2.5, center.Z)
-		local jitter = Vector3.new((math.random() - 0.5) * 8, 0, (math.random() - 0.5) * 8)
-		local pos = base + jitter
-		return CFrame.new(Vector3.new(pos.X, topY + 2.5, pos.Z))
+		local base = spots[((i - 1) % spotCount) + 1] or Vector3.new(center.X, topY, center.Z)
+		local baseX, baseZ = base.X, base.Z
+		local jitterX = (math.random() - 0.5) * 4
+		local jitterZ = (math.random() - 0.5) * 4
+		local candidateX, candidateZ = baseX + jitterX, baseZ + jitterZ
+		-- Keep the villager on the same dry settlement land as its house. A large
+		-- random offset previously put residents in water or inside a slope.
+		if shape and not shape:isLand(candidateX - center.X, candidateZ - center.Z) then
+			candidateX, candidateZ = baseX, baseZ
+		end
+		local groundY = groundYAt(candidateX, candidateZ)
+		return CFrame.new(candidateX, groundY + 2.5, candidateZ)
 	end
 
 	if plan.abandoned then
@@ -2731,6 +2750,13 @@ local function segmentHitsDock(fromPos: Vector3, toPos: Vector3, dock: DockColli
 	local pad = Config.Islands.RaftCollisionPad
 	local halfX = dock.size.X * 0.5 + pad
 	local halfZ = dock.size.Z * 0.5 + pad
+	local startInside = math.abs(start.X) <= halfX and math.abs(start.Z) <= halfZ
+	local finishInside = math.abs(finish.X) <= halfX and math.abs(finish.Z) <= halfZ
+	-- If a raft is already overlapping the expanded dock volume, permit it to
+	-- leave the dock. Otherwise it could become permanently stuck after contact.
+	if startInside and not finishInside then
+		return false
+	end
 	local enter, exit = 0, 1
 
 	for _, axis in { "X", "Z" } do
@@ -2782,6 +2808,14 @@ end
 -- coastline is a harmonic function; sampling at ~1 raft-length intervals closes the gap a
 -- fast raft could otherwise skip through on a slow server frame.
 local function segmentHitsShore(fromPos: Vector3, toPos: Vector3, isle: IslandRecord, pad: number): boolean
+	local fromClearance = shoreClearance(isle, fromPos.X, fromPos.Z)
+	local toClearance = shoreClearance(isle, toPos.X, toPos.Z)
+	-- A raft that is already slightly inside the safety margin must be able to
+	-- back away. Without this escape case, a prior overlap leaves it locked in place.
+	if fromClearance <= pad and toClearance > fromClearance then
+		return false
+	end
+
 	local dx, dz = toPos.X - fromPos.X, toPos.Z - fromPos.Z
 	local travel = math.sqrt(dx * dx + dz * dz)
 	-- Sample every 8 studs (down from 12) so even at max speed on a slow frame the raft

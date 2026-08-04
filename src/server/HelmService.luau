@@ -400,6 +400,9 @@ function HelmService.start(
 			local groundedIsle
 			newPos, groundedIsle = IslandService.collideRaft(oldCf.Position, newPos)
 			if groundedIsle and throttle ~= 0 then
+				-- Clear the current server-side drive command on contact. The next
+				-- client input can resume only after the player steers away.
+				session.throttle = 0
 				local now = os.clock()
 				if now - session.groundToastAt > 2.5 then
 					session.groundToastAt = now

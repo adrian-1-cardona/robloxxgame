@@ -76,8 +76,10 @@ local function buildHouse(model: Model, cf: CFrame, opts: { [string]: any })
 	local MEDIEVAL_STONE = Color3.fromRGB(140, 135, 130)
 	local COBBLE_DARK = Color3.fromRGB(85, 82, 78)
 	
-	local wallColor = if cobble then MEDIEVAL_STONE else PLASTER_CREAM
-	local wallMat = if cobble then Enum.Material.Cobblestone else Enum.Material.SmoothPlastic
+	-- Use subdued timber for regular houses. The old cream SmoothPlastic walls
+	-- overexposed under the game's bright sky and looked emissive from a distance.
+	local wallColor = if cobble then MEDIEVAL_STONE else WOOD_LIGHT
+	local wallMat = if cobble then Enum.Material.Cobblestone else Enum.Material.WoodPlanks
 	local floorColor = if cobble then COBBLE_DARK else Color3.fromRGB(104, 74, 46)
 
 	local w, d = 16, 14
@@ -769,21 +771,50 @@ local function attachLampGlow(holder: BasePart, range: number?)
 	return light
 end
 
--- A climbable ladder. TrussParts are auto-climbable by Roblox Humanoids, so this is a
--- real way to scale towers, steeples and cliffs. `height` studs tall, base at basePos.
+-- A compact wooden ladder. The old TrussPart rendered as a tall green lattice tower
+-- in-game and was easily mistaken for floating world geometry. Rails and rungs keep the
+-- same silhouette without the engine's oversized green truss appearance.
 local function buildLadder(model: Model, basePos: Vector3, height: number, yaw: number?): BasePart
-	local truss = Instance.new("TrussPart")
-	truss.Name = "Ladder"
-	truss.Anchored = true
-	truss.CanCollide = true
-	truss.Color = Color3.fromRGB(96, 66, 40)
-	truss.Material = Enum.Material.Wood
-	-- TrussPart climbs along its Y axis; X/Z are fixed at 2 studs.
-	truss.Size = Vector3.new(2, height, 2)
-	truss.CFrame = CFrame.new(basePos + Vector3.new(0, height * 0.5, 0)) * CFrame.Angles(0, yaw or 0, 0)
-	truss.CastShadow = false
-	truss.Parent = model
-	return truss
+	local heightClamped = math.max(height, 4)
+	local ladderCf = CFrame.new(basePos + Vector3.new(0, heightClamped * 0.5, 0))
+		* CFrame.Angles(0, yaw or 0, 0)
+	local wood = Color3.fromRGB(96, 66, 40)
+	local leftRail = makePart({
+		Name = "LadderRail",
+		Parent = model,
+		Size = Vector3.new(0.28, heightClamped, 0.28),
+		CFrame = ladderCf * CFrame.new(-0.78, 0, 0),
+		Color = wood,
+		Material = Enum.Material.Wood,
+		CanCollide = false,
+		CastShadow = false,
+	})
+	makePart({
+		Name = "LadderRail",
+		Parent = model,
+		Size = Vector3.new(0.28, heightClamped, 0.28),
+		CFrame = ladderCf * CFrame.new(0.78, 0, 0),
+		Color = wood,
+		Material = Enum.Material.Wood,
+		CanCollide = false,
+		CastShadow = false,
+	})
+
+	local rungCount = math.clamp(math.floor(heightClamped / 1.5), 3, 28)
+	for i = 0, rungCount - 1 do
+		local y = -heightClamped * 0.5 + 0.8 + i * ((heightClamped - 1.6) / math.max(rungCount - 1, 1))
+		makePart({
+			Name = "LadderRung",
+			Parent = model,
+			Size = Vector3.new(1.8, 0.22, 0.22),
+			CFrame = ladderCf * CFrame.new(0, y, 0),
+			Color = wood,
+			Material = Enum.Material.Wood,
+			CanCollide = false,
+			CastShadow = false,
+		})
+	end
+	return leftRail
 end
 
 -- A lit iron street lamp — the backbone of a town that glows at night.
