@@ -762,35 +762,6 @@ local function buildFern(model: Model, topY: number, x: number, z: number)
 	end
 end
 
--- A climbable jungle vine: a TrussPart (auto-climbable by Humanoids) dressed with a couple
--- of leafy strips, giving players a real way to scale the isle's rocky peaks and cliffs.
-local function buildClimbVine(model: Model, topY: number, x: number, z: number, height: number)
-	local truss = Instance.new("TrussPart")
-	truss.Name = "ClimbVine"
-	truss.Anchored = true
-	truss.CanCollide = true
-	truss.Color = Color3.fromRGB(64, 88, 42)
-	truss.Material = Enum.Material.Grass
-	truss.Size = Vector3.new(2, height, 2)
-	truss.CFrame = CFrame.new(x, topY + height * 0.5, z)
-	truss.CastShadow = false
-	truss.Parent = model
-	-- Leafy dressing so it reads as a hanging vine, not scaffolding.
-	for i = 0, 2 do
-		makePart({
-			Name = `VineLeaf_{i}`,
-			Parent = model,
-			Size = Vector3.new(1.4, 1.2, 0.3),
-			CFrame = CFrame.new(x + (i - 1) * 0.7, topY + height * (0.3 + i * 0.25), z - 1.1)
-				* CFrame.Angles(0, math.rad(math.random(0, 360)), 0),
-			Color = Color3.fromRGB(40, 104, 46),
-			Material = Enum.Material.LeafyGrass,
-			CanCollide = false,
-			CastShadow = false,
-		})
-	end
-end
-
 local function buildRock(model: Model, topY: number, x: number, z: number, scale: number?)
 	local s = scale or (1 + math.random() * 1.7)
 	local g = 92 + math.random(0, 34)
@@ -1061,10 +1032,6 @@ local function scatterVegetation(model: Model, center: Vector3, size: number, to
 			buildFern(model, y, x, z)
 		end)
 
-		local vineRand = randomStream(`{model.Name}_vines`)
-		scatter("vines", math.clamp(math.floor(size / 160), 2, 7), { zone = "interior" }, function(y, x, z)
-			buildClimbVine(model, y, x, z, 24 + vineRand() * 18)
-		end)
 	end
 
 	-- Rolling dunes and rock outcrops break up the open ground.

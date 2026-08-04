@@ -17,6 +17,7 @@ local WeaponService = require(script.Parent:WaitForChild("WeaponService"))
 local VillageBuilder = {}
 
 local WOOD = Color3.fromRGB(120, 84, 50)
+local WOOD_LIGHT = Color3.fromRGB(154, 112, 68)
 local WOOD_DARK = Color3.fromRGB(80, 54, 32)
 local ROOF_THATCH = Color3.fromRGB(150, 120, 64)
 local ROOF_WOOD = Color3.fromRGB(74, 50, 30)
@@ -130,18 +131,10 @@ local function buildHouse(model: Model, cf: CFrame, opts: { [string]: any })
 			wall:SetAttribute("IslandId", opts.islandId)
 		end
 		wall:SetAttribute("FromHouse", true)
-		if cobble then
-			local prim = wall.PrimaryPart
-			if prim then
-				prim.Color = MEDIEVAL_STONE
-				prim.Material = Enum.Material.Cobblestone
-			end
-		else
-			local prim = wall.PrimaryPart
-			if prim then
-				prim.Color = wallColor
-				prim.Material = Enum.Material.SmoothPlastic
-			end
+		local prim = wall.PrimaryPart
+		if prim then
+			prim.Color = wallColor
+			prim.Material = wallMat
 		end
 	end
 

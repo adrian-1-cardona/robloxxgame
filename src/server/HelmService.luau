@@ -400,8 +400,10 @@ function HelmService.start(
 			local groundedIsle
 			newPos, groundedIsle = IslandService.collideRaft(oldCf.Position, newPos)
 			if groundedIsle and throttle ~= 0 then
-				-- Clear the current server-side drive command on contact. The next
-				-- client input can resume only after the player steers away.
+				-- Clear the authoritative drive command on contact. The collision result
+				-- already keeps this frame at the last safe position; clearing throttle
+				-- ensures the raft stays stopped instead of trying to push into the sand
+				-- on every subsequent heartbeat.
 				session.throttle = 0
 				local now = os.clock()
 				if now - session.groundToastAt > 2.5 then
