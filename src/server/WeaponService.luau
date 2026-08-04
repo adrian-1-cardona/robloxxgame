@@ -365,6 +365,28 @@ function WeaponService.tryShoot(player: Player, look: Vector3): boolean
 					if WeaponService.onNpcDamaged then
 						WeaponService.onNpcDamaged(hitModel, player)
 					end
+					
+					-- Special handling for pirate ships - damage the ship when pirates are hit
+					if hitModel:GetAttribute("NpcKind") == "pirate" then
+						local shipId = hitModel:GetAttribute("ShipId")
+						if shipId then
+							-- Find and damage the pirate ship
+							local pirateShipsFolder = Workspace:FindFirstChild("PirateShips")
+							if pirateShipsFolder then
+								local shipModel = pirateShipsFolder:FindFirstChild("PirateShip_" .. shipId)
+								if shipModel then
+									local currentHealth = shipModel:GetAttribute("ShipHealth") or 500
+									local newHealth = math.max(0, currentHealth - (def.Damage * 0.5)) -- Ships take reduced damage
+									shipModel:SetAttribute("ShipHealth", newHealth)
+									
+									if newHealth <= 0 then
+										-- Ship destroyed - this will be handled by PirateService cleanup
+										print("[WeaponService] Pirate ship", shipId, "destroyed by player weapons!")
+									end
+								end
+							end
+						end
+					end
 				end
 			end
 		end
