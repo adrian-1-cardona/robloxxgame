@@ -2798,17 +2798,17 @@ local function segmentHitsShore(fromPos: Vector3, toPos: Vector3, isle: IslandRe
 
 	local dx, dz = toPos.X - fromPos.X, toPos.Z - fromPos.Z
 	local travel = math.sqrt(dx * dx + dz * dz)
-	-- Sample every 8 studs (down from 12) so even at max speed on a slow frame the raft
-	-- cannot skip through the collision boundary between samples.
-	local steps = math.clamp(math.ceil(travel / 8), 1, 64)
+	-- Sample every 12 studs (increased from 8) to be less restrictive about collision
+	local steps = math.clamp(math.ceil(travel / 12), 1, 32)
 	for i = 0, steps do
 		local t = i / steps
-		if shoreClearance(isle, fromPos.X + dx * t, fromPos.Z + dz * t) <= pad then
+		-- Use a smaller effective collision padding to allow closer beach access
+		if shoreClearance(isle, fromPos.X + dx * t, fromPos.Z + dz * t) <= pad * 0.6 then
 			return true
 		end
 	end
-	-- Also check the destination point directly (avoids floating-point rounding on the last step)
-	if shoreClearance(isle, toPos.X, toPos.Z) <= pad then
+	-- Also check the destination point directly with reduced padding
+	if shoreClearance(isle, toPos.X, toPos.Z) <= pad * 0.6 then
 		return true
 	end
 	return false
