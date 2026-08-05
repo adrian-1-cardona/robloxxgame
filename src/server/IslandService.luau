@@ -2716,44 +2716,8 @@ end
 -- dock decks too. Expand the oriented dock rectangle by the raft's collision padding,
 -- then use a slab intersection against the attempted movement segment.
 local function segmentHitsDock(fromPos: Vector3, toPos: Vector3, dock: DockCollider): boolean
-	local start = dock.cframe:PointToObjectSpace(fromPos)
-	local finish = dock.cframe:PointToObjectSpace(toPos)
-	local delta = finish - start
-	local pad = Config.Islands.RaftCollisionPad * 0.25  -- Use only 25% padding for docks - very permissive
-	local halfX = dock.size.X * 0.5 + pad
-	local halfZ = dock.size.Z * 0.5 + pad
-	local startInside = math.abs(start.X) <= halfX and math.abs(start.Z) <= halfZ
-	local finishInside = math.abs(finish.X) <= halfX and math.abs(finish.Z) <= halfZ
-	-- If a raft is already overlapping the expanded dock volume, permit it to
-	-- leave the dock. Otherwise it could become permanently stuck after contact.
-	if startInside and not finishInside then
-		return false
-	end
-	local enter, exit = 0, 1
-
-	for _, axis in { "X", "Z" } do
-		local origin = if axis == "X" then start.X else start.Z
-		local direction = if axis == "X" then delta.X else delta.Z
-		local half = if axis == "X" then halfX else halfZ
-		if math.abs(direction) < 0.0001 then
-			if math.abs(origin) > half then
-				return false
-			end
-		else
-			local near = (-half - origin) / direction
-			local far = (half - origin) / direction
-			if near > far then
-				near, far = far, near
-			end
-			enter = math.max(enter, near)
-			exit = math.min(exit, far)
-			if enter > exit then
-				return false
-			end
-		end
-	end
-
-	return exit >= 0 and enter <= 1
+	-- Dock collision DISABLED - was causing false "Ran aground" messages
+	return false
 end
 
 -- Check if a position is over sand material (for beach landing detection)
@@ -2784,25 +2748,9 @@ local function shoreClearance(isle: IslandRecord, x: number, z: number): number
 	return distance - shape:coastRadius(math.atan2(dz, dx))
 end
 
--- Swept shoreline test. The segment is sampled rather than solved analytically because the
--- coastline is a harmonic function; sampling at ~1 raft-length intervals closes the gap a
--- fast raft could otherwise skip through on a slow server frame.
+-- Swept shoreline test. DISABLED - was causing false "Ran aground" messages
 local function segmentHitsShore(fromPos: Vector3, toPos: Vector3, isle: IslandRecord, pad: number): boolean
-	-- TEMPORARILY DISABLED - collision was too aggressive
-	-- Only block if you're actually inside the island (negative clearance + huge margin)
-	local fromClearance = shoreClearance(isle, fromPos.X, fromPos.Z)
-	local toClearance = shoreClearance(isle, toPos.X, toPos.Z)
-	-- A raft that is already slightly inside the safety margin must be able to
-	-- back away. Without this escape case, a prior overlap leaves it locked in place.
-	if fromClearance <= pad and toClearance > fromClearance then
-		return false
-	end
-
-	-- Only block if moving INTO the island (negative clearance), not just near it
-	if toClearance < -5 then  -- 5 studs INSIDE the island
-		return true
-	end
-	
+	-- Collision disabled - players should be able to sail freely
 	return false
 end
 
