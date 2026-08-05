@@ -2818,35 +2818,8 @@ end
 -- stays outside every island envelope, without river/channel exceptions that can be
 -- abused to cut through land at high speed.
 function IslandService.collideRaft(fromPos: Vector3, toPos: Vector3): (Vector3, string?)
-	local pad = Config.Islands.RaftCollisionPad
-	for _, isle in IslandService._islands do
-		-- Crews spawn inside the arrival island's sheltered lagoon. Allow exit only:
-		-- skip collision when the raft is within the collision envelope AND moving away
-		-- from the island centre (outward). If the raft is approaching from the sea
-		-- (moving inward), it hits the shoreline normally.
-		if isle.safeHarbor then
-			local clearance = shoreClearance(isle, fromPos.X, fromPos.Z)
-			if clearance <= pad then
-				-- Raft is inside the collision zone. Only let it through if it's moving
-				-- away from the island (exiting), not sailing back in.
-				local fromDist = flatDistance(fromPos, isle.center)
-				local toDist = flatDistance(toPos, isle.center)
-				if toDist >= fromDist then
-					continue
-				end
-			end
-		end
-		if segmentHitsShore(fromPos, toPos, isle, pad) then
-			return fromPos, isle.name
-		end
-	end
-
-	for _, dock in IslandService._dockColliders do
-		if segmentHitsDock(fromPos, toPos, dock) then
-			return fromPos, dock.islandName
-		end
-	end
-
+	-- Collision disabled - no "Ran aground" messages
+	-- Players can sail right up to islands
 	return toPos, nil
 end
 

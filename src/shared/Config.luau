@@ -122,7 +122,7 @@ local Config = {
 		-- Solid-shoreline collision: the complete raft footprint must remain over water.
 		-- The extra hull margin keeps corners and passengers out of terrain even during a
 		-- high-speed, low-frame-rate approach.
-		RaftCollisionPad = 58,
+		RaftCollisionPad = 30,
 
 		-- Legacy hostile "pirate" tuning — kept for back-compat; hostile villagers reuse it.
 		Pirate = {
