@@ -2716,8 +2716,44 @@ end
 -- dock decks too. Expand the oriented dock rectangle by the raft's collision padding,
 -- then use a slab intersection against the attempted movement segment.
 local function segmentHitsDock(fromPos: Vector3, toPos: Vector3, dock: DockCollider): boolean
-	-- Dock collision DISABLED - was causing false "Ran aground" messages
-	return false
+	local start = dock.cframe:PointToObjectSpace(fromPos)
+	local finish = dock.cframe:PointToObjectSpace(toPos)
+	local delta = finish - start
+	local pad = 3  -- Small pad just for dock structure collision
+	local halfX = dock.size.X * 0.5 + pad
+	local halfZ = dock.size.Z * 0.5 + pad
+	local startInside = math.abs(start.X) <= halfX and math.abs(start.Z) <= halfZ
+	local finishInside = math.abs(finish.X) <= halfX and math.abs(finish.Z) <= halfZ
+	-- If a raft is already overlapping the expanded dock volume, permit it to
+	-- leave the dock. Otherwise it could become permanently stuck after contact.
+	if startInside and not finishInside then
+		return false
+	end
+	local enter, exit = 0, 1
+
+	for _, axis in { "X", "Z" } do
+		local origin = if axis == "X" then start.X else start.Z
+		local direction = if axis == "X" then delta.X else delta.Z
+		local half = if axis == "X" then halfX else halfZ
+		if math.abs(direction) < 0.0001 then
+			if math.abs(origin) > half then
+				return false
+			end
+		else
+			local near = (-half - origin) / direction
+			local far = (half - origin) / direction
+			if near > far then
+				near, far = far, near
+			end
+			enter = math.max(enter, near)
+			exit = math.min(exit, far)
+			if enter > exit then
+				return false
+			end
+		end
+	end
+
+	return exit >= 0 and enter <= 1
 end
 
 -- Check if a position is over sand material (for beach landing detection)
@@ -2748,9 +2784,39 @@ local function shoreClearance(isle: IslandRecord, x: number, z: number): number
 	return distance - shape:coastRadius(math.atan2(dz, dx))
 end
 
--- Swept shoreline test. DISABLED - was causing false "Ran aground" messages
+-- Swept shoreline test. Check for actual sand/terrain material, not invisible boundary
 local function segmentHitsShore(fromPos: Vector3, toPos: Vector3, isle: IslandRecord, pad: number): boolean
-	-- Collision disabled - players should be able to sail freely
+	-- Check if moving into actual sand/terrain by testing for material at destination
+	local terrain = workspace.Terrain
+	if not terrain then
+		return false
+	end
+	
+	-- Test a small region at the destination to see if there's sand/ground material
+	local testRegion = Region3.new(toPos - Vector3.new(10, 5, 10), toPos + Vector3.new(10, 5, 10))
+	testRegion = terrain:ExpandToGrid(testRegion)
+	
+	local success, materials = pcall(function()
+		return terrain:ReadVoxels(testRegion, 4)
+	end)
+	
+	if not success or not materials then
+		return false
+	end
+	
+	local size = materials.Size
+	-- Check if there's sand, sandstone, or ground material
+	for x = 1, math.min(size.X, 3) do
+		for y = 1, math.min(size.Y, 3) do
+			for z = 1, math.min(size.Z, 3) do
+				local material = materials[x][y][z]
+				if material == Enum.Material.Sand or material == Enum.Material.Sandstone or material == Enum.Material.Ground then
+					return true  -- Hit actual terrain
+				end
+			end
+		end
+	end
+	
 	return false
 end
 
