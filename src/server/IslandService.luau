@@ -2829,21 +2829,7 @@ end
 -- stays outside every island envelope, without river/channel exceptions that can be
 -- abused to cut through land at high speed.
 function IslandService.collideRaft(fromPos: Vector3, toPos: Vector3): (Vector3, string?)
-	local pad = Config.Islands.RaftCollisionPad
-	for _, isle in IslandService._islands do
-		-- Check if moving onto the island - only block when going from water onto land
-		if segmentHitsShore(fromPos, toPos, isle, pad) then
-			return fromPos, isle.name
-		end
-	end
-
-	-- Check dock colliders (actual physical structures)
-	for _, dock in IslandService._dockColliders do
-		if segmentHitsDock(fromPos, toPos, dock) then
-			return fromPos, dock.islandName
-		end
-	end
-
+	-- All collision disabled
 	return toPos, nil
 end
 
