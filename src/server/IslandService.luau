@@ -2788,6 +2788,8 @@ end
 -- coastline is a harmonic function; sampling at ~1 raft-length intervals closes the gap a
 -- fast raft could otherwise skip through on a slow server frame.
 local function segmentHitsShore(fromPos: Vector3, toPos: Vector3, isle: IslandRecord, pad: number): boolean
+	-- TEMPORARILY DISABLED - collision was too aggressive
+	-- Only block if you're actually inside the island (negative clearance + huge margin)
 	local fromClearance = shoreClearance(isle, fromPos.X, fromPos.Z)
 	local toClearance = shoreClearance(isle, toPos.X, toPos.Z)
 	-- A raft that is already slightly inside the safety margin must be able to
@@ -2796,21 +2798,11 @@ local function segmentHitsShore(fromPos: Vector3, toPos: Vector3, isle: IslandRe
 		return false
 	end
 
-	local dx, dz = toPos.X - fromPos.X, toPos.Z - fromPos.Z
-	local travel = math.sqrt(dx * dx + dz * dz)
-	-- Sample every 30 studs for very loose collision detection
-	local steps = math.clamp(math.ceil(travel / 30), 1, 8)
-	for i = 0, steps do
-		local t = i / steps
-		-- Use only 20% of collision padding - extremely permissive
-		if shoreClearance(isle, fromPos.X + dx * t, fromPos.Z + dz * t) <= pad * 0.2 then
-			return true
-		end
-	end
-	-- Also check the destination point directly with tiny effective padding
-	if shoreClearance(isle, toPos.X, toPos.Z) <= pad * 0.2 then
+	-- Only block if moving INTO the island (negative clearance), not just near it
+	if toClearance < -5 then  -- 5 studs INSIDE the island
 		return true
 	end
+	
 	return false
 end
 
