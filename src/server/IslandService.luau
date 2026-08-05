@@ -2792,27 +2792,36 @@ end
 local function segmentHitsShore(fromPos: Vector3, toPos: Vector3, isle: IslandRecord, pad: number): boolean
 	local fromClearance = shoreClearance(isle, fromPos.X, fromPos.Z)
 	local toClearance = shoreClearance(isle, toPos.X, toPos.Z)
+	
 	-- A raft that is already slightly inside the safety margin must be able to
 	-- back away. Without this escape case, a prior overlap leaves it locked in place.
 	if fromClearance <= pad and toClearance > fromClearance then
 		return false
 	end
 
-	local dx, dz = toPos.X - fromPos.X, toPos.Z - fromPos.Z
-	local travel = math.sqrt(dx * dx + dz * dz)
-	-- Sample every 8 studs (down from 12) so even at max speed on a slow frame the raft
-	-- cannot skip through the collision boundary between samples.
-	local steps = math.clamp(math.ceil(travel / 8), 1, 64)
-	for i = 0, steps do
-		local t = i / steps
-		if shoreClearance(isle, fromPos.X + dx * t, fromPos.Z + dz * t) <= pad then
-			return true
+	-- Block if trying to move onto the island (crossing from outside to inside)
+	-- Only block if destination is actually moving closer to or onto the island
+	if toClearance < fromClearance then
+		-- Moving toward the island - sample the path to see if we hit
+		local dx, dz = toPos.X - fromPos.X, toPos.Z - fromPos.Z
+		local travel = math.sqrt(dx * dx + dz * dz)
+		if travel < 0.5 then
+			-- Tiny movement, check directly
+			return toClearance < pad
+		end
+		
+		-- Sample every 8 studs to catch fast rafts
+		local steps = math.clamp(math.ceil(travel / 8), 1, 64)
+		for i = 0, steps do
+			local t = i / steps
+			local checkClearance = shoreClearance(isle, fromPos.X + dx * t, fromPos.Z + dz * t)
+			-- Block when entering the padded zone (going from outside to inside)
+			if checkClearance < pad then
+				return true
+			end
 		end
 	end
-	-- Also check the destination point directly (avoids floating-point rounding on the last step)
-	if shoreClearance(isle, toPos.X, toPos.Z) <= pad then
-		return true
-	end
+	
 	return false
 end
 
@@ -2822,27 +2831,13 @@ end
 function IslandService.collideRaft(fromPos: Vector3, toPos: Vector3): (Vector3, string?)
 	local pad = Config.Islands.RaftCollisionPad
 	for _, isle in IslandService._islands do
-		-- Crews spawn inside the arrival island's sheltered lagoon. Allow exit only:
-		-- skip collision when the raft is within the collision envelope AND moving away
-		-- from the island centre (outward). If the raft is approaching from the sea
-		-- (moving inward), it hits the shoreline normally.
-		if isle.safeHarbor then
-			local clearance = shoreClearance(isle, fromPos.X, fromPos.Z)
-			if clearance <= pad then
-				-- Raft is inside the collision zone. Only let it through if it's moving
-				-- away from the island (exiting), not sailing back in.
-				local fromDist = flatDistance(fromPos, isle.center)
-				local toDist = flatDistance(toPos, isle.center)
-				if toDist >= fromDist then
-					continue
-				end
-			end
-		end
+		-- Check if moving onto the island - only block when going from water onto land
 		if segmentHitsShore(fromPos, toPos, isle, pad) then
 			return fromPos, isle.name
 		end
 	end
 
+	-- Check dock colliders (actual physical structures)
 	for _, dock in IslandService._dockColliders do
 		if segmentHitsDock(fromPos, toPos, dock) then
 			return fromPos, dock.islandName
