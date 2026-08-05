@@ -2719,7 +2719,7 @@ local function segmentHitsDock(fromPos: Vector3, toPos: Vector3, dock: DockColli
 	local start = dock.cframe:PointToObjectSpace(fromPos)
 	local finish = dock.cframe:PointToObjectSpace(toPos)
 	local delta = finish - start
-	local pad = 3  -- Small pad just for dock structure collision
+	local pad = Config.Islands.RaftCollisionPad
 	local halfX = dock.size.X * 0.5 + pad
 	local halfZ = dock.size.Z * 0.5 + pad
 	local startInside = math.abs(start.X) <= halfX and math.abs(start.Z) <= halfZ
@@ -2784,39 +2784,33 @@ local function shoreClearance(isle: IslandRecord, x: number, z: number): number
 	return distance - shape:coastRadius(math.atan2(dz, dx))
 end
 
--- Swept shoreline test. Check for actual sand/terrain material, not invisible boundary
+-- Swept shoreline test. The segment is sampled rather than solved analytically because the
+-- coastline is a harmonic function; sampling at ~1 raft-length intervals closes the gap a
+-- fast raft could otherwise skip through on a slow server frame.
 local function segmentHitsShore(fromPos: Vector3, toPos: Vector3, isle: IslandRecord, pad: number): boolean
-	-- Check if moving into actual sand/terrain by testing for material at destination
-	local terrain = workspace.Terrain
-	if not terrain then
+	local fromClearance = shoreClearance(isle, fromPos.X, fromPos.Z)
+	local toClearance = shoreClearance(isle, toPos.X, toPos.Z)
+	-- A raft that is already slightly inside the safety margin must be able to
+	-- back away. Without this escape case, a prior overlap leaves it locked in place.
+	if fromClearance <= pad and toClearance > fromClearance then
 		return false
 	end
-	
-	-- Test a small region at the destination to see if there's sand/ground material
-	local testRegion = Region3.new(toPos - Vector3.new(10, 5, 10), toPos + Vector3.new(10, 5, 10))
-	testRegion = terrain:ExpandToGrid(testRegion)
-	
-	local success, materials = pcall(function()
-		return terrain:ReadVoxels(testRegion, 4)
-	end)
-	
-	if not success or not materials then
-		return false
-	end
-	
-	local size = materials.Size
-	-- Check if there's sand, sandstone, or ground material
-	for x = 1, math.min(size.X, 3) do
-		for y = 1, math.min(size.Y, 3) do
-			for z = 1, math.min(size.Z, 3) do
-				local material = materials[x][y][z]
-				if material == Enum.Material.Sand or material == Enum.Material.Sandstone or material == Enum.Material.Ground then
-					return true  -- Hit actual terrain
-				end
-			end
+
+	local dx, dz = toPos.X - fromPos.X, toPos.Z - fromPos.Z
+	local travel = math.sqrt(dx * dx + dz * dz)
+	-- Sample every 8 studs (down from 12) so even at max speed on a slow frame the raft
+	-- cannot skip through the collision boundary between samples.
+	local steps = math.clamp(math.ceil(travel / 8), 1, 64)
+	for i = 0, steps do
+		local t = i / steps
+		if shoreClearance(isle, fromPos.X + dx * t, fromPos.Z + dz * t) <= pad then
+			return true
 		end
 	end
-	
+	-- Also check the destination point directly (avoids floating-point rounding on the last step)
+	if shoreClearance(isle, toPos.X, toPos.Z) <= pad then
+		return true
+	end
 	return false
 end
 
