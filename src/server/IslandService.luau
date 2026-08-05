@@ -1189,10 +1189,12 @@ local function populateIsland(record: IslandRecord)
 	local shape = record.shape
 
 	local function groundYAt(x: number, z: number): number
+		-- Try terrain raycast first (most accurate)
 		local terrainY = terrainSurfaceY(x, z, topY)
-		if terrainY then
+		if terrainY and terrainY > topY - 50 then  -- Sanity check - must be near island
 			return terrainY
 		end
+		-- Fallback to shape-based height
 		local height = shape and shape:landHeight(x - center.X, z - center.Z)
 		return if height then topY + height else topY
 	end
