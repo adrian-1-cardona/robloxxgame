@@ -223,6 +223,30 @@ local function spawnPirateShip(targetCrewCode: string): PirateShip?
 	
 	PirateService._ships[shipId] = ship
 	
+	-- Set up ship physics for movement
+	local hull = shipModel.PrimaryPart
+	if hull then
+		-- Remove existing physics constraints if any
+		for _, child in hull:GetChildren() do
+			if child:IsA("BodyVelocity") or child:IsA("BodyAngularVelocity") then
+				child:Destroy()
+			end
+		end
+		
+		-- Create movement components
+		local bodyVelocity = Instance.new("BodyVelocity")
+		bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+		bodyVelocity.MaxForce = Vector3.new(math.huge, 0, math.huge) -- Only X and Z (no vertical)
+		bodyVelocity.Parent = hull
+		
+		local bodyAngularVelocity = Instance.new("BodyAngularVelocity")
+		bodyAngularVelocity.AngularVelocity = Vector3.new(0, 0, 0)
+		bodyAngularVelocity.MaxTorque = Vector3.new(0, math.huge, 0) -- Only yaw rotation
+		bodyAngularVelocity.Parent = hull
+		
+		print("[PirateService] Added movement physics to ship", shipId)
+	end
+	
 	-- Set up ship collision handling
 	local collisionEvent = shipModel:FindFirstChild("ShipCollision")
 	if collisionEvent and collisionEvent:IsA("BindableEvent") then
