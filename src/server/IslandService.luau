@@ -2719,7 +2719,7 @@ local function segmentHitsDock(fromPos: Vector3, toPos: Vector3, dock: DockColli
 	local start = dock.cframe:PointToObjectSpace(fromPos)
 	local finish = dock.cframe:PointToObjectSpace(toPos)
 	local delta = finish - start
-	local pad = Config.Islands.RaftCollisionPad
+	local pad = Config.Islands.RaftCollisionPad * 0.25  -- Use only 25% padding for docks - very permissive
 	local halfX = dock.size.X * 0.5 + pad
 	local halfZ = dock.size.Z * 0.5 + pad
 	local startInside = math.abs(start.X) <= halfX and math.abs(start.Z) <= halfZ
@@ -2798,17 +2798,17 @@ local function segmentHitsShore(fromPos: Vector3, toPos: Vector3, isle: IslandRe
 
 	local dx, dz = toPos.X - fromPos.X, toPos.Z - fromPos.Z
 	local travel = math.sqrt(dx * dx + dz * dz)
-	-- Sample every 20 studs (increased from 12) for even less strict collision
-	local steps = math.clamp(math.ceil(travel / 20), 1, 16)
+	-- Sample every 30 studs for very loose collision detection
+	local steps = math.clamp(math.ceil(travel / 30), 1, 8)
 	for i = 0, steps do
 		local t = i / steps
-		-- Use only 40% of collision padding for very permissive collision
-		if shoreClearance(isle, fromPos.X + dx * t, fromPos.Z + dz * t) <= pad * 0.4 then
+		-- Use only 20% of collision padding - extremely permissive
+		if shoreClearance(isle, fromPos.X + dx * t, fromPos.Z + dz * t) <= pad * 0.2 then
 			return true
 		end
 	end
-	-- Also check the destination point directly with reduced padding
-	if shoreClearance(isle, toPos.X, toPos.Z) <= pad * 0.4 then
+	-- Also check the destination point directly with tiny effective padding
+	if shoreClearance(isle, toPos.X, toPos.Z) <= pad * 0.2 then
 		return true
 	end
 	return false
