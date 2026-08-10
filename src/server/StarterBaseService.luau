@@ -186,11 +186,12 @@ function StarterBaseService.ensureBase(code: string, baseSlot: number): Model
 	privacyValue.Value = "Private"
 	privacyValue.Parent = model
 
-	-- Structural deck (collision) — warm timber base under the visible plank layer
+	-- Structural deck (collision) — a long, narrow deck so the crew actually sails on a ship.
+	-- The broad berth rules still use SizeStuds, keeping spawn safety and island clearance stable.
 	local deck = makePart({
 		Name = "Deck",
 		Parent = model,
-		Size = Vector3.new(size, thickness, size),
+		Size = Vector3.new(34, thickness, size),
 		CFrame = CFrame.new(center),
 		Color = Color3.fromRGB(96, 64, 38),
 		Material = Enum.Material.Wood,
@@ -222,7 +223,8 @@ function StarterBaseService.ensureBase(code: string, baseSlot: number): Model
 		CastShadow = false,
 	})
 
-	-- Open wooden platform: dense plank boards + timber beams. No rails / walls / posts.
+	-- Ship silhouette: the collision deck is intentionally simple, while a compact set of
+	-- anchored hull pieces provides the readable vessel shape without physics overhead.
 	local half = size / 2
 	local deckTop = center.Y + thickness / 2
 	local plankColors = {
@@ -233,10 +235,12 @@ function StarterBaseService.ensureBase(code: string, baseSlot: number): Model
 		Color3.fromRGB(132, 90, 54),
 		Color3.fromRGB(118, 78, 46),
 	}
+	local hullLength = size - 4
+	local hullWidth = 32
 	local plankW = 3.2
 	local plankGap = 0.18
 	local plankStep = plankW + plankGap
-	local plankCount = math.max(1, math.floor((size - 1.5) / plankStep))
+	local plankCount = math.max(1, math.floor((hullWidth - 1.5) / plankStep))
 	local plankSpan = plankCount * plankStep - plankGap
 	local plankStart = -plankSpan / 2 + plankW / 2
 	for i = 0, plankCount - 1 do
@@ -244,7 +248,7 @@ function StarterBaseService.ensureBase(code: string, baseSlot: number): Model
 		makePart({
 			Name = `Plank_{i}`,
 			Parent = model,
-			Size = Vector3.new(plankW, 0.55, size - 2.4),
+			Size = Vector3.new(plankW, 0.55, hullLength),
 			CFrame = CFrame.new(center.X + plankStart + i * plankStep, deckTop + 0.22, center.Z),
 			Color = tone,
 			Material = Enum.Material.WoodPlanks,
@@ -258,31 +262,28 @@ function StarterBaseService.ensureBase(code: string, baseSlot: number): Model
 		makePart({
 			Name = `Joist_{j}`,
 			Parent = model,
-			Size = Vector3.new(size - 3.2, 0.35, 0.9),
-			CFrame = CFrame.new(center.X, deckTop + 0.05, center.Z + j * (size / 7)),
+			Size = Vector3.new(hullWidth - 2, 0.35, 0.9),
+			CFrame = CFrame.new(center.X, deckTop + 0.05, center.Z + j * (hullLength / 7)),
 			Color = joistColor,
 			Material = Enum.Material.Wood,
 			CanCollide = false,
 		})
 	end
 
-	-- Low flush rim boards (trim only — not walls) so the platform edges read as timber
-	local rimH = 0.7
-	local rimT = 1.35
-	local rimY = deckTop + rimH / 2 + 0.15
-	local rimColor = Color3.fromRGB(86, 56, 32)
+	-- Sloped side hull and pointed bow/stern make the vessel read from the waterline.
+	local hullColor = Color3.fromRGB(72, 45, 27)
 	for _, spec in {
-		{ Name = "RimNorth", CFrame = CFrame.new(center.X, rimY, center.Z - half + rimT / 2), Size = Vector3.new(size, rimH, rimT) },
-		{ Name = "RimSouth", CFrame = CFrame.new(center.X, rimY, center.Z + half - rimT / 2), Size = Vector3.new(size, rimH, rimT) },
-		{ Name = "RimWest", CFrame = CFrame.new(center.X - half + rimT / 2, rimY, center.Z), Size = Vector3.new(rimT, rimH, size - rimT * 2) },
-		{ Name = "RimEast", CFrame = CFrame.new(center.X + half - rimT / 2, rimY, center.Z), Size = Vector3.new(rimT, rimH, size - rimT * 2) },
+		{ Name = "PortHull", CFrame = CFrame.new(center.X - 17, center.Y - 1.6, center.Z), Size = Vector3.new(2.2, 4.2, hullLength - 8), Angle = math.rad(-18) },
+		{ Name = "StarboardHull", CFrame = CFrame.new(center.X + 17, center.Y - 1.6, center.Z), Size = Vector3.new(2.2, 4.2, hullLength - 8), Angle = math.rad(18) },
+		{ Name = "Bow", CFrame = CFrame.new(center.X, center.Y - 0.5, center.Z - half + 1), Size = Vector3.new(18, 4.5, 9), Angle = 0 },
+		{ Name = "Stern", CFrame = CFrame.new(center.X, center.Y - 0.3, center.Z + half - 3), Size = Vector3.new(28, 4.4, 7), Angle = 0 },
 	} do
 		makePart({
 			Name = spec.Name,
 			Parent = model,
 			Size = spec.Size,
-			CFrame = spec.CFrame,
-			Color = rimColor,
+			CFrame = spec.CFrame * CFrame.Angles(0, 0, spec.Angle),
+			Color = hullColor,
 			Material = Enum.Material.Wood,
 			CanCollide = true,
 		})
@@ -290,87 +291,83 @@ function StarterBaseService.ensureBase(code: string, baseSlot: number): Model
 
 	-- Underside timber beams so the hull still reads as wood from the waterline
 	local beamY = center.Y - thickness / 2 - 0.35
-	for b = -2, 2 do
+	for b = -1, 1 do
 		makePart({
 			Name = `KeelBeam_{b}`,
 			Parent = model,
-			Size = Vector3.new(1.6, 0.9, size - 4),
-			CFrame = CFrame.new(center.X + b * (size / 5), beamY, center.Z),
+			Size = Vector3.new(1.6, 0.9, hullLength - 4),
+			CFrame = CFrame.new(center.X + b * 9, beamY, center.Z),
 			Color = Color3.fromRGB(72, 46, 26),
 			Material = Enum.Material.Wood,
 			CanCollide = false,
 		})
 	end
 
-	-- The raft is also the crew's opening hub: a small, readable harbour pavilion in
-	-- the middle of the archipelago rather than an anonymous flat square. Everything
-	-- is part of the moving model, so the pavilion travels with the crew after departure.
+	-- Rigging is deliberately static and part of the moving model.  Two masts, two sails,
+	-- rails and stern lanterns give a strong ship silhouette without per-frame animation.
 	local hub = Instance.new("Model")
-	hub.Name = "VoyageHub"
+	hub.Name = "ShipRigging"
 	hub.Parent = model
 	local postColor = Color3.fromRGB(76, 50, 29)
-	local canopyColor = Color3.fromRGB(42, 92, 67)
-	for _, x in { -half + 5, half - 5 } do
-		for _, z in { -half + 5, half - 5 } do
-			local post = makePart({
-				Name = "HarbourPost",
+	local sailColor = Color3.fromRGB(225, 214, 180)
+	for index, z in { -12, 12 } do
+		local mast = makePart({
+			Name = `Mast_{index}`,
 				Parent = hub,
-				Size = Vector3.new(1.4, 10, 1.4),
-				CFrame = CFrame.new(center.X + x, deckTop + 5, center.Z + z),
+				Size = Vector3.new(1.5, 25, 1.5),
+				CFrame = CFrame.new(center.X, deckTop + 12, center.Z + z),
 				Color = postColor,
 				Material = Enum.Material.Wood,
 				CanCollide = false,
 			})
-			local lantern = makePart({
-				Name = "HubLantern",
-				Parent = hub,
-				Size = Vector3.new(1.5, 2.1, 1.5),
-				CFrame = post.CFrame * CFrame.new(0, 3.5, 0),
-				Color = Color3.fromRGB(255, 181, 78),
-				Material = Enum.Material.Neon,
-				CanCollide = false,
-				CastShadow = false,
-			})
-			local light = Instance.new("PointLight")
-			light.Name = "HarbourGlow"
-			light.Color = lantern.Color
-			light.Brightness = 1.6
-			light.Range = 24
-			light.Shadows = false
-			light.Parent = lantern
-		end
-	end
-
-	-- A timber gateway and green sailcloth mark the bow and frame the island ring.
-	for _, x in { -12, 12 } do
 		makePart({
-			Name = "HubGatePost",
+			Name = `Yard_{index}`,
 			Parent = hub,
-			Size = Vector3.new(1.8, 13, 1.8),
-			CFrame = CFrame.new(center.X + x, deckTop + 6.5, center.Z - half + 6),
+			Size = Vector3.new(22, 0.7, 0.7),
+			CFrame = mast.CFrame * CFrame.new(0, 5, 0),
+			Color = postColor,
+			Material = Enum.Material.Wood,
+			CanCollide = false,
+		})
+		makePart({
+			Name = `Sail_{index}`,
+			Parent = hub,
+			Size = Vector3.new(17, 10, 0.25),
+			CFrame = mast.CFrame * CFrame.new(0, 0, 0.45),
+			Color = sailColor,
+			Material = Enum.Material.Fabric,
+			CanCollide = false,
+			CastShadow = false,
+		})
+	end
+	for _, x in { -14, 14 } do
+		makePart({
+			Name = "RailPost",
+			Parent = hub,
+			Size = Vector3.new(0.6, 2.2, 0.6),
+			CFrame = CFrame.new(center.X + x, deckTop + 1.2, center.Z),
 			Color = postColor,
 			Material = Enum.Material.Wood,
 			CanCollide = false,
 		})
 	end
 	makePart({
-		Name = "HubGateBeam",
+		Name = "PortRail",
 		Parent = hub,
-		Size = Vector3.new(27, 1.8, 1.8),
-		CFrame = CFrame.new(center.X, deckTop + 12.4, center.Z - half + 6),
+		Size = Vector3.new(0.5, 0.5, hullLength - 12),
+		CFrame = CFrame.new(center.X - 15, deckTop + 2.1, center.Z),
 		Color = postColor,
 		Material = Enum.Material.Wood,
 		CanCollide = false,
 	})
 	makePart({
-		Name = "HubBanner",
+		Name = "StarboardRail",
 		Parent = hub,
-		Size = Vector3.new(16, 5.5, 0.35),
-		CFrame = CFrame.new(center.X, deckTop + 9, center.Z - half + 6),
-		Color = canopyColor,
-		Material = Enum.Material.Fabric,
+		Size = Vector3.new(0.5, 0.5, hullLength - 12),
+		CFrame = CFrame.new(center.X + 15, deckTop + 2.1, center.Z),
+		Color = postColor,
+		Material = Enum.Material.Wood,
 		CanCollide = false,
-		CastShadow = false,
 	})
 
 	-- Invisible spawn pad so deaths land on the raft (not the pier)
