@@ -53,16 +53,16 @@ PirateService._getMemberUserIds = nil :: ((string) -> { number })?
 PirateService._started = false
 
 -- Configuration
-local MAX_SHIPS_PER_CREW = 2 -- Restored for proper nighttime pirate pressure
-local MAX_TOTAL_SHIPS = 6 -- Keep reduced for performance but allow more pirate activity
+local MAX_SHIPS_PER_CREW = 1 -- One focused encounter per crew keeps the sea readable.
+local MAX_TOTAL_SHIPS = 4 -- Hard cap protects the server when several crews sail together.
 local SPAWN_CHECK_INTERVAL = 6 -- seconds (balanced spawn timing)
 local SHIP_SPAWN_DISTANCE = 200 -- studs from player raft
 local SHIP_DESPAWN_DISTANCE = 400 -- studs - ships despawn if too far
 local ATTACK_RANGE = 150 -- studs - ships start attacking in this range
 local PIRATE_SPAWN_CHANCE = 0.65 -- 65% chance per spawn check during night - active but not overwhelming
 local UPDATE_FREQUENCY = 0.15 -- seconds between AI updates (good performance balance)
-local MAX_PIRATES_UPDATED_PER_FRAME = 8 -- Performance: limit pirates updated per frame
-local MAX_SHIPS_UPDATED_PER_FRAME = 3 -- Performance: limit ships updated per frame
+local MAX_PIRATES_UPDATED_PER_FRAME = 12 -- Four ships × three crew members at the cap.
+local MAX_SHIPS_UPDATED_PER_FRAME = 4 -- Every active ship receives an AI tick; none starve.
 
 -- Get all active crew codes that have spawned bases
 local function getActiveCrewCodes(): { string }
@@ -223,30 +223,6 @@ local function spawnPirateShip(targetCrewCode: string): PirateShip?
 	
 	PirateService._ships[shipId] = ship
 	
-	-- Set up ship physics for movement
-	local hull = shipModel.PrimaryPart
-	if hull then
-		-- Remove existing physics constraints if any
-		for _, child in hull:GetChildren() do
-			if child:IsA("BodyVelocity") or child:IsA("BodyAngularVelocity") then
-				child:Destroy()
-			end
-		end
-		
-		-- Create movement components
-		local bodyVelocity = Instance.new("BodyVelocity")
-		bodyVelocity.Velocity = Vector3.new(0, 0, 0)
-		bodyVelocity.MaxForce = Vector3.new(math.huge, 0, math.huge) -- Only X and Z (no vertical)
-		bodyVelocity.Parent = hull
-		
-		local bodyAngularVelocity = Instance.new("BodyAngularVelocity")
-		bodyAngularVelocity.AngularVelocity = Vector3.new(0, 0, 0)
-		bodyAngularVelocity.MaxTorque = Vector3.new(0, math.huge, 0) -- Only yaw rotation
-		bodyAngularVelocity.Parent = hull
-		
-		print("[PirateService] Added movement physics to ship", shipId)
-	end
-	
 	-- Set up ship collision handling
 	local collisionEvent = shipModel:FindFirstChild("ShipCollision")
 	if collisionEvent and collisionEvent:IsA("BindableEvent") then
@@ -261,6 +237,31 @@ local function spawnPirateShip(targetCrewCode: string): PirateShip?
 	
 	print("[PirateService] Spawned pirate ship", shipId, "with", crewSize, "pirates targeting crew", targetCrewCode)
 	return ship
+end
+
+-- Pirate ship parts are intentionally anchored so they are stable on the client and do not
+-- wake a large physics assembly. Move the whole model at the throttled AI rate instead.
+-- PivotTo also carries the pirate models on deck, avoiding a separate per-part move.
+local function sailShip(ship: PirateShip, direction: Vector3, speed: number, dt: number)
+	local hull = ship.model.PrimaryPart
+	if not hull or direction.Magnitude < 0.01 then
+		return
+	end
+	local oldPivot = ship.model:GetPivot()
+	local flatDirection = Vector3.new(direction.X, 0, direction.Z).Unit
+	local desired = CFrame.lookAt(oldPivot.Position, oldPivot.Position + flatDirection)
+	local turnAlpha = math.clamp(dt * 2.6, 0, 1)
+	local facing = oldPivot:Lerp(desired, turnAlpha).LookVector
+	local step = math.min(speed * dt, 12) -- cap catch-up after a slow server frame
+	local nextPos = oldPivot.Position + flatDirection * step
+	local nextPivot = CFrame.lookAt(nextPos, nextPos + Vector3.new(facing.X, 0, facing.Z).Unit)
+	ship.model:PivotTo(nextPivot)
+
+	-- Home positions are world coordinates; carry them with the ship so idle pirates stay on deck.
+	local delta = nextPivot * oldPivot:Inverse()
+	for _, pirate in ship.crew do
+		pirate.homePosition = (delta * CFrame.new(pirate.homePosition)).Position
+	end
 end
 
 -- Update ship AI and movement
@@ -300,14 +301,6 @@ local function updateShipAI(ship: PirateShip, dt: number)
 		return false -- Mark for cleanup
 	end
 	
-	-- Get ship movement components
-	local bodyVelocity = hull:FindFirstChild("BodyVelocity")
-	local bodyAngularVelocity = hull:FindFirstChild("BodyAngularVelocity")
-	
-	if not bodyVelocity or not bodyAngularVelocity then
-		return true -- Continue without movement
-	end
-	
 	-- Ship AI behavior based on state
 	if ship.state == "hunting" then
 		if distanceToTarget < ATTACK_RANGE then
@@ -316,14 +309,7 @@ local function updateShipAI(ship: PirateShip, dt: number)
 			-- Move toward target
 			local direction = (targetPos - currentPos).Unit
 			local speed = ship.model:GetAttribute("MaxSpeed") or 60
-			bodyVelocity.Velocity = direction * speed
-			
-			-- Rotate toward target
-			local lookDirection = direction
-			local currentLook = hull.CFrame.LookVector
-			local turnError = math.atan2(currentLook:Cross(lookDirection).Y, currentLook:Dot(lookDirection))
-			local turnSpeed = ship.model:GetAttribute("TurnSpeed") or 2
-			bodyAngularVelocity.AngularVelocity = Vector3.new(0, turnError * turnSpeed, 0)
+			sailShip(ship, direction, speed, dt)
 		end
 		
 	elseif ship.state == "attacking" then
@@ -341,13 +327,7 @@ local function updateShipAI(ship: PirateShip, dt: number)
 			
 			local direction = (circlePos - currentPos).Unit
 			local speed = (ship.model:GetAttribute("MaxSpeed") or 60) * 0.8
-			bodyVelocity.Velocity = direction * speed
-			
-			-- Face toward target while circling
-			local lookDirection = (targetPos - currentPos).Unit
-			local currentLook = hull.CFrame.LookVector
-			local turnError = math.atan2(currentLook:Cross(lookDirection).Y, currentLook:Dot(lookDirection))
-			bodyAngularVelocity.AngularVelocity = Vector3.new(0, turnError * 3, 0)
+			sailShip(ship, direction, speed, dt)
 		end
 		
 	elseif ship.state == "patrolling" then
@@ -363,7 +343,7 @@ local function updateShipAI(ship: PirateShip, dt: number)
 		
 		local direction = (patrolPos - currentPos).Unit
 		local speed = (ship.model:GetAttribute("MaxSpeed") or 60) * 0.4
-		bodyVelocity.Velocity = direction * speed
+		sailShip(ship, direction, speed, dt)
 		
 		-- Look for new targets while patrolling
 		local nearestCode, nearestPos, nearestDist = findNearestRaft(currentPos)
