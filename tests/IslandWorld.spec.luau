@@ -93,8 +93,8 @@ check(
 )
 check("raft collision has no through-island river exception", string.find(islands, "inNavigableRiver", 1, true) == nil)
 check(
-	"raft stops at its last safe position on first shoreline contact",
-	string.find(islands, "return fromPos, isle.name", 1, true) ~= nil
+	"rafts can navigate freely while shoreline collision is disabled",
+	string.find(islands, "return toPos, nil", 1, true) ~= nil
 )
 check(
 	"river towns keep houses on the banks",

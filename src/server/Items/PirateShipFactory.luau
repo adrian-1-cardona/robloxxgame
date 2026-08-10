@@ -40,22 +40,6 @@ local function makePart(props: { [string]: any }): Part
 	return p
 end
 
-local function weldTo(part: BasePart, target: BasePart, offset: CFrame?)
-	local weld = Instance.new("WeldConstraint")
-	weld.Part0 = part
-	weld.Part1 = target
-	weld.Parent = part
-	if offset then
-		local alignPos = Instance.new("AlignPosition")
-		alignPos.Mode = Enum.PositionAlignmentMode.OneAttachment
-		alignPos.RigidityEnabled = true
-		alignPos.Attachment0 = Instance.new("Attachment", part)
-		alignPos.Attachment0.CFrame = offset
-		alignPos.Parent = part
-	end
-	return weld
-end
-
 -- Creates the main hull of the pirate ship
 local function buildHull(ship: Model, center: CFrame): BasePart
 	-- Main hull body

@@ -49,8 +49,8 @@ export type IslandRecord = {
 	-- The arrival hub contains the crew spawn channel. It is deliberately excluded
 	-- from the shoreline guard because crews begin inside that sheltered water.
 	safeHarbor: boolean?,
-	-- The island's silhouette (src/shared/IslandShape.luau). Terrain, props, the village
-	-- and raft collision all read the coastline from here, so they cannot disagree.
+	-- The island's silhouette (src/shared/IslandShape.luau). Terrain, props and the village
+	-- all read the coastline from here, so they cannot disagree.
 	shape: any,
 	-- Submerged footprint, replayed after the ocean streamer refills water chunks.
 	submergedPlan: { any }?,
@@ -61,12 +61,6 @@ type CrewIslandState = {
 	locked: boolean,
 	notifiedLock: boolean,
 	notifiedVisit: boolean,
-}
-
-type DockCollider = {
-	cframe: CFrame,
-	size: Vector3,
-	islandName: string,
 }
 
 type NpcRuntime = {
@@ -87,9 +81,6 @@ IslandService._islands = {} :: { IslandRecord }
 IslandService._byId = {} :: { [string]: IslandRecord }
 IslandService._crewState = {} :: { [string]: { [string]: CrewIslandState } }
 IslandService._npcs = {} :: { NpcRuntime }
--- Helm travel is kinematic (the raft is PivotTo'd), so it does not receive normal
--- physics contacts.  Keep a tiny collision representation for the solid dock decks.
-IslandService._dockColliders = {} :: { DockCollider }
 IslandService._Toast = nil :: RemoteEvent?
 IslandService._getPartyCode = nil :: ((Player) -> string?)?
 IslandService._getMemberUserIds = nil :: ((string) -> { number })?
@@ -1353,11 +1344,6 @@ local function buildDock(
 		Color = DOCK_PLANK,
 		Material = Enum.Material.WoodPlanks,
 	})
-	table.insert(IslandService._dockColliders, {
-		cframe = cf,
-		size = Vector3.new(width, 0.5, length),
-		islandName = (o.islandName :: string?) or "the dock",
-	})
 
 	-- Pilings + short rail posts down both sides.
 	local pileTop = deckY - 0.2
@@ -1411,11 +1397,6 @@ local function buildDock(
 		CFrame = headCf,
 		Color = DOCK_PLANK,
 		Material = Enum.Material.WoodPlanks,
-	})
-	table.insert(IslandService._dockColliders, {
-		cframe = headCf,
-		size = Vector3.new(width + 7, 0.5, 6.5),
-		islandName = (o.islandName :: string?) or "the dock",
 	})
 
 	-- Harbour clutter near the land end: a couple of barrels + a draggable crate.
@@ -2697,75 +2678,6 @@ function IslandService.isLockedForCrew(code: string, islandId: string): boolean
 	return state ~= nil and state.locked == true
 end
 
--- Returns true when the horizontal movement segment enters a circle. Checking the whole
--- segment (rather than only its destination) closes the gap a fast raft could otherwise
--- skip through during a slow server frame.
-local function segmentHitsCircle(fromPos: Vector3, toPos: Vector3, center: Vector3, radius: number): boolean
-	local start = Vector3.new(fromPos.X - center.X, 0, fromPos.Z - center.Z)
-	if start.Magnitude <= radius then
-		return true
-	end
-	local delta = Vector3.new(toPos.X - fromPos.X, 0, toPos.Z - fromPos.Z)
-	local lengthSq = delta:Dot(delta)
-	if lengthSq < 0.0001 then
-		return false
-	end
-	local t = math.clamp(-start:Dot(delta) / lengthSq, 0, 1)
-	return (start + delta * t).Magnitude <= radius
-end
-
--- The raft moves as a kinematic model, so it needs a cheap 2D swept collision test for
--- dock decks too. Expand the oriented dock rectangle by the raft's collision padding,
--- then use a slab intersection against the attempted movement segment.
-local function segmentHitsDock(fromPos: Vector3, toPos: Vector3, dock: DockCollider): boolean
-	local start = dock.cframe:PointToObjectSpace(fromPos)
-	local finish = dock.cframe:PointToObjectSpace(toPos)
-	local delta = finish - start
-	local pad = Config.Islands.RaftCollisionPad
-	local halfX = dock.size.X * 0.5 + pad
-	local halfZ = dock.size.Z * 0.5 + pad
-	local startInside = math.abs(start.X) <= halfX and math.abs(start.Z) <= halfZ
-	local finishInside = math.abs(finish.X) <= halfX and math.abs(finish.Z) <= halfZ
-	-- If a raft is already overlapping the expanded dock volume, permit it to
-	-- leave the dock. Otherwise it could become permanently stuck after contact.
-	if startInside and not finishInside then
-		return false
-	end
-	local enter, exit = 0, 1
-
-	for _, axis in { "X", "Z" } do
-		local origin = if axis == "X" then start.X else start.Z
-		local direction = if axis == "X" then delta.X else delta.Z
-		local half = if axis == "X" then halfX else halfZ
-		if math.abs(direction) < 0.0001 then
-			if math.abs(origin) > half then
-				return false
-			end
-		else
-			local near = (-half - origin) / direction
-			local far = (half - origin) / direction
-			if near > far then
-				near, far = far, near
-			end
-			enter = math.max(enter, near)
-			exit = math.min(exit, far)
-			if enter > exit then
-				return false
-			end
-		end
-	end
-
-	return exit >= 0 and enter <= 1
-end
-
--- Check if a position is over sand material (for beach landing detection)
--- Temporarily disabled to prevent world generation issues
-local function isOverSand(position: Vector3): boolean
-	-- For now, always return true to maintain original collision behavior
-	-- TODO: Implement proper sand detection after terrain system is stable
-	return true
-end
-
 --[[
 	Shoreline distance at a world position: how far outside this island's coast the point
 	is, in studs (negative when it is over the island's own footprint).
@@ -2784,45 +2696,6 @@ local function shoreClearance(isle: IslandRecord, x: number, z: number): number
 	end
 	-- Even when outside maxCoast, compute clearance on the actual bearing; maxCoast is a global max and can over-block narrow flanks.
 	return distance - shape:coastRadius(math.atan2(dz, dx))
-end
-
--- Swept shoreline test. The segment is sampled rather than solved analytically because the
--- coastline is a harmonic function; sampling at ~1 raft-length intervals closes the gap a
--- fast raft could otherwise skip through on a slow server frame.
-local function segmentHitsShore(fromPos: Vector3, toPos: Vector3, isle: IslandRecord, pad: number): boolean
-	local fromClearance = shoreClearance(isle, fromPos.X, fromPos.Z)
-	local toClearance = shoreClearance(isle, toPos.X, toPos.Z)
-	
-	-- A raft that is already slightly inside the safety margin must be able to
-	-- back away. Without this escape case, a prior overlap leaves it locked in place.
-	if fromClearance <= pad and toClearance > fromClearance then
-		return false
-	end
-
-	-- Block if trying to move onto the island (crossing from outside to inside)
-	-- Only block if destination is actually moving closer to or onto the island
-	if toClearance < fromClearance then
-		-- Moving toward the island - sample the path to see if we hit
-		local dx, dz = toPos.X - fromPos.X, toPos.Z - fromPos.Z
-		local travel = math.sqrt(dx * dx + dz * dz)
-		if travel < 0.5 then
-			-- Tiny movement, check directly
-			return toClearance < pad
-		end
-		
-		-- Sample every 8 studs to catch fast rafts
-		local steps = math.clamp(math.ceil(travel / 8), 1, 64)
-		for i = 0, steps do
-			local t = i / steps
-			local checkClearance = shoreClearance(isle, fromPos.X + dx * t, fromPos.Z + dz * t)
-			-- Block when entering the padded zone (going from outside to inside)
-			if checkClearance < pad then
-				return true
-			end
-		end
-	end
-	
-	return false
 end
 
 -- Solid shoreline and dock collision. Rafts are watercraft: their complete footprint
@@ -3156,7 +3029,6 @@ function IslandService.ensure(): Folder
 		table.clear(IslandService._islands)
 		table.clear(IslandService._byId)
 		table.clear(IslandService._npcs)
-		table.clear(IslandService._dockColliders)
 		table.clear(IslandService._endlessQueued)
 	end
 	ensureOpeningPreviews(folder)
