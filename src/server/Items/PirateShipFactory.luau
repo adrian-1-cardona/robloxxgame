@@ -3,7 +3,6 @@
 -- Each ship can carry multiple pirate NPCs and moves through the water autonomously.
 
 local Workspace = game:GetService("Workspace")
-local RunService = game:GetService("RunService")
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
@@ -39,22 +38,6 @@ local function makePart(props: { [string]: any }): Part
 	end
 	p.Parent = props.Parent
 	return p
-end
-
-local function weldTo(part: BasePart, target: BasePart, offset: CFrame?)
-	local weld = Instance.new("WeldConstraint")
-	weld.Part0 = part
-	weld.Part1 = target
-	weld.Parent = part
-	if offset then
-		local alignPos = Instance.new("AlignPosition")
-		alignPos.Mode = Enum.PositionAlignmentMode.OneAttachment
-		alignPos.RigidityEnabled = true
-		alignPos.Attachment0 = Instance.new("Attachment", part)
-		alignPos.Attachment0.CFrame = offset
-		alignPos.Parent = part
-	end
-	return weld
 end
 
 -- Creates the main hull of the pirate ship
@@ -396,17 +379,6 @@ function PirateShipFactory.createShip(parent: Instance, position: Vector3, rotat
 	buildDetails(ship, centerCFrame)
 	buildFlag(ship, centerCFrame)
 	
-	-- Add ship movement system
-	local bodyVelocity = Instance.new("BodyVelocity")
-	bodyVelocity.MaxForce = Vector3.new(4000, 0, 4000)
-	bodyVelocity.Velocity = Vector3.new(0, 0, 0)
-	bodyVelocity.Parent = hull
-	
-	local bodyAngularVelocity = Instance.new("BodyAngularVelocity")
-	bodyAngularVelocity.MaxTorque = Vector3.new(0, 4000, 0)
-	bodyAngularVelocity.AngularVelocity = Vector3.new(0, 0, 0)
-	bodyAngularVelocity.Parent = hull
-	
 	-- Add collision detection for ship vs player boats
 	local function onTouched(hit)
 		local hitModel = hit:FindFirstAncestorOfClass("Model")
@@ -459,17 +431,6 @@ function PirateShipFactory.destroyShip(ship: Model)
 	for _, sound in ship:GetDescendants() do
 		if sound:IsA("Sound") then
 			sound:Stop()
-		end
-	end
-	
-	-- Cleanup physics bodies
-	for _, part in ship:GetDescendants() do
-		if part:IsA("BasePart") then
-			for _, obj in part:GetChildren() do
-				if obj:IsA("BodyVelocity") or obj:IsA("BodyAngularVelocity") then
-					obj:Destroy()
-				end
-			end
 		end
 	end
 	

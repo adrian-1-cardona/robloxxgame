@@ -49,7 +49,7 @@ check("starter raft is a compact 64-stud voyage platform", string.find(config, "
 check("river is much wider than the 64-stud raft", string.find(catalog, "RiverWidth = 300", 1, true) ~= nil)
 check("opening island ring sits within the 4K streaming target", string.find(catalog, "Offset = Vector3.new(0, 0, -2100)", 1, true) ~= nil)
 check("opening islands use a high-detail 1,100-stud footprint", string.find(catalog, "SizeStuds = 1100", 1, true) ~= nil)
-check("spawn raft is presented as the central voyage hub", string.find(starterBase, 'hub.Name = "VoyageHub"', 1, true) ~= nil)
+check("spawn raft is presented as a sailing ship", string.find(starterBase, 'hub.Name = "ShipRigging"', 1, true) ~= nil)
 check("flat cylinder preview disks stay removed", string.find(islands, 'Name = "ForestFloor"', 1, true) == nil)
 check("village residents spawn during island construction", string.find(islands, "populateIsland(record)", 1, true) ~= nil)
 check("river bridges are not added to the island decoration pass", string.find(islands, "buildRiverBridge(model, center", 1, true) == nil)
@@ -93,8 +93,8 @@ check(
 )
 check("raft collision has no through-island river exception", string.find(islands, "inNavigableRiver", 1, true) == nil)
 check(
-	"raft stops at its last safe position on first shoreline contact",
-	string.find(islands, "return fromPos, isle.name", 1, true) ~= nil
+	"rafts can navigate freely while shoreline collision is disabled",
+	string.find(islands, "return toPos, nil", 1, true) ~= nil
 )
 check(
 	"river towns keep houses on the banks",
