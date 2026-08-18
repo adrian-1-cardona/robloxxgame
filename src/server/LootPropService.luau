@@ -223,7 +223,8 @@ function LootPropService.tryPickup(player: Player, model: Model): boolean
 	local tool = LootPropFactory.createTool(kind :: any)
 	tool.Parent = backpack
 	model:Destroy()
-	toast(player, `Picked up {kind}.`, "success")
+	-- Reveal identity only now that it's in the sailor's hands.
+	toast(player, `It's a {kind}!`, "success")
 	return true
 end
 

@@ -93,8 +93,11 @@ check(
 )
 check("raft collision has no through-island river exception", string.find(islands, "inNavigableRiver", 1, true) == nil)
 check(
-	"rafts can navigate freely while shoreline collision is disabled",
-	string.find(islands, "return toPos, nil", 1, true) ~= nil
+	"rafts stop on sand/land and cannot drive through islands",
+	string.find(islands, "function IslandService.collideRaft", 1, true) ~= nil
+		and string.find(islands, "segmentHitsSand", 1, true) ~= nil
+		and string.find(islands, "isSandOrLand", 1, true) ~= nil
+		and string.find(islands, '-- All collision disabled', 1, true) == nil
 )
 check(
 	"river towns keep houses on the banks",
@@ -140,6 +143,7 @@ check(
 	string.find(islands, "local function shoreClearance", 1, true) ~= nil
 		and string.find(islands, "shape:coastRadius(math.atan2(dz, dx))", 1, true) ~= nil
 		and string.find(islands, "segmentHitsCircle(fromPos, toPos, isle.center", 1, true) == nil
+		and string.find(islands, "isSandOrLand", 1, true) ~= nil
 )
 check(
 	"the submerged repaint replays the real footprint, not a sand cylinder",
