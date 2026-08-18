@@ -54,12 +54,9 @@ local function makePart(props: { [string]: any }): Part
 	return p
 end
 
--- Level-of-Detail: previously spawned a per-building Script with its own Heartbeat, which
--- was extremely expensive with 20-40 buildings per island. Removed: village parts already
--- have CastShadow=false (the main GPU cost) and the per-frame player-distance checks in
--- dozens of scripts added significant server CPU overhead for minimal visual benefit.
+-- Per-building Heartbeat LOD was removed (too expensive). Distant silhouettes are handled
+-- by IslandLod (Persistent rocky exterior + town cluster) so isles still read from afar.
 local function setupBuildingLOD(_model: Model, _center: Vector3)
-	-- Intentionally empty — LOD is handled by Roblox's built-in streaming now.
 end
 
 -- Enhanced medieval house with detailed timber framing and architectural variety.
@@ -70,17 +67,16 @@ local function buildHouse(model: Model, cf: CFrame, opts: { [string]: any })
 	local ruined = opts.ruined == true
 	local style = opts.style or (if cobble then "stone" else "timber")
 	
-	-- Enhanced color palette for medieval aesthetics
+	-- Valley-town postcard palette: light-blue plaster + dark timber framing + tan roofs
+	-- (matches the "town in the middle" reference). Stone towns keep cobble walls.
 	local TIMBER_FRAME = Color3.fromRGB(62, 39, 35)
-	local PLASTER_WHITE = Color3.fromRGB(245, 240, 230)
-	local PLASTER_CREAM = Color3.fromRGB(235, 220, 200)
+	local PLASTER_BLUE = Color3.fromRGB(148, 186, 210)
 	local MEDIEVAL_STONE = Color3.fromRGB(140, 135, 130)
 	local COBBLE_DARK = Color3.fromRGB(85, 82, 78)
-	
-	-- Use subdued timber for regular houses. The old cream SmoothPlastic walls
-	-- overexposed under the game's bright sky and looked emissive from a distance.
-	local wallColor = if cobble then MEDIEVAL_STONE else WOOD_LIGHT
-	local wallMat = if cobble then Enum.Material.Cobblestone else Enum.Material.WoodPlanks
+	local ROOF_TAN = Color3.fromRGB(186, 154, 108)
+
+	local wallColor = if cobble then MEDIEVAL_STONE else PLASTER_BLUE
+	local wallMat = if cobble then Enum.Material.Cobblestone else Enum.Material.SmoothPlastic
 	local floorColor = if cobble then COBBLE_DARK else Color3.fromRGB(104, 74, 46)
 
 	local w, d = 16, 14
@@ -194,8 +190,8 @@ local function buildHouse(model: Model, cf: CFrame, opts: { [string]: any })
 				Parent = model,
 				Size = Vector3.new(w * 0.65, 0.6, d + 3.0),
 				CFrame = cf * CFrame.new(i * w * 0.26, wallY + wallH * 0.45 + 1.8, 0) * CFrame.Angles(0, 0, math.rad(i * -35)),
-				Color = if cobble then ROOF_WOOD else Color3.fromRGB(120, 85, 45),
-				Material = if cobble then Enum.Material.Wood else Enum.Material.Grass,
+				Color = if cobble then ROOF_WOOD else ROOF_TAN,
+				Material = Enum.Material.WoodPlanks,
 			})
 		end
 		
@@ -205,7 +201,7 @@ local function buildHouse(model: Model, cf: CFrame, opts: { [string]: any })
 			Parent = model,
 			Size = Vector3.new(0.8, 0.8, d + 3.2),
 			CFrame = cf * CFrame.new(0, wallY + wallH * 0.45 + 3.2, 0),
-			Color = ROOF_WOOD,
+			Color = if cobble then ROOF_WOOD else Color3.fromRGB(150, 118, 78),
 			Material = Enum.Material.Wood,
 		})
 		

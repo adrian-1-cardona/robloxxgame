@@ -19,6 +19,7 @@ local starterBase = read("src/server/StarterBaseService.luau")
 local shape = read("src/shared/IslandShape.luau")
 local raster = read("src/shared/IslandRaster.luau")
 local terrain = read("src/server/IslandTerrain.luau")
+local islandLod = read("src/server/IslandLod.luau")
 
 local passed = 0
 local failed = 0
@@ -155,6 +156,19 @@ check(
 	"props are placed on sampled land rather than a polar radius",
 	string.find(islands, "shape:randomLandPoint(rand", 1, true) ~= nil
 		and string.find(islands, "local function landPoint", 1, true) ~= nil
+)
+check(
+	"distant island LOD keeps rocky exterior + town silhouette while streaming",
+	string.find(islands, 'require(script.Parent:WaitForChild("IslandLod"))', 1, true) ~= nil
+		and string.find(islands, "IslandLod.build(folder", 1, true) ~= nil
+		and string.find(islandLod, "ModelStreamingMode.Persistent", 1, true) ~= nil
+		and string.find(islandLod, "buildTownCluster", 1, true) ~= nil
+		and string.find(islandLod, "buildRockStack", 1, true) ~= nil
+)
+check(
+	"timber town houses use the light-blue valley-town palette",
+	string.find(village, "PLASTER_BLUE", 1, true) ~= nil
+		and string.find(village, "ROOF_TAN", 1, true) ~= nil
 )
 
 print(`\nResults: {passed} passed, {failed} failed\n`)
