@@ -183,7 +183,7 @@ local Config = {
 		--     beach/palm/jungle → sandy tropical isles; highland → temperate grass + pines
 		--     (medieval seaside look); volcanic → tropical isle around a smoking lava cone;
 		--     mountain → snow-capped peak + a freshwater lake with a waterfall off the cliff;
-		--     twin_peaks → two blocky low-poly rock stacks on separate sand pads.
+		--     twin_peaks → two blocky low-poly rock stacks on separate sand pads, linked by a rope bridge.
 		--   Theme: "wild" | "fishing_village" | "village" | "town" | "stone_town"
 		--        | "castle" | "abandoned"
 		-- Optional per-isle flags read by VillageBuilder / IslandService:
@@ -197,6 +197,7 @@ local Config = {
 		--                       barrels & crates); on mountain isles the first pier is on the lake
 		--   Lighthouse = true → a tall banded stone lighthouse on the shore (seaside towns)
 		--   Volcano    = true → force/allow the central lava cone on a "volcanic" biome isle
+		--   TwinPeaks  = true → parts-only dual blocky stacks + rope bridge (see TwinPeaksBuilder)
 		--
 		-- Villagers spawn with the opening archipelago. Towns must already look inhabited
 		-- from the raft; landing is not required to make their residents appear.
@@ -423,21 +424,20 @@ local Config = {
 			},
 			{
 				Id = "wreck_spit",
-				Name = "Wreck Spit",
-				-- Northwest opening-ring isle; kept clear of its neighbours so crews can
-				-- sail the channels between every island.
-				-- A dead volcanic spit strewn with shipwrecks — a smoking cone and one
-				-- half-collapsed pier.
+				Name = "Twin Peaks",
+				-- Northwest opening-ring isle: two blocky low-poly rock stacks on sandy
+				-- pads, linked by a sagging rope bridge — climb, cross, and loot.
 				Offset = Vector3.new(-2100, 0, 0),
 				SizeStuds = 1100,
-				Biome = "volcanic",
-				Theme = "abandoned",
-				Abandoned = true,
+				Biome = "twin_peaks",
+				Theme = "wild",
+				TwinPeaks = true,
+				Lagoon = false,
+				Abandoned = false,
 				Merchant = false,
-				Volcano = true,
 				Docks = 1,
-				Villagers = { Passive = 0, Hostile = 2 },
-				Loot = { Weapons = 5, Chests = 4, Armor = 2 },
+				Villagers = { Passive = 0, Hostile = 0 },
+				Loot = { Weapons = 4, Chests = 2, Armor = 2 },
 			},
 			{
 				Id = "mistwood",

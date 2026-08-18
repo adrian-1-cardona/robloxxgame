@@ -19,6 +19,7 @@ local starterBase = read("src/server/StarterBaseService.luau")
 local shape = read("src/shared/IslandShape.luau")
 local raster = read("src/shared/IslandRaster.luau")
 local terrain = read("src/server/IslandTerrain.luau")
+local twinPeaks = read("src/server/TwinPeaksBuilder.luau")
 
 local passed = 0
 local failed = 0
@@ -53,7 +54,7 @@ check("spawn raft is presented as a sailing ship", string.find(starterBase, 'hub
 check("flat cylinder preview disks stay removed", string.find(islands, 'Name = "ForestFloor"', 1, true) == nil)
 check("village residents spawn during island construction", string.find(islands, "populateIsland(record)", 1, true) ~= nil)
 check("river bridges are not added to the island decoration pass", string.find(islands, "buildRiverBridge(model, center", 1, true) == nil)
-check("peak bridges are not added to island decoration", string.find(islands, "buildRopeBridge(model, a, b)", 1, true) == nil)
+check("peak rope bridge lives in TwinPeaksBuilder for the postcard twin-isle", string.find(twinPeaks, "function TwinPeaksBuilder.buildRopeBridge", 1, true) ~= nil)
 -- The core regression this suite exists to prevent: island land must never again be built
 -- from radially symmetric primitives. FillCylinder and FillBall are banned across the whole
 -- island pipeline; the body comes from the shared silhouette instead.
@@ -64,6 +65,8 @@ check(
 		and string.find(terrain, "FillCylinder(", 1, true) == nil
 		and string.find(terrain, "FillBall(", 1, true) == nil
 )
+check("twin peaks island uses the parts-only builder", string.find(config, "TwinPeaks = true", 1, true) ~= nil
+	and string.find(islands, "TwinPeaksBuilder.build(model", 1, true) ~= nil)
 check(
 	"island bodies are sculpted from the shared IslandShape silhouette",
 	string.find(islands, 'require(script.Parent:WaitForChild("IslandTerrain"))', 1, true) ~= nil

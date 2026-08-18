@@ -18,6 +18,7 @@ local LootPropFactory = require(script.Parent:WaitForChild("Items"):WaitForChild
 local NpcFactory = require(script.Parent:WaitForChild("Items"):WaitForChild("NpcFactory"))
 local VillageBuilder = require(script.Parent:WaitForChild("VillageBuilder"))
 local IslandTerrain = require(script.Parent:WaitForChild("IslandTerrain"))
+local TwinPeaksBuilder = require(script.Parent:WaitForChild("TwinPeaksBuilder"))
 local MerchantService = require(script.Parent:WaitForChild("MerchantService"))
 local WeaponService = require(script.Parent:WaitForChild("WeaponService"))
 local ArmorService = require(script.Parent:WaitForChild("ArmorService"))
@@ -1993,12 +1994,20 @@ local function planIslandFeatures(
 		}
 	end
 
+	if entry.TwinPeaks == true then
+		features.peaks = TwinPeaksBuilder.plan(id, center, topY, size)
+	end
+
 	-- Dock bearings, spread around the coast and nudged onto real beach by the shape so a
 	-- pier never starts in the lagoon or off the end of a submerged arm.
 	local dcount = tonumber(entry.Docks) or 0
 	if dcount > 0 then
 		local baseA = rng:NextNumber(0, math.pi * 2)
-		if lm then
+		if features.peaks and features.peaks[1] then
+			-- Twin Peaks: pier reaches out from the left sand pad into open water.
+			local peak = features.peaks[1]
+			baseA = math.atan2(peak.pos.Z - center.Z, peak.pos.X - center.X)
+		elseif lm then
 			baseA = lm.angle + math.pi -- harbour on the flank away from the high ground
 		end
 		if lagoon then
@@ -2035,16 +2044,8 @@ local function planIslandFeatures(
 	return features
 end
 
--- =====================================================================================
--- Removed: the twin-peaks and tropical-terrace island styles
--- =====================================================================================
---
--- Neither style is referenced by Config.Islands.Catalog, and both built their land out
--- of the primitives this change exists to remove: generateTwinPeaksTerrain stacked
--- FillCylinder sand columns with FillBall reef knobs, and decorateTropicalTerrace ringed
--- the island with concentric stone walls and a spiral path. Every biome now goes through
--- the shared IslandShape silhouette, so a "two stacks" or "terraced" isle would be
--- authored as shape parameters rather than as a bespoke pile of discs.
+-- Twin Peaks islands use src/server/TwinPeaksBuilder.luau (parts-only stacks + rope bridge)
+-- instead of the voxel silhouette. Every other biome still goes through IslandShape.
 local function decorateShore(
 	model: Model,
 	center: Vector3,
@@ -2089,7 +2090,9 @@ local function decorateShore(
 		end
 	end
 
-	buildIslandTrailNetwork(model, center, size, topY, biome, features)
+	if entry.TwinPeaks ~= true then
+		buildIslandTrailNetwork(model, center, size, topY, biome, features)
+	end
 
 	if features.peak then
 		local pk = features.peak
@@ -2133,6 +2136,11 @@ local function decorateShore(
 			-- piers buried inland where the coast bulges and floating in open water where
 			-- it cuts in.
 			local startR, endR = shape:dockSpan(dock.angle, Config.Islands.RaftCollisionPad + 30)
+			if entry.TwinPeaks == true and features.peaks and features.peaks[1] then
+				local peak = features.peaks[1]
+				local peakDist = math.sqrt((peak.pos.X - center.X) ^ 2 + (peak.pos.Z - center.Z) ^ 2)
+				startR = peakDist + peak.padR * 0.82
+			end
 			buildDock(model, center, surfaceY, dock.angle, startR, endR, {
 				islandId = islandId,
 				rowboat = true,
@@ -2310,16 +2318,27 @@ local function buildFlatIsland(entry: { [string]: any }, folder: Folder): Island
 	-- Signature landforms + shoreline layout, all read off the shape.
 	local features = planIslandFeatures(entry.Id, center, topY, size, biome, entry, shape)
 
-	-- Sculpt the island as voxel Terrain: irregular coast, sand beaches, grass/jungle
-	-- interior, rock and snow uplands, the lagoon bed, the river channel and the submerged
-	-- approach shelf. No FillCylinder discs and no FillBall domes are involved.
-	IslandTerrain.sculpt(shape, center, topY)
+	local submergedPlan
+	if entry.TwinPeaks == true then
+		-- Parts-only low-poly twin stacks; skip the voxel silhouette sculpt.
+		local built = TwinPeaksBuilder.build(model, center, topY, size, entry.Id)
+		features.peaks = built.peaks
+		submergedPlan = TwinPeaksBuilder.submergedBoxes(center, topY, built.peaks)
+		TwinPeaksBuilder.writeSubmerged(center, submergedPlan)
+		scatterLooseLoot(model, center, size, topY, entry.Id, features)
+	else
+		-- Sculpt the island as voxel Terrain: irregular coast, sand beaches, grass/jungle
+		-- interior, rock and snow uplands, the lagoon bed, the river channel and the submerged
+		-- approach shelf. No FillCylinder discs and no FillBall domes are involved.
+		IslandTerrain.sculpt(shape, center, topY)
 
-	scatterVegetation(model, center, size, topY, biome, features)
-	if (entry.Theme or "village") ~= "wild" then
-		scatterSettlementForest(model, center, size, topY, features)
+		scatterVegetation(model, center, size, topY, biome, features)
+		if (entry.Theme or "village") ~= "wild" then
+			scatterSettlementForest(model, center, size, topY, features)
+		end
+		scatterLooseLoot(model, center, size, topY, entry.Id, features)
+		submergedPlan = IslandTerrain.submergedPlan(shape, topY)
 	end
-	scatterLooseLoot(model, center, size, topY, entry.Id, features)
 
 	-- Docks / piers, lighthouse, crater lava, waterfalls, moored + beached boats.
 	decorateShore(model, center, size, topY, biome, entry, features)
@@ -2327,11 +2346,12 @@ local function buildFlatIsland(entry: { [string]: any }, folder: Folder): Island
 		decorateArrivalHub(model, center, topY, features)
 	end
 
+	local markerY = if entry.TwinPeaks == true then 140 else 18
 	local marker = makePart({
 		Name = "IsleMarker",
 		Parent = model,
 		Size = Vector3.new(1, 1, 1),
-		CFrame = CFrame.new(center.X, topY + 18, center.Z),
+		CFrame = CFrame.new(center.X, topY + markerY, center.Z),
 		Transparency = 1,
 		CanCollide = false,
 		CastShadow = false,
@@ -2377,7 +2397,7 @@ local function buildFlatIsland(entry: { [string]: any }, folder: Folder): Island
 		safeHarbor = entry.SafeHarbor == true,
 		shape = shape,
 		-- Replayed whenever the ocean streamer refills the water chunks over this isle.
-		submergedPlan = IslandTerrain.submergedPlan(shape, topY),
+		submergedPlan = submergedPlan,
 	}
 	if features.river then
 		local river = features.river
@@ -2392,14 +2412,20 @@ local function buildFlatIsland(entry: { [string]: any }, folder: Folder): Island
 	local villagerCfg = entry.Villagers or { Passive = 0, Hostile = 0 }
 
 	if theme == "wild" then
-		-- No village — just a little scattered weapon loot on the wild isle, placed on
-		-- sampled land. The radius here was `size * (0.2 .. 0.44)`, measured off the full
-		-- diameter rather than the half-width, so a good share of every wild isle's loot
-		-- was dropped straight into the sea.
 		local rand = randomStream(`{entry.Id}_wild_loot`)
 		local weaponCount = (entry.Loot and entry.Loot.Weapons) or 0
-		for _ = 1, weaponCount do
-			local dx, dz, height = shape:randomLandPoint(rand, { zone = "interior", maxHeight = 30 })
+		for i = 1, weaponCount do
+			local dx: number?, dz: number?, height: number?
+			if entry.TwinPeaks == true and features.peaks then
+				local peak = features.peaks[((i - 1) % #features.peaks) + 1]
+				local a = rand() * math.pi * 2
+				local r = peak.padR * (0.35 + rand() * 0.45)
+				dx = peak.pos.X - center.X + math.cos(a) * r
+				dz = peak.pos.Z - center.Z + math.sin(a) * r
+				height = 1
+			else
+				dx, dz, height = shape:randomLandPoint(rand, { zone = "interior", maxHeight = 30 })
+			end
 			if dx then
 				local weaponId = Weapons.rollLootWeapon(function(lo, hi)
 					return math.random(lo, hi)
@@ -2409,10 +2435,19 @@ local function buildFlatIsland(entry: { [string]: any }, folder: Folder): Island
 				WeaponService.spawnWeaponPickup(model, weaponId, cf)
 			end
 		end
-		-- A scrap of armor may wash up on wild isles too.
 		local armorCount = (entry.Loot and entry.Loot.Armor) or 0
-		for _ = 1, armorCount do
-			local dx, dz, height = shape:randomLandPoint(rand, { zone = "interior", maxHeight = 30 })
+		for i = 1, armorCount do
+			local dx: number?, dz: number?, height: number?
+			if entry.TwinPeaks == true and features.peaks then
+				local peak = features.peaks[((i - 1) % #features.peaks) + 1]
+				local a = rand() * math.pi * 2
+				local r = peak.padR * (0.35 + rand() * 0.45)
+				dx = peak.pos.X - center.X + math.cos(a) * r
+				dz = peak.pos.Z - center.Z + math.sin(a) * r
+				height = 1
+			else
+				dx, dz, height = shape:randomLandPoint(rand, { zone = "interior", maxHeight = 30 })
+			end
 			if dx then
 				local armorId = Armor.rollLootArmor(function(lo, hi)
 					return math.random(lo, hi)
