@@ -21,13 +21,20 @@ local WOOD_LIGHT = Color3.fromRGB(154, 112, 68)
 local WOOD_DARK = Color3.fromRGB(80, 54, 32)
 local ROOF_THATCH = Color3.fromRGB(150, 120, 64)
 local ROOF_WOOD = Color3.fromRGB(74, 50, 30)
+local ROOF_SHINGLE = Color3.fromRGB(66, 68, 74)
 local STONE = Color3.fromRGB(128, 130, 132)
 local STONE_DARK = Color3.fromRGB(96, 98, 100)
+local STONE_OBELISK = Color3.fromRGB(118, 118, 124)
 local MOSS = Color3.fromRGB(96, 118, 76)
 local ASH = Color3.fromRGB(60, 58, 54)
 local GLASS_WARM = Color3.fromRGB(255, 214, 130)
+local GLASS_GLOW = Color3.fromRGB(255, 196, 110)
 local DOOR_WOOD = Color3.fromRGB(64, 42, 26)
 local NET = Color3.fromRGB(196, 188, 150)
+-- Muted plaster, not SmoothPlastic: cream walls that still read as timber-framed
+-- cottages under the bright ocean sky instead of washing out to white.
+local PLASTER = Color3.fromRGB(186, 172, 148)
+local TIMBER_FRAME = Color3.fromRGB(62, 39, 35)
 
 local function makePart(props: { [string]: any }): Part
 	local p = Instance.new("Part")
@@ -63,28 +70,25 @@ local function setupBuildingLOD(_model: Model, _center: Vector3)
 end
 
 -- Enhanced medieval house with detailed timber framing and architectural variety.
--- `opts`: cobblestone (bool), ruined (bool), islandId (string), style ("timber"|"stone"|"cottage").
+-- `opts`: cobblestone (bool), ruined (bool), tudor (bool), storeys (1|2), islandId (string).
 -- Walls are detachable salvage (LootPropFactory) so they can be hauled to a raft.
 local function buildHouse(model: Model, cf: CFrame, opts: { [string]: any })
 	local cobble = opts.cobblestone == true
 	local ruined = opts.ruined == true
-	local style = opts.style or (if cobble then "stone" else "timber")
-	
-	-- Enhanced color palette for medieval aesthetics
-	local TIMBER_FRAME = Color3.fromRGB(62, 39, 35)
-	local PLASTER_WHITE = Color3.fromRGB(245, 240, 230)
-	local PLASTER_CREAM = Color3.fromRGB(235, 220, 200)
+	-- Half-timbered cottages: cream plaster, dark oak framing, charcoal shingles,
+	-- and warm lattice windows — the village-square look from the reference art.
+	local tudor = opts.tudor == true and not cobble
+	local storeys = if tudor and not ruined then (tonumber(opts.storeys) or 1) else 1
+
 	local MEDIEVAL_STONE = Color3.fromRGB(140, 135, 130)
 	local COBBLE_DARK = Color3.fromRGB(85, 82, 78)
-	
-	-- Use subdued timber for regular houses. The old cream SmoothPlastic walls
-	-- overexposed under the game's bright sky and looked emissive from a distance.
-	local wallColor = if cobble then MEDIEVAL_STONE else WOOD_LIGHT
-	local wallMat = if cobble then Enum.Material.Cobblestone else Enum.Material.WoodPlanks
+
+	local wallColor = if cobble then MEDIEVAL_STONE elseif tudor then PLASTER else WOOD_LIGHT
+	local wallMat = if cobble then Enum.Material.Cobblestone elseif tudor then Enum.Material.Concrete else Enum.Material.WoodPlanks
 	local floorColor = if cobble then COBBLE_DARK else Color3.fromRGB(104, 74, 46)
 
 	local w, d = 16, 14
-	local wallH = if ruined then 4.5 else 8.5  -- Slightly taller for more impressive medieval look
+	local wallH = if ruined then 4.5 elseif storeys >= 2 then 13 else 8.5
 
 	-- Enhanced stone foundation — extends deeper so it never floats above
 	-- the sculpted terrain even on bumpy/knolly ground.
@@ -184,6 +188,24 @@ local function buildHouse(model: Model, cf: CFrame, opts: { [string]: any })
 				})
 			end
 		end
+
+		-- Diagonal braces so timber cottages read as half-timbered, not just post-and-beam.
+		if tudor then
+			for _, z in { -d * 0.5, d * 0.5 } do
+				for sign = -1, 1, 2 do
+					makePart({
+						Name = "TimberBrace",
+						Parent = model,
+						Size = Vector3.new(w * 0.48, 0.28, 0.32),
+						CFrame = cf * CFrame.new(sign * w * 0.18, wallY + wallH * 0.02, z)
+							* CFrame.Angles(0, 0, math.rad(sign * 36)),
+						Color = TIMBER_FRAME,
+						Material = Enum.Material.Wood,
+						CanCollide = false,
+					})
+				end
+			end
+		end
 	end
 
 	if not ruined then
@@ -194,8 +216,8 @@ local function buildHouse(model: Model, cf: CFrame, opts: { [string]: any })
 				Parent = model,
 				Size = Vector3.new(w * 0.65, 0.6, d + 3.0),
 				CFrame = cf * CFrame.new(i * w * 0.26, wallY + wallH * 0.45 + 1.8, 0) * CFrame.Angles(0, 0, math.rad(i * -35)),
-				Color = if cobble then ROOF_WOOD else Color3.fromRGB(120, 85, 45),
-				Material = if cobble then Enum.Material.Wood else Enum.Material.Grass,
+				Color = if tudor then ROOF_SHINGLE elseif cobble then ROOF_WOOD else Color3.fromRGB(120, 85, 45),
+				Material = if tudor then Enum.Material.Slate elseif cobble then Enum.Material.Wood else Enum.Material.Grass,
 			})
 		end
 		
@@ -315,43 +337,65 @@ local function buildHouse(model: Model, cf: CFrame, opts: { [string]: any })
 		})
 	end
 
-	-- Enhanced windows with frames and shutters
+	-- Windows: Tudor cottages get glowing lattice panes; others keep framed glass + shutters.
 	if not ruined then
-		for i = -1, 1, 2 do
-			-- Window frame
-			makePart({
-				Name = "WindowFrame",
-				Parent = model,
-				Size = Vector3.new(0.4, 2.2, 2.4),
-				CFrame = cf * CFrame.new(i * w * 0.5, wallY - wallH * 0.1, d * 0.1),
-				Color = TIMBER_FRAME,
-				Material = Enum.Material.Wood,
-				CanCollide = false,
-			})
-			
-			-- Window pane (warm glass look without emission glow)
-			local pane = makePart({
-				Name = "Window",
-				Parent = model,
-				Size = Vector3.new(0.2, 1.8, 2.0),
-				CFrame = cf * CFrame.new(i * w * 0.5, wallY - wallH * 0.1, d * 0.1),
-				Color = GLASS_WARM,
-				Material = Enum.Material.Glass,
-				CanCollide = false,
-			})
-			pane.Transparency = 0.35
-			
-			-- Window shutters
-			for j = -1, 1, 2 do
+		local rows = if storeys >= 2 then { -0.22, 0.18 } else { -0.1 }
+		for _, yFrac in rows do
+			for i = -1, 1, 2 do
+				local paneCf = cf * CFrame.new(i * w * 0.5, wallY + wallH * yFrac, d * 0.1)
 				makePart({
-					Name = "WindowShutter",
+					Name = "WindowFrame",
 					Parent = model,
-					Size = Vector3.new(0.3, 1.8, 0.8),
-					CFrame = cf * CFrame.new(i * w * 0.5, wallY - wallH * 0.1, d * 0.1 + j * 1.2),
-					Color = Color3.fromRGB(65, 45, 30),
+					Size = Vector3.new(0.4, 2.2, 2.4),
+					CFrame = paneCf,
+					Color = TIMBER_FRAME,
 					Material = Enum.Material.Wood,
 					CanCollide = false,
 				})
+
+				local pane = makePart({
+					Name = "Window",
+					Parent = model,
+					Size = Vector3.new(0.2, 1.8, 2.0),
+					CFrame = paneCf,
+					Color = if tudor then GLASS_GLOW else GLASS_WARM,
+					Material = if tudor then Enum.Material.Neon else Enum.Material.Glass,
+					CanCollide = false,
+				})
+				pane.Transparency = if tudor then 0.08 else 0.35
+
+				if tudor then
+					makePart({
+						Name = "WindowMullionV",
+						Parent = model,
+						Size = Vector3.new(0.28, 1.8, 0.16),
+						CFrame = paneCf,
+						Color = TIMBER_FRAME,
+						Material = Enum.Material.Wood,
+						CanCollide = false,
+					})
+					makePart({
+						Name = "WindowMullionH",
+						Parent = model,
+						Size = Vector3.new(0.28, 0.16, 2.0),
+						CFrame = paneCf,
+						Color = TIMBER_FRAME,
+						Material = Enum.Material.Wood,
+						CanCollide = false,
+					})
+				else
+					for j = -1, 1, 2 do
+						makePart({
+							Name = "WindowShutter",
+							Parent = model,
+							Size = Vector3.new(0.3, 1.8, 0.8),
+							CFrame = paneCf * CFrame.new(0, 0, j * 1.2),
+							Color = Color3.fromRGB(65, 45, 30),
+							Material = Enum.Material.Wood,
+							CanCollide = false,
+						})
+					end
+				end
 			end
 		end
 	end
@@ -367,6 +411,73 @@ local function buildHouse(model: Model, cf: CFrame, opts: { [string]: any })
 	end
 end
 
+-- A four-sided stone obelisk — the square monuments that punctuate the cobbled plaza
+-- in the medieval village reference. Tapers in stacked blocks so it reads from the raft.
+local function buildObelisk(model: Model, pos: Vector3)
+	local heights = { 5.2, 4.6, 3.8, 2.8 }
+	local widths = { 3.2, 2.4, 1.7, 1.1 }
+	local y = 0
+	for i, h in heights do
+		local w = widths[i]
+		makePart({
+			Name = `Obelisk_{i}`,
+			Parent = model,
+			Size = Vector3.new(w, h, w),
+			CFrame = CFrame.new(pos + Vector3.new(0, y + h * 0.5, 0)),
+			Color = STONE_OBELISK,
+			Material = Enum.Material.Slate,
+		})
+		y += h * 0.92
+	end
+	makePart({
+		Name = "ObeliskCap",
+		Parent = model,
+		Size = Vector3.new(0.85, 2.1, 0.85),
+		CFrame = CFrame.new(pos + Vector3.new(0, y + 0.95, 0)),
+		Color = Color3.fromRGB(132, 132, 138),
+		Material = Enum.Material.Slate,
+		CanCollide = false,
+	})
+end
+
+-- Irregular cobblestone plaza at the village heart, with four obelisks at the corners.
+local function buildVillagePlaza(
+	model: Model,
+	center: Vector3,
+	topY: number,
+	villageRadius: number,
+	groundAt: (number, number) -> number?
+)
+	local plazaR = villageRadius * 0.28
+	for i = 1, 7 do
+		local a = (i / 7) * math.pi * 2
+		local r = plazaR * (0.08 + (i % 3) * 0.14)
+		local x = center.X + math.cos(a) * r
+		local z = center.Z + math.sin(a) * r
+		local y = groundAt(x, z) or topY
+		local w = plazaR * (0.72 + (i % 2) * 0.22)
+		makePart({
+			Name = "PlazaCobble",
+			Parent = model,
+			Size = Vector3.new(w, 0.28, w * 0.86),
+			CFrame = CFrame.new(x, y + 0.12, z) * CFrame.Angles(0, a * 0.35, 0),
+			Color = if i % 2 == 0 then Color3.fromRGB(108, 106, 102) else Color3.fromRGB(96, 94, 90),
+			Material = Enum.Material.Cobblestone,
+			CanCollide = false,
+		})
+	end
+	local obeliskR = plazaR * 0.84
+	for i = 0, 3 do
+		local a = math.rad(45 + i * 90)
+		local x = center.X + math.cos(a) * obeliskR
+		local z = center.Z + math.sin(a) * obeliskR
+		local y = groundAt(x, z)
+		if y then
+			buildObelisk(model, Vector3.new(x, y, z))
+		end
+	end
+end
+
 -- Enhanced cobblestone street network connecting buildings and village center
 local function buildCobblestoneStreets(
 	model: Model,
@@ -379,19 +490,6 @@ local function buildCobblestoneStreets(
 	local COBBLE_MAIN = Color3.fromRGB(110, 108, 105)
 	local COBBLE_ACCENT = Color3.fromRGB(95, 92, 88)
 
-	local centreY = groundAt(center.X, center.Z) or topY
-	local squareRadius = villageRadius * 0.25
-	makePart({
-		Name = "TownSquare",
-		Parent = model,
-		Size = Vector3.new(squareRadius * 2, 0.3, squareRadius * 2),
-		CFrame = CFrame.new(center.X, centreY + 0.15, center.Z),
-		Color = COBBLE_MAIN,
-		Material = Enum.Material.Cobblestone,
-		CanCollide = false,
-		Shape = Enum.PartType.Cylinder,
-	})
-
 	-- Radial streets are tilted between sampled endpoints instead of being laid on a
 	-- flat plane. Segments that cross water are omitted rather than floating across it.
 	for i, spot in villagerSpots do
@@ -400,11 +498,11 @@ local function buildCobblestoneStreets(
 		end
 		local flat = Vector3.new(spot.X - center.X, 0, spot.Z - center.Z)
 		local distance = flat.Magnitude
-		if distance < squareRadius + 18 then
+		if distance < villageRadius * 0.25 + 18 then
 			continue
 		end
 		local direction = flat.Unit
-		local start = Vector3.new(center.X, 0, center.Z) + direction * (squareRadius + 8)
+		local start = Vector3.new(center.X, 0, center.Z) + direction * (villageRadius * 0.25 + 8)
 		local finish = Vector3.new(spot.X, 0, spot.Z) - direction * 8
 		local startY = groundAt(start.X, start.Z)
 		local finishY = groundAt(finish.X, finish.Z)
@@ -766,6 +864,63 @@ local function buildWatchtower(model: Model, pos: Vector3)
 			CFrame = CFrame.new(pos + Vector3.new(math.cos(a) * 2.6, 19.8, math.sin(a) * 2.6)),
 			Color = STONE,
 			Material = Enum.Material.Cobblestone,
+		})
+	end
+end
+
+-- A circular stone keep with a dark pointed cap — the watchtower/lighthouse silhouette
+-- from the medieval village-square reference. Climbable via an outside ladder.
+local function buildRoundKeep(model: Model, pos: Vector3)
+	local towerH = 26
+	local radius = 5.2
+	makePart({
+		Name = "RoundKeep",
+		Parent = model,
+		Size = Vector3.new(towerH, radius * 2, radius * 2),
+		CFrame = CFrame.new(pos + Vector3.new(0, towerH * 0.5, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.fromRGB(126, 126, 130),
+		Material = Enum.Material.Cobblestone,
+		Shape = Enum.PartType.Cylinder,
+	})
+	-- Warm windows punched into the drum.
+	for i = 0, 3 do
+		local a = math.rad(i * 90 + 20)
+		makePart({
+			Name = "KeepWindow",
+			Parent = model,
+			Size = Vector3.new(0.4, 1.8, 1.4),
+			CFrame = CFrame.new(
+				pos.X + math.cos(a) * (radius + 0.05),
+				pos.Y + 8 + (i % 2) * 7,
+				pos.Z + math.sin(a) * (radius + 0.05)
+			) * CFrame.Angles(0, -a, 0),
+			Color = GLASS_GLOW,
+			Material = Enum.Material.Neon,
+			CanCollide = false,
+		})
+	end
+	-- Gallery ring.
+	makePart({
+		Name = "KeepGallery",
+		Parent = model,
+		Size = Vector3.new(1.1, (radius + 1.4) * 2, (radius + 1.4) * 2),
+		CFrame = CFrame.new(pos + Vector3.new(0, towerH, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = STONE_DARK,
+		Material = Enum.Material.Slate,
+		Shape = Enum.PartType.Cylinder,
+	})
+	-- Pointed dark roof: stacked tapering cylinders.
+	for i = 0, 3 do
+		local r = 4.8 - i * 1.1
+		makePart({
+			Name = `KeepSpire_{i}`,
+			Parent = model,
+			Size = Vector3.new(2.4, r * 2, r * 2),
+			CFrame = CFrame.new(pos + Vector3.new(0, towerH + 1.4 + i * 1.8, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+			Color = ROOF_SHINGLE,
+			Material = Enum.Material.Slate,
+			Shape = Enum.PartType.Cylinder,
+			CanCollide = false,
 		})
 	end
 end
@@ -1362,6 +1517,10 @@ function VillageBuilder.build(
 	local abandoned = entry.Abandoned == true
 	-- Stone settlements (stone_village / stone_town) get cobblestone houses.
 	local cobble = theme == "stone_village" or theme == "stone_town"
+	-- Timber villages and towns use the half-timbered plaza look (cream plaster,
+	-- charcoal shingles, glowing lattice windows) unless the isle is a ruin.
+	local tudor = not cobble and not (entry.Abandoned == true)
+		and (theme == "village" or theme == "town" or theme == "fishing_village")
 	-- Towns are larger settlements — more houses spread over a wider heart.
 	local isTown = theme == "town" or theme == "stone_town"
 	local half = size * 0.5
@@ -1508,6 +1667,8 @@ function VillageBuilder.build(
 			buildHouse(villageFolder, CFrame.lookAt(pos, pos + harborForward * 20), {
 				cobblestone = cobble,
 				ruined = false,
+				tudor = tudor,
+				storeys = if tudor and i % 3 == 0 then 2 else 1,
 				islandId = islandId,
 			})
 			table.insert(villagerSpots, pos + Vector3.new(0, 2.5, 0) - harborForward * 8)
@@ -1543,6 +1704,8 @@ function VillageBuilder.build(
 		buildHouse(villageFolder, houseCf, {
 			cobblestone = cobble,
 			ruined = abandoned,
+			tudor = tudor and not abandoned,
+			storeys = if tudor and not abandoned and i % 4 == 0 then 2 else 1,
 			islandId = islandId,
 		})
 		-- A villager spot by each house
@@ -1563,6 +1726,8 @@ function VillageBuilder.build(
 		})
 	else
 		buildCampfire(villageFolder, Vector3.new(center.X, centerGroundY + 0.3, center.Z))
+		-- Cobblestone square + four obelisks so timber towns match the village-plaza reference.
+		buildVillagePlaza(villageFolder, center, centerGroundY, villageRadius, groundAt)
 	end
 
 	-- Theme flavour: each settlement type gets a distinctive landmark so isles feel
@@ -1576,6 +1741,11 @@ function VillageBuilder.build(
 				local cf = CFrame.new(fx, groundSnap(fx, fz), fz)
 				buildFishRack(villageFolder, cf)
 			end
+			local kx = center.X - harborForward.X * villageRadius * 0.55
+			local kz = center.Z - harborForward.Z * villageRadius * 0.55
+			local keepPos = Vector3.new(kx, groundSnap(kx, kz), kz)
+			buildRoundKeep(villageFolder, keepPos)
+			buildLadder(villageFolder, keepPos + Vector3.new(5.6, 0, 0), 24)
 		elseif theme == "town" then
 			for i = 1, 3 do
 				local a = (i / 3) * math.pi * 2
@@ -1584,6 +1754,18 @@ function VillageBuilder.build(
 				local cf = CFrame.new(mx, groundSnap(mx, mz), mz)
 				buildMarketStall(villageFolder, cf)
 			end
+			-- Round keep on the far side of the square, opposite the waterfront.
+			local kx = center.X - harborForward.X * villageRadius * 0.58
+			local kz = center.Z - harborForward.Z * villageRadius * 0.58
+			local keepPos = Vector3.new(kx, groundSnap(kx, kz), kz)
+			buildRoundKeep(villageFolder, keepPos)
+			buildLadder(villageFolder, keepPos + Vector3.new(5.6, 0, 0), 24)
+		elseif theme == "village" then
+			local kx = center.X - harborForward.X * villageRadius * 0.55
+			local kz = center.Z - harborForward.Z * villageRadius * 0.55
+			local keepPos = Vector3.new(kx, groundSnap(kx, kz), kz)
+			buildRoundKeep(villageFolder, keepPos)
+			buildLadder(villageFolder, keepPos + Vector3.new(5.6, 0, 0), 24)
 		elseif theme == "stone_town" then
 			local wx, wz = center.X + villageRadius * 0.22, center.Z
 			buildWell(villageFolder, Vector3.new(wx, groundSnap(wx, wz), wz))
