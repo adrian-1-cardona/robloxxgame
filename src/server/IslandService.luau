@@ -19,6 +19,7 @@ local NpcFactory = require(script.Parent:WaitForChild("Items"):WaitForChild("Npc
 local VillageBuilder = require(script.Parent:WaitForChild("VillageBuilder"))
 local IslandTerrain = require(script.Parent:WaitForChild("IslandTerrain"))
 local TwinPeaksBuilder = require(script.Parent:WaitForChild("TwinPeaksBuilder"))
+local IslandLod = require(script.Parent:WaitForChild("IslandLod"))
 local MerchantService = require(script.Parent:WaitForChild("MerchantService"))
 local WeaponService = require(script.Parent:WaitForChild("WeaponService"))
 local ArmorService = require(script.Parent:WaitForChild("ArmorService"))
@@ -2549,6 +2550,18 @@ local function buildFlatIsland(entry: { [string]: any }, folder: Folder): Island
 			MerchantService.spawnMerchant(model, CFrame.new(m), entry.Id)
 		end
 	end
+
+	-- Persistent distant silhouette: rocky blocky exterior + valley town in the middle.
+	-- Survives StreamingEnabled unload so isles still look like the postcard from afar.
+	IslandLod.build(folder, {
+		id = entry.Id,
+		center = center,
+		topY = topY,
+		size = size,
+		shape = shape,
+		theme = theme,
+		abandoned = entry.Abandoned == true,
+	})
 
 	return record
 end
