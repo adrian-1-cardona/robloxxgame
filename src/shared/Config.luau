@@ -197,6 +197,9 @@ local Config = {
 		--                       barrels & crates); on mountain isles the first pier is on the lake
 		--   Lighthouse = true → a tall banded stone lighthouse on the shore (seaside towns)
 		--   Volcano    = true → force/allow the central lava cone on a "volcanic" biome isle
+		-- Timber villages/towns automatically get the plaza look: half-timbered plaster
+		-- cottages, charcoal shingles, a cobblestone square with stone obelisks, and a
+		-- round keep on the skyline.
 		--
 		-- Villagers spawn with the opening archipelago. Towns must already look inhabited
 		-- from the raft; landing is not required to make their residents appear.
@@ -244,10 +247,12 @@ local Config = {
 				Villagers = { Passive = 18, Hostile = 0 },
 				Loot = { Weapons = 5, Chests = 5, Armor = 3 },
 			},
-			-- Twelve sculpted islands form a complete archipelago around the central
+			-- Twelve sculpted islands form the inner archipelago around the central
 			-- voyage hub. Their 2,100-stud ring stays inside the opening 4K streaming
 			-- target, so every high-detail silhouette is present and visible from the raft.
 			-- The clear inner basin still gives every crew room to board and choose a route.
+			-- Six more plaza-villages sit on a 3,600-stud outer ring in the channels
+			-- between inner isles — more medieval squares to sail toward without crowding spawn.
 			{
 				Id = "tide_flat",
 				Name = "Greenwood Landing",
@@ -476,6 +481,132 @@ local Config = {
 				Docks = 3,
 				Villagers = { Passive = 18, Hostile = 3 },
 				Loot = { Weapons = 9, Chests = 7, Armor = 5 },
+			},
+			-- Outer ring: six more medieval plaza villages in the 15° gaps of the inner
+			-- ring, ~3,600 studs from spawn. Same 1,100-stud footprint so they share the
+			-- high-detail silhouette budget; the extra sail is a short hop at helm speed.
+			{
+				Id = "amber_square",
+				Name = "Amber Square",
+				-- Flagship outer-ring plaza: cobblestone square, obelisks, half-timbered
+				-- cottages, a round keep and a lighthouse on the point.
+				Offset = Vector3.new(931, 0, -3477),
+				SizeStuds = 1100,
+				Biome = "highland",
+				Theme = "town",
+				Abandoned = false,
+				Merchant = true,
+				Church = true,
+				Mansions = 1,
+				Lit = true,
+				Lighthouse = true,
+				Docks = 3,
+				River = true,
+				RiverAngle = 0.4,
+				RiverWidth = 260,
+				Villagers = { Passive = 18, Hostile = 3 },
+				Loot = { Weapons = 8, Chests = 6, Armor = 4 },
+			},
+			{
+				Id = "millhaven",
+				Name = "Millhaven",
+				-- A snug fishing hamlet around a cobbled green, drying racks on the
+				-- harbour and a round keep watching the channel.
+				Offset = Vector3.new(3477, 0, -932),
+				SizeStuds = 1100,
+				Biome = "highland",
+				Theme = "fishing_village",
+				Abandoned = false,
+				Merchant = true,
+				Lighthouse = true,
+				Lit = true,
+				Docks = 2,
+				River = true,
+				RiverAngle = 1.15,
+				RiverWidth = 250,
+				Villagers = { Passive = 11, Hostile = 1 },
+				Loot = { Weapons = 6, Chests = 4, Armor = 2 },
+			},
+			{
+				Id = "oak_market",
+				Name = "Oakmarket",
+				-- Forest-framed market square: timber cottages around cobblestones,
+				-- a church on the green, stalls in the heart.
+				Offset = Vector3.new(2546, 0, 2546),
+				SizeStuds = 1100,
+				Biome = "jungle",
+				Theme = "village",
+				Abandoned = false,
+				Merchant = true,
+				Church = true,
+				Lit = true,
+				Docks = 2,
+				River = true,
+				RiverAngle = 2.05,
+				RiverWidth = 270,
+				Villagers = { Passive = 14, Hostile = 2 },
+				Loot = { Weapons = 7, Chests = 5, Armor = 3 },
+			},
+			{
+				Id = "dusk_harbor",
+				Name = "Dusk Harbor",
+				-- Golden-hour harbour town: glowing lattice windows, a round keep, and
+				-- three piers facing the evening sun.
+				Offset = Vector3.new(-931, 0, 3477),
+				SizeStuds = 1100,
+				Biome = "highland",
+				Theme = "town",
+				Abandoned = false,
+				Merchant = true,
+				Church = true,
+				Mansions = 2,
+				Lit = true,
+				Lighthouse = true,
+				Docks = 3,
+				Villagers = { Passive = 16, Hostile = 3 },
+				Loot = { Weapons = 8, Chests = 6, Armor = 4 },
+			},
+			{
+				Id = "harvest_quay",
+				Name = "Harvest Quay",
+				-- Quiet agricultural plaza village on a temperate headland, with a
+				-- well-used quay and a keep on the inland ridge.
+				Offset = Vector3.new(-3477, 0, 932),
+				SizeStuds = 1100,
+				Biome = "highland",
+				Theme = "village",
+				Abandoned = false,
+				Merchant = true,
+				Church = true,
+				Lit = true,
+				Docks = 2,
+				River = true,
+				RiverAngle = 4.1,
+				RiverWidth = 260,
+				Villagers = { Passive = 12, Hostile = 2 },
+				Loot = { Weapons = 6, Chests = 4, Armor = 3 },
+			},
+			{
+				Id = "willow_green",
+				Name = "Willow Green",
+				-- The last landfall on the outer ring: a lantern-lit square under willows
+				-- and pines, obelisks around the cobbles, a church and a round keep.
+				Offset = Vector3.new(-2546, 0, -2546),
+				SizeStuds = 1100,
+				Biome = "highland",
+				Theme = "town",
+				Abandoned = false,
+				Merchant = true,
+				Church = true,
+				Mansions = 1,
+				Lit = true,
+				Lighthouse = true,
+				Docks = 2,
+				River = true,
+				RiverAngle = 5.2,
+				RiverWidth = 255,
+				Villagers = { Passive = 15, Hostile = 2 },
+				Loot = { Weapons = 7, Chests = 5, Armor = 3 },
 			},
 		},
 	},

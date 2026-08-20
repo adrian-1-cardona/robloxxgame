@@ -2511,6 +2511,67 @@ local function endlessEntryForCell(cellX: number, cellZ: number): { [string]: an
 	local jitter = cell * 0.12
 	local centerX = origin.X + (cellX + 0.5) * cell + rng:NextNumber(-jitter, jitter)
 	local centerZ = origin.Z + (cellZ + 0.5) * cell + rng:NextNumber(-jitter, jitter)
+	local roll = rng:NextNumber()
+	local plazaNames = {
+		"Amber Reach",
+		"Millwake",
+		"Oakshoal",
+		"Duskwater",
+		"Harvest Cay",
+		"Willowmere",
+		"Cinder Plaza",
+		"Seagate Green",
+	}
+	local plazaName = plazaNames[rng:NextInteger(1, #plazaNames)]
+
+	-- A slice of the endless ocean is more of the medieval plaza villages from the
+	-- opening ring, so sailing past the handcrafted isles still finds cobbled squares.
+	if roll < 0.32 then
+		local isTown = rng:NextNumber() < 0.55
+		return {
+			Id = id,
+			Name = plazaName,
+			Offset = Vector3.new(centerX - origin.X, 0, centerZ - origin.Z),
+			SizeStuds = rng:NextInteger(cfg.MinSizeStuds, cfg.MaxSizeStuds),
+			Biome = "highland",
+			Theme = if isTown then "town" else "village",
+			Abandoned = false,
+			Merchant = true,
+			Church = true,
+			Lit = true,
+			Lighthouse = rng:NextNumber() < 0.6,
+			Mansions = if isTown then rng:NextInteger(0, 1) else 0,
+			Docks = if isTown then rng:NextInteger(2, 3) else 2,
+			River = true,
+			RiverAngle = rng:NextNumber(0, math.pi * 2),
+			RiverWidth = cfg.RiverWidth,
+			Villagers = {
+				Passive = rng:NextInteger(10, 18),
+				Hostile = rng:NextInteger(1, 4),
+			},
+			Loot = { Weapons = 6, Chests = 4, Armor = 3 },
+		}
+	elseif roll < 0.44 then
+		return {
+			Id = id,
+			Name = plazaName,
+			Offset = Vector3.new(centerX - origin.X, 0, centerZ - origin.Z),
+			SizeStuds = rng:NextInteger(cfg.MinSizeStuds, cfg.MaxSizeStuds),
+			Biome = "highland",
+			Theme = "fishing_village",
+			Abandoned = false,
+			Merchant = true,
+			Lit = true,
+			Lighthouse = true,
+			Docks = 2,
+			River = true,
+			RiverAngle = rng:NextNumber(0, math.pi * 2),
+			RiverWidth = cfg.RiverWidth,
+			Villagers = { Passive = rng:NextInteger(8, 12), Hostile = 0 },
+			Loot = { Weapons = 5, Chests = 3, Armor = 2 },
+		}
+	end
+
 	local volcanic = rng:NextNumber() < 0.34
 	return {
 		Id = id,

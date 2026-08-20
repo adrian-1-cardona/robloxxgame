@@ -40,7 +40,7 @@ local catalogEnd = string.find(config, "\n\t\t},\n\t},", catalogStart, true)
 local catalog = string.sub(config, catalogStart, catalogEnd)
 local _, islandCount = string.gsub(catalog, '\n\t\t\t\tId = "', "")
 
-check("opening catalog contains twelve islands plus the river-spawn hub", islandCount == 13)
+check("opening catalog contains twelve inner-ring islands, six plaza villages, and the river-spawn hub", islandCount == 19)
 check("arrival hub is centered on the crew spawn river", string.find(catalog, 'Id = "arrival_hub"', 1, true) ~= nil
 	and string.find(catalog, "SafeHarbor = true", 1, true) ~= nil
 	and string.find(catalog, "RiverWidth = 440", 1, true) ~= nil)
@@ -121,6 +121,22 @@ check(
 	"towns include a dense harbour-facing building row",
 	string.find(village, "local waterfrontCount =", 1, true) ~= nil
 		and string.find(village, "harborForward", 1, true) ~= nil
+)
+check(
+	"timber villages build a cobblestone plaza with stone obelisks",
+	string.find(village, "buildVillagePlaza(", 1, true) ~= nil
+		and string.find(village, 'Name = "PlazaCobble"', 1, true) ~= nil
+		and string.find(village, 'Name = "ObeliskCap"', 1, true) ~= nil
+)
+check(
+	"timber towns raise a round keep on the village square",
+	string.find(village, "buildRoundKeep(", 1, true) ~= nil
+		and string.find(village, 'Name = "RoundKeep"', 1, true) ~= nil
+)
+check(
+	"outer-ring plaza villages are in the opening catalog",
+	string.find(catalog, 'Id = "amber_square"', 1, true) ~= nil
+		and string.find(catalog, 'Id = "willow_green"', 1, true) ~= nil
 )
 check(
 	"navigable channels meander instead of cutting a straight trench",
