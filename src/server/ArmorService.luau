@@ -130,12 +130,11 @@ function ArmorService.attachPickupPrompt(model: Model)
 		return
 	end
 	local armorId = model:GetAttribute("ArmorId")
-	local def = typeof(armorId) == "string" and Armor.get(armorId)
 
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "ArmorPickupPrompt"
 	prompt.ActionText = "Wear"
-	prompt.ObjectText = if def then def.Name else "Armor"
+	prompt.ObjectText = "Something"
 	prompt.HoldDuration = 0.3
 	prompt.MaxActivationDistance = 10
 	prompt.RequiresLineOfSight = false

@@ -161,7 +161,6 @@ function ArmorToolFactory.createWorldPickup(parent: Instance, armorId: string, c
 	if not def then
 		return nil
 	end
-	local rarity = Armor.rarityInfo(def.Rarity)
 
 	local model = Instance.new("Model")
 	model.Name = "ArmorPickup_" .. armorId
@@ -222,30 +221,21 @@ function ArmorToolFactory.createWorldPickup(parent: Instance, armorId: string, c
 	tag.Font = Enum.Font.GothamBold
 	tag.TextScaled = true
 	tag.TextColor3 = Color3.fromRGB(245, 248, 250)
-	tag.Text = def.Name
+	-- Mystery until worn — name + rarity reveal on pickup.
+	tag.Text = "???"
 	tag.Parent = billboard
 	local corner = Instance.new("UICorner")
 	corner.CornerRadius = UDim.new(0, 6)
 	corner.Parent = tag
 	local stroke = Instance.new("UIStroke")
-	stroke.Color = rarity.Color
+	stroke.Color = Color3.fromRGB(160, 170, 180)
 	stroke.Thickness = 2.5
 	stroke.Parent = tag
-	local tier = Instance.new("TextLabel")
-	tier.Name = "Tier"
-	tier.BackgroundTransparency = 1
-	tier.Size = UDim2.new(1, 0, 0.32, 0)
-	tier.Position = UDim2.fromScale(0, 0.02)
-	tier.Font = Enum.Font.GothamBold
-	tier.TextScaled = true
-	tier.TextColor3 = rarity.Color
-	tier.Text = `{rarity.Name} Armor`
-	tier.Parent = tag
 
 	local glow = Instance.new("PointLight")
-	glow.Color = rarity.Color
-	glow.Brightness = if (def.Rarity or 1) >= 4 then 2.2 else 1.1
-	glow.Range = if (def.Rarity or 1) >= 4 then 16 else 10
+	glow.Color = Color3.fromRGB(200, 210, 220)
+	glow.Brightness = 1.1
+	glow.Range = 10
 	glow.Parent = base
 
 	return model

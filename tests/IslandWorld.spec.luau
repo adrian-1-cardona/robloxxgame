@@ -41,7 +41,7 @@ local catalogEnd = string.find(config, "\n\t\t},\n\t},", catalogStart, true)
 local catalog = string.sub(config, catalogStart, catalogEnd)
 local _, islandCount = string.gsub(catalog, '\n\t\t\t\tId = "', "")
 
-check("opening catalog contains twelve islands plus the river-spawn hub", islandCount == 13)
+check("opening catalog contains twelve inner-ring islands, six plaza villages, and the river-spawn hub", islandCount == 19)
 check("arrival hub is centered on the crew spawn river", string.find(catalog, 'Id = "arrival_hub"', 1, true) ~= nil
 	and string.find(catalog, "SafeHarbor = true", 1, true) ~= nil
 	and string.find(catalog, "RiverWidth = 440", 1, true) ~= nil)
@@ -94,8 +94,11 @@ check(
 )
 check("raft collision has no through-island river exception", string.find(islands, "inNavigableRiver", 1, true) == nil)
 check(
-	"rafts can navigate freely while shoreline collision is disabled",
-	string.find(islands, "return toPos, nil", 1, true) ~= nil
+	"rafts stop on sand/land and cannot drive through islands",
+	string.find(islands, "function IslandService.collideRaft", 1, true) ~= nil
+		and string.find(islands, "segmentHitsSand", 1, true) ~= nil
+		and string.find(islands, "isSandOrLand", 1, true) ~= nil
+		and string.find(islands, '-- All collision disabled', 1, true) == nil
 )
 check(
 	"river towns keep houses on the banks",
@@ -124,6 +127,22 @@ check(
 		and string.find(village, "harborForward", 1, true) ~= nil
 )
 check(
+	"timber villages build a cobblestone plaza with stone obelisks",
+	string.find(village, "buildVillagePlaza(", 1, true) ~= nil
+		and string.find(village, 'Name = "PlazaCobble"', 1, true) ~= nil
+		and string.find(village, 'Name = "ObeliskCap"', 1, true) ~= nil
+)
+check(
+	"timber towns raise a round keep on the village square",
+	string.find(village, "buildRoundKeep(", 1, true) ~= nil
+		and string.find(village, 'Name = "RoundKeep"', 1, true) ~= nil
+)
+check(
+	"outer-ring plaza villages are in the opening catalog",
+	string.find(catalog, 'Id = "amber_square"', 1, true) ~= nil
+		and string.find(catalog, 'Id = "willow_green"', 1, true) ~= nil
+)
+check(
 	"navigable channels meander instead of cutting a straight trench",
 	string.find(shape, "function IslandShape:riverCourse", 1, true) ~= nil
 		and string.find(shape, "meanderAmp", 1, true) ~= nil
@@ -141,6 +160,7 @@ check(
 	string.find(islands, "local function shoreClearance", 1, true) ~= nil
 		and string.find(islands, "shape:coastRadius(math.atan2(dz, dx))", 1, true) ~= nil
 		and string.find(islands, "segmentHitsCircle(fromPos, toPos, isle.center", 1, true) == nil
+		and string.find(islands, "isSandOrLand", 1, true) ~= nil
 )
 check(
 	"the submerged repaint replays the real footprint, not a sand cylinder",

@@ -505,8 +505,8 @@ it("lobby exposes at least one boarding portal", function()
 	assertTrue(Config.PortalCount >= 1, "there must be at least one pier portal")
 end)
 
-it("opening voyage contains the arrival hub and full twelve-island ring", function()
-	assertEquals(#Config.Islands.Catalog, 13, "opening voyage must contain the hub plus twelve destination islands")
+it("opening voyage contains the arrival hub, inner ring, and outer plaza villages", function()
+	assertEquals(#Config.Islands.Catalog, 19, "opening voyage must contain the hub, twelve inner-ring isles, and six outer plaza villages")
 	local first = Config.Islands.Catalog[1]
 	assertEquals(first.Biome, "jungle", "arrival hub must be forested")
 	assertEquals(first.Theme, "town", "arrival hub must contain a populated town")

@@ -152,7 +152,7 @@ function WeaponService.attachPickupPrompt(model: Model)
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "WeaponPickupPrompt"
 	prompt.ActionText = "Take"
-	prompt.ObjectText = if def then def.Name else "Weapon"
+	prompt.ObjectText = "Something"
 	prompt.HoldDuration = 0.3
 	prompt.MaxActivationDistance = Config.Loot.PickupPromptDistance
 	prompt.RequiresLineOfSight = false

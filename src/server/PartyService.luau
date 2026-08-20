@@ -191,6 +191,15 @@ function PartyService.getMemberUserIds(code: string): { number }
 	return party.memberUserIds
 end
 
+-- Voyage day/night origin for a crew (server time when the crew boarded).
+function PartyService.getCycleOrigin(code: string): number?
+	local party = PartyService._partiesByCode[code]
+	if not party then
+		return nil
+	end
+	return party.cycleOrigin
+end
+
 function PartyService.getSnapshotForPlayer(player: Player): PartySnapshot?
 	local code = PartyService._playerToCode[player.UserId]
 	if not code then
