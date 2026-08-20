@@ -50,6 +50,7 @@ PirateService._updateAccumulator = 0
 PirateService._Toast = nil :: RemoteEvent?
 PirateService._getPartyCode = nil :: ((Player) -> string?)?
 PirateService._getMemberUserIds = nil :: ((string) -> { number })?
+PirateService._getCycleOrigin = nil :: ((string) -> number?)?
 PirateService._started = false
 
 -- Configuration
@@ -92,11 +93,31 @@ local function getCrewRaftPosition(code: string): Vector3?
 	return baseModel.PrimaryPart.Position
 end
 
--- Check if it's currently nighttime
-local function isNighttime(): boolean
-	local state = DayNight.getState(Workspace:GetServerTimeNow())
-	-- Only spawn pirates during the Night phase, not during Day or transitions
-	return state.phase == "Night" and state.phaseAlpha > 0.1 -- Wait a bit into night before spawning
+-- Night is per-crew: each voyage starts at 9:00 AM from its own cycleOrigin.
+-- Using absolute server time would desync pirate attacks from the clock the players see.
+local function isNightForCrew(code: string): boolean
+	local origin = if PirateService._getCycleOrigin then PirateService._getCycleOrigin(code) else nil
+	local state = DayNight.getState(Workspace:GetServerTimeNow(), origin)
+	return state.phase == "Night" and state.phaseAlpha > 0.05
+end
+
+local function anyCrewInNight(): boolean
+	for _, code in getActiveCrewCodes() do
+		if isNightForCrew(code) then
+			return true
+		end
+	end
+	return false
+end
+
+local function crewsInNight(): { string }
+	local nightCrews = {}
+	for _, code in getActiveCrewCodes() do
+		if isNightForCrew(code) then
+			table.insert(nightCrews, code)
+		end
+	end
+	return nightCrews
 end
 
 -- Generate a unique ID for ships/pirates
@@ -473,13 +494,34 @@ local function updatePirateSystem(dt: number)
 	local deltaTime = PirateService._updateAccumulator
 	PirateService._updateAccumulator = 0
 	
-	-- Early exit if it's daytime (no pirates should be active)
-	if not isNighttime() then
-		-- Despawn any lingering pirates from previous night
+	-- Despawn ships whose target crew has returned to daytime; keep fighting for night crews.
+	if not anyCrewInNight() then
 		if next(PirateService._ships) then
 			despawnAllPirates()
 		end
 		return
+	end
+
+	-- Drop ships that are still hunting a crew whose voyage day has begun.
+	local dawnTargets = {}
+	for shipId, ship in PirateService._ships do
+		local code = ship.targetCrewCode
+		if code and not isNightForCrew(code) then
+			table.insert(dawnTargets, shipId)
+		end
+	end
+	for _, shipId in dawnTargets do
+		local ship = PirateService._ships[shipId]
+		if ship then
+			print("[PirateService] Despawning ship", shipId, "- target crew reached dawn")
+			for _, pirate in ship.crew do
+				pirate.state = "dead"
+			end
+			pcall(function()
+				PirateShipFactory.destroyShip(ship.model)
+			end)
+			PirateService._ships[shipId] = nil
+		end
 	end
 	
 	-- Performance optimization: Update ships in batches to prevent frame drops
@@ -561,13 +603,13 @@ local function checkPirateSpawning()
 	end
 	PirateService._lastSpawnCheck = now
 	
-	-- Only spawn during nighttime
-	if not isNighttime() then
+	-- Only spawn against crews whose voyage clock is currently night
+	local nightCrews = crewsInNight()
+	if #nightCrews == 0 then
 		return
 	end
 	
-	-- Check each active crew for pirate spawning
-	local activeCrews = getActiveCrewCodes()
+	-- Check each night crew for pirate spawning
 	local totalShips = 0
 	for _ in PirateService._ships do
 		totalShips += 1
@@ -577,7 +619,7 @@ local function checkPirateSpawning()
 		return -- Global ship limit reached
 	end
 	
-	for _, crewCode in activeCrews do
+	for _, crewCode in nightCrews do
 		-- Count ships targeting this crew
 		local shipsTargetingCrew = 0
 		for _, ship in PirateService._ships do
@@ -633,20 +675,29 @@ local function despawnAllPirates()
 	print("[PirateService] All pirates despawned for dawn")
 end
 
--- Monitor day/night transitions
+-- Monitor day/night transitions per active crew voyage clock
 local function monitorDayNight()
-	local lastPhase = nil
+	local lastNightByCode: { [string]: boolean } = {}
 	
 	RunService.Heartbeat:Connect(function()
-		local state = DayNight.getState(Workspace:GetServerTimeNow())
-		if lastPhase and lastPhase ~= state.phase then
-			if state.phase == "Day" then
-				despawnAllPirates()
-			elseif state.phase == "Night" then
-				print("[PirateService] Night has fallen - pirates may spawn")
+		local active = getActiveCrewCodes()
+		local seen: { [string]: boolean } = {}
+		for _, code in active do
+			seen[code] = true
+			local night = isNightForCrew(code)
+			local wasNight = lastNightByCode[code]
+			if wasNight == false and night then
+				print("[PirateService] Night has fallen for crew", code, "- pirates may spawn")
+			elseif wasNight == true and not night then
+				print("[PirateService] Dawn arrived for crew", code)
+			end
+			lastNightByCode[code] = night
+		end
+		for code in lastNightByCode do
+			if not seen[code] then
+				lastNightByCode[code] = nil
 			end
 		end
-		lastPhase = state.phase
 	end)
 end
 
@@ -654,7 +705,8 @@ end
 function PirateService.start(
 	toastRemote: RemoteEvent,
 	getPartyCodeFn: (Player) -> string?,
-	getMemberUserIdsFn: (string) -> { number }
+	getMemberUserIdsFn: (string) -> { number },
+	getCycleOriginFn: ((string) -> number?)?
 )
 	if PirateService._started then
 		return
@@ -664,6 +716,7 @@ function PirateService.start(
 	PirateService._Toast = toastRemote
 	PirateService._getPartyCode = getPartyCodeFn
 	PirateService._getMemberUserIds = getMemberUserIdsFn
+	PirateService._getCycleOrigin = getCycleOriginFn
 	
 	print("[PirateService] Starting pirate system...")
 	
@@ -681,7 +734,7 @@ function PirateService.start(
 	-- Monitor day/night cycle
 	monitorDayNight()
 	
-	print("[PirateService] Pirate system started - ships will spawn at night")
+	print("[PirateService] Pirate system started - ships attack crews during their voyage nights")
 end
 
 function PirateService.getActiveShips(): { [string]: PirateShip }

@@ -411,8 +411,8 @@ function LootPropFactory.spawnFromKind(kind: LootKind, parent: Instance, cf: CFr
 	return LootPropFactory.createCrateWorld(parent, cf, propId)
 end
 
--- Floating name label so loot props are visible from a distance without requiring
--- a hover / proximity prompt activation. Matches the weapon/armor pickup tag style.
+-- Floating mystery tag for world loot. Identity is revealed only on pickup —
+-- until then the prop just reads as salvage so island scavenging stays uncertain.
 function LootPropFactory.attachNameLabel(model: Model)
 	local primary = model.PrimaryPart
 	if not primary then
@@ -426,9 +426,6 @@ function LootPropFactory.attachNameLabel(model: Model)
 	if model:GetAttribute("NoPickup") == true then
 		return
 	end
-
-	local kind = model:GetAttribute("LootKind")
-	local displayName = if typeof(kind) == "string" then kind else model.Name:gsub("Loot", "")
 
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "LootNameTag"
@@ -447,7 +444,7 @@ function LootPropFactory.attachNameLabel(model: Model)
 	label.Font = Enum.Font.GothamBold
 	label.TextScaled = true
 	label.TextColor3 = Color3.fromRGB(230, 220, 190)
-	label.Text = displayName
+	label.Text = "???"
 	label.Parent = billboard
 
 	local corner = Instance.new("UICorner")
@@ -461,7 +458,7 @@ function LootPropFactory.attachNameLabel(model: Model)
 end
 
 function LootPropFactory.attachPickupPrompt(model: Model)
-	-- Attach a floating name label so the item is visible from a distance (like weapons/armor).
+	-- Attach a floating mystery tag; the real name is only shown after pickup.
 	LootPropFactory.attachNameLabel(model)
 
 	-- Some draggable props (the merchant) can never be pocketed into a backpack.
@@ -480,11 +477,7 @@ function LootPropFactory.attachPickupPrompt(model: Model)
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "LootPickupPrompt"
 	prompt.ActionText = "Pick Up"
-	prompt.ObjectText = model.Name:gsub("Loot", ""):gsub("^%s+", "")
-	local kind = model:GetAttribute("LootKind")
-	if typeof(kind) == "string" then
-		prompt.ObjectText = kind
-	end
+	prompt.ObjectText = "Something"
 	prompt.HoldDuration = 0.25
 	prompt.MaxActivationDistance = Config.Loot.PickupPromptDistance
 	prompt.RequiresLineOfSight = false
