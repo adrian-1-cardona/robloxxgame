@@ -87,6 +87,9 @@ end
 local function getMemberUserIds(code: string): { number }
 	return PartyService.getMemberUserIds(code)
 end
+local function getCycleOrigin(code: string): number?
+	return PartyService.getCycleOrigin(code)
+end
 
 -- Raft build hooks must exist before any crew spawns its plank.
 StarterBaseService._onBaseBuilt = function(code, model)
@@ -303,7 +306,7 @@ PortalService.setBoardingReady(true)
 -- Pirates spawn at night on ships to hunt player crews. Must start AFTER all other
 -- services are initialized so it can access party codes and base positions.
 safeStart("PirateService", function()
-	PirateService.start(Toast :: RemoteEvent, getPartyCode, getMemberUserIds)
+	PirateService.start(Toast :: RemoteEvent, getPartyCode, getMemberUserIds, getCycleOrigin)
 end)
 task.spawn(function()
 	while not voyageWorldReady do

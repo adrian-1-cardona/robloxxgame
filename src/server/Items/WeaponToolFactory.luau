@@ -539,8 +539,6 @@ function WeaponToolFactory.createWorldPickup(parent: Instance, weaponId: string,
 		display:Destroy()
 	end
 
-	local rarity = Weapons.rarityInfo(def.Rarity)
-
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "PickupTag"
 	billboard.Size = UDim2.fromOffset(168, 44)
@@ -557,32 +555,23 @@ function WeaponToolFactory.createWorldPickup(parent: Instance, weaponId: string,
 	tag.Font = Enum.Font.GothamBold
 	tag.TextScaled = true
 	tag.TextColor3 = Color3.fromRGB(245, 248, 250)
-	tag.Text = def.Name
+	-- Mystery until pickup — name + rarity reveal when the sailor takes it.
+	tag.Text = "???"
 	tag.Parent = billboard
 	local corner = Instance.new("UICorner")
 	corner.CornerRadius = UDim.new(0, 6)
 	corner.Parent = tag
-	-- Rarity-coloured outline + a small tier label so grey/green/blue/etc. read at a glance.
+	-- Soft outline without naming the tier so identity stays hidden at a glance.
 	local stroke = Instance.new("UIStroke")
-	stroke.Color = rarity.Color
+	stroke.Color = Color3.fromRGB(160, 170, 180)
 	stroke.Thickness = 2.5
 	stroke.Parent = tag
-	local tier = Instance.new("TextLabel")
-	tier.Name = "Tier"
-	tier.BackgroundTransparency = 1
-	tier.Size = UDim2.new(1, 0, 0.32, 0)
-	tier.Position = UDim2.fromScale(0, 0.02)
-	tier.Font = Enum.Font.GothamBold
-	tier.TextScaled = true
-	tier.TextColor3 = rarity.Color
-	tier.Text = rarity.Name
-	tier.Parent = tag
 
-	-- A soft rarity glow on the stand so the drop's tier reads even before you see the tag.
+	-- A soft glow on the stand so the drop still reads as lootable without spoiling it.
 	local glow = Instance.new("PointLight")
-	glow.Color = rarity.Color
-	glow.Brightness = if (def.Rarity or 1) >= 4 then 2.2 else 1.1
-	glow.Range = if (def.Rarity or 1) >= 4 then 16 else 10
+	glow.Color = Color3.fromRGB(200, 210, 220)
+	glow.Brightness = 1.1
+	glow.Range = 10
 	glow.Parent = base
 
 	return model

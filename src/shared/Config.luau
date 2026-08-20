@@ -120,9 +120,9 @@ local Config = {
 		BerthSlots = 4,
 
 		-- Solid-shoreline collision: the complete raft footprint must remain over water.
-		-- The extra hull margin keeps corners and passengers out of terrain even during a
-		-- high-speed, low-frame-rate approach.
-		RaftCollisionPad = 0.001,
+		-- Half the 64-stud deck plus a small hull margin so the raft's edge meets the sand
+		-- beach instead of the center clipping through the coastline at speed.
+		RaftCollisionPad = 36,
 
 		-- Legacy hostile "pirate" tuning — kept for back-compat; hostile villagers reuse it.
 		Pirate = {

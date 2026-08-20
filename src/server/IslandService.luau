@@ -49,8 +49,8 @@ export type IslandRecord = {
 	-- The arrival hub contains the crew spawn channel. It is deliberately excluded
 	-- from the shoreline guard because crews begin inside that sheltered water.
 	safeHarbor: boolean?,
-	-- The island's silhouette (src/shared/IslandShape.luau). Terrain, props and the village
-	-- all read the coastline from here, so they cannot disagree.
+	-- The island's silhouette (src/shared/IslandShape.luau). Terrain, props, the village
+	-- and raft collision all read the coastline from here, so they cannot disagree.
 	shape: any,
 	-- Submerged footprint, replayed after the ocean streamer refills water chunks.
 	submergedPlan: { any }?,
@@ -61,6 +61,12 @@ type CrewIslandState = {
 	locked: boolean,
 	notifiedLock: boolean,
 	notifiedVisit: boolean,
+}
+
+type DockCollider = {
+	cframe: CFrame,
+	size: Vector3,
+	islandName: string,
 }
 
 type NpcRuntime = {
@@ -81,6 +87,9 @@ IslandService._islands = {} :: { IslandRecord }
 IslandService._byId = {} :: { [string]: IslandRecord }
 IslandService._crewState = {} :: { [string]: { [string]: CrewIslandState } }
 IslandService._npcs = {} :: { NpcRuntime }
+-- Helm travel is kinematic (the raft is PivotTo'd), so it does not receive normal
+-- physics contacts. Keep a tiny collision representation for the solid dock decks.
+IslandService._dockColliders = {} :: { DockCollider }
 IslandService._Toast = nil :: RemoteEvent?
 IslandService._getPartyCode = nil :: ((Player) -> string?)?
 IslandService._getMemberUserIds = nil :: ((string) -> { number })?
@@ -1344,6 +1353,11 @@ local function buildDock(
 		Color = DOCK_PLANK,
 		Material = Enum.Material.WoodPlanks,
 	})
+	table.insert(IslandService._dockColliders, {
+		cframe = cf,
+		size = Vector3.new(width, 0.5, length),
+		islandName = (o.islandName :: string?) or "the dock",
+	})
 
 	-- Pilings + short rail posts down both sides.
 	local pileTop = deckY - 0.2
@@ -1397,6 +1411,11 @@ local function buildDock(
 		CFrame = headCf,
 		Color = DOCK_PLANK,
 		Material = Enum.Material.WoodPlanks,
+	})
+	table.insert(IslandService._dockColliders, {
+		cframe = headCf,
+		size = Vector3.new(width + 7, 0.5, 6.5),
+		islandName = (o.islandName :: string?) or "the dock",
 	})
 
 	-- Harbour clutter near the land end: a couple of barrels + a draggable crate.
@@ -2759,11 +2778,141 @@ local function shoreClearance(isle: IslandRecord, x: number, z: number): number
 	return distance - shape:coastRadius(math.atan2(dz, dx))
 end
 
--- Solid shoreline and dock collision. Rafts are watercraft: their complete footprint
--- stays outside every island envelope, without river/channel exceptions that can be
--- abused to cut through land at high speed.
+-- True when this world point sits on dry island ground (beach sand, dunes, jungle, rock).
+-- Lagoons / channels / open sea stay navigable so crews can approach beaches and docks.
+local function isSandOrLand(isle: IslandRecord, x: number, z: number): boolean
+	local shape = isle.shape
+	if not shape then
+		return shoreClearance(isle, x, z) <= 0
+	end
+	local kind = shape:sample(x - isle.center.X, z - isle.center.Z)
+	return kind == "land"
+end
+
+-- The raft moves as a kinematic model, so it needs a cheap 2D swept collision test for
+-- dock decks too. Expand the oriented dock rectangle by the raft's collision padding,
+-- then use a slab intersection against the attempted movement segment.
+local function segmentHitsDock(fromPos: Vector3, toPos: Vector3, dock: DockCollider): boolean
+	local start = dock.cframe:PointToObjectSpace(fromPos)
+	local finish = dock.cframe:PointToObjectSpace(toPos)
+	local delta = finish - start
+	local pad = Config.Islands.RaftCollisionPad
+	local halfX = dock.size.X * 0.5 + pad
+	local halfZ = dock.size.Z * 0.5 + pad
+	local startInside = math.abs(start.X) <= halfX and math.abs(start.Z) <= halfZ
+	local finishInside = math.abs(finish.X) <= halfX and math.abs(finish.Z) <= halfZ
+	-- If a raft is already overlapping the expanded dock volume, permit it to
+	-- leave the dock. Otherwise it could become permanently stuck after contact.
+	if startInside and not finishInside then
+		return false
+	end
+	local enter, exit = 0, 1
+
+	for _, axis in { "X", "Z" } do
+		local origin = if axis == "X" then start.X else start.Z
+		local direction = if axis == "X" then delta.X else delta.Z
+		local half = if axis == "X" then halfX else halfZ
+		if math.abs(direction) < 0.0001 then
+			if math.abs(origin) > half then
+				return false
+			end
+		else
+			local near = (-half - origin) / direction
+			local far = (half - origin) / direction
+			if near > far then
+				near, far = far, near
+			end
+			enter = math.max(enter, near)
+			exit = math.min(exit, far)
+			if enter > exit then
+				return false
+			end
+		end
+	end
+
+	return exit >= 0 and enter <= 1
+end
+
+-- Swept sand/land test. Sample the movement segment so a fast raft cannot skip through
+-- the beach during a slow server frame. Backing off sand is always allowed so a prior
+-- overlap never permanently locks the helm.
+local function segmentHitsSand(fromPos: Vector3, toPos: Vector3, isle: IslandRecord, pad: number): boolean
+	local fromClearance = shoreClearance(isle, fromPos.X, fromPos.Z)
+	local toClearance = shoreClearance(isle, toPos.X, toPos.Z)
+	local fromLand = isSandOrLand(isle, fromPos.X, fromPos.Z)
+	local toLand = isSandOrLand(isle, toPos.X, toPos.Z)
+
+	-- Escape hatch: already on/near sand and moving farther out to sea.
+	if (fromLand or fromClearance <= pad) and toClearance > fromClearance and not toLand then
+		return false
+	end
+
+	-- Only block when sailing toward the island / onto sand.
+	if toClearance >= fromClearance and not toLand then
+		return false
+	end
+
+	local dx, dz = toPos.X - fromPos.X, toPos.Z - fromPos.Z
+	local travel = math.sqrt(dx * dx + dz * dz)
+	if travel < 0.5 then
+		return toLand or toClearance < pad
+	end
+
+	-- Sample every 8 studs; also probe a ring at `pad` so the hull edge, not just the
+	-- raft center, counts as colliding with beach sand.
+	local steps = math.clamp(math.ceil(travel / 8), 1, 64)
+	local angles = { 0, math.pi * 0.5, math.pi, math.pi * 1.5 }
+	for i = 0, steps do
+		local t = i / steps
+		local cx = fromPos.X + dx * t
+		local cz = fromPos.Z + dz * t
+		if isSandOrLand(isle, cx, cz) or shoreClearance(isle, cx, cz) < 0 then
+			return true
+		end
+		if pad > 0.5 then
+			for _, a in angles do
+				local px = cx + math.cos(a) * pad
+				local pz = cz + math.sin(a) * pad
+				if isSandOrLand(isle, px, pz) then
+					return true
+				end
+			end
+		end
+	end
+
+	return false
+end
+
+-- Solid shoreline and dock collision. Rafts are watercraft: sailing into beach sand
+-- (or any dry island ground) runs the hull aground and stops forward progress. Players
+-- still explore islands on foot after hopping off — they just cannot drive through them.
 function IslandService.collideRaft(fromPos: Vector3, toPos: Vector3): (Vector3, string?)
-	-- All collision disabled
+	local pad = Config.Islands.RaftCollisionPad
+	for _, isle in IslandService._islands do
+		-- Safe-harbor berths sit in open water outside the coast. Only skip collision when
+		-- a raft that somehow starts inside the envelope is sailing outward (exit), so it
+		-- cannot get stuck. Approaching / cutting inland still hits the sand normally.
+		if isle.safeHarbor then
+			local clearance = shoreClearance(isle, fromPos.X, fromPos.Z)
+			if clearance <= pad then
+				local fromDist = flatDistance(fromPos, isle.center)
+				local toDist = flatDistance(toPos, isle.center)
+				if toDist >= fromDist then
+					continue
+				end
+			end
+		end
+		if segmentHitsSand(fromPos, toPos, isle, pad) then
+			return fromPos, isle.name
+		end
+	end
+
+	for _, dock in IslandService._dockColliders do
+		if segmentHitsDock(fromPos, toPos, dock) then
+			return fromPos, dock.islandName
+		end
+	end
+
 	return toPos, nil
 end
 
@@ -3090,6 +3239,7 @@ function IslandService.ensure(): Folder
 		table.clear(IslandService._islands)
 		table.clear(IslandService._byId)
 		table.clear(IslandService._npcs)
+		table.clear(IslandService._dockColliders)
 		table.clear(IslandService._endlessQueued)
 	end
 	ensureOpeningPreviews(folder)
